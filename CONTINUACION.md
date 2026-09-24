@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v17** · 23 sep 2026
+> Última actualización: **v18** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v17 |
+| **Versión actual** | v18 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -71,8 +71,23 @@ tools/                                Validadores. Corre bash tools/validate.sh
 | # | Bug | Estado |
 |---|---|---|
 | 1 | **Bici** — historial largo de fallas, ver `docs/03-NO-HAGAS-ESTO.md` §1 | v17 la ancló por completo. **SIN CONFIRMAR por el usuario** |
+| 2 | **Trabajadores invisibles** — contratas Cosechadores/Prensadores y son puros números, no existen físicamente | ⏳ **EN CURSO, es lo siguiente (v19)** |
 
-Fuera de eso no hay bugs reportados sin atender. **Lo que sigue es features nuevas.**
+## 2.1 🔨 El rediseño de producción física (decisiones ya tomadas)
+
+El usuario pidió que la producción deje de ser "mágica". Se acordó esto y **ya no hay
+que volver a preguntarlo**:
+
+| Decisión | Acordado |
+|---|---|
+| Prensar | Solo estando frente a la máquina ✅ hecho en v18 |
+| Caja fuerte | Todo lo producido se guarda ahí, no en el inventario ✅ hecho en v18 |
+| Aduanas | Solo incauta lo que traes CARGANDO ✅ hecho en v18 |
+| Capacidad de carga | Empieza en 80, sube comprando **mochilas** ✅ hecho en v18 |
+| Cosechadores | **Uno por mesa.** 4 mesas = 4 cosechadores. Físicos, se paran en su mesa y cosechan solo las plantas maduras de ESA mesa | ⏳ v19 |
+| Producción offline | **Sí**, los trabajadores producen aunque estés desconectado. Hay que calcular al volver | ⏳ v19 |
+| Cosecha manual | **Sí sigue existiendo**, además de los trabajadores | ✅ ya funciona |
+| Asaltos a la caja | **Sí pueden robar de la caja fuerte** — para eso sirven los guardias y la alerta del celular | ⏳ v19 |
 
 ---
 
@@ -82,6 +97,7 @@ Por orden de valor sugerido:
 
 | Pendiente | Qué implica |
 |---|---|
+| **Trabajadores físicos + offline** | Ver 2.1. Es lo siguiente que toca |
 | **Territorios de crews** | Zonas capturables en la ciudad + guerra entre crews. Es el feature grande que falta del pedido original |
 | **Interiores de propiedades** | Las casas/departamentos que compras hoy son solo fachada. No se puede entrar |
 | **Garaje real** | Un lugar físico donde aparezcan los autos comprados |
@@ -119,6 +135,15 @@ Tiene que salir todo OK. Detalles en `docs/07-VALIDACION.md`.
 ---
 
 ## 5. Cómo se entrega una ronda
+
+> ⚠️ **El usuario pidió que TODO cambio se suba a este repo.** Es su workspace en la nube.
+> Necesitas que te pase un Personal Access Token de GitHub (no se guarda entre sesiones).
+> ```
+> git remote set-url origin https://<TOKEN>@github.com/Agus-12/GAME_ROBLOX_IMPERIO_DE_ESPECIES.git
+> git push origin main
+> git remote set-url origin https://github.com/Agus-12/GAME_ROBLOX_IMPERIO_DE_ESPECIES.git
+> ```
+> Nunca dejes el token en un archivo ni en el config al terminar.
 
 1. Haz los cambios en los `.luau`
 2. `bash tools/validate.sh` → todo verde

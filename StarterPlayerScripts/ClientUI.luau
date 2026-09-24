@@ -16,11 +16,15 @@ local RE_Toast = Remotes:WaitForChild("Toast") :: RemoteEvent
 local RE_Mission = Remotes:WaitForChild("MissionUpdate") :: RemoteEvent
 local RE_OpenUp  = Remotes:WaitForChild("OpenUpgrades") :: RemoteEvent
 local RE_Sfx     = Remotes:WaitForChild("Sfx") :: RemoteEvent
+local RE_OpenVault = Remotes:WaitForChild("OpenVault") :: RemoteEvent
 local RF_Action = Remotes:WaitForChild("Action") :: RemoteFunction
 
 local player = Players.LocalPlayer
 local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, PressLevel = 1,
 	Employees = {Harvester=0,Presser=0,Guard=0}, Vehicles = {}, Properties = {}, Storage = 200}
+
+-- se define mas abajo, junto al panel de la caja fuerte
+local refreshVault: () -> () = function() end
 
 local function act(name: string, a: any?, b: any?)
 	task.spawn(function()
@@ -631,6 +635,22 @@ renderTab = function(tab: string)
 		row("Bicicleta", "Tu transporte inicial. Gratis siempre.", "Spawnear",
 			function() act("spawnBike") end)
 
+		-- MOCHILAS: suben cuanto puedes sacar de la caja fuerte de un viaje
+		local curCap = State.CarryCap or Config.Carry.BaseCapacity
+		label(content, {Size = UDim2.new(1, -8, 0, 22), TextSize = 14,
+			Text = "MOCHILAS  -  actual: " .. (State.BackpackName or "Bolsillos")
+				.. " (" .. curCap .. ")",
+			TextColor3 = Color3.fromRGB(150, 200, 160)})
+		for _, b in ipairs(Config.Carry.Backpacks) do
+			local owned = (State.Backpack == b.Id)
+			local tooSmall = (b.Capacity <= curCap)
+			row(b.Name,
+				string.format("Cargas hasta %d de una vez", b.Capacity),
+				owned and "EN USO" or (tooSmall and "-" or ("$" .. Config.Abbrev(b.Cost))),
+				function() act("buyBackpack", b.Id) end,
+				owned or tooSmall)
+		end
+
 	elseif tab == "negocio" then
 		local plotCost = Config.CostCurve(Config.Plots.BaseCost, Config.Plots.Growth,
 			State.Plots - Config.Plots.StartingPlots)
@@ -744,6 +764,120 @@ end)
 dockBtn("Mejoras", "G", function()
 	shop.Visible = true
 	renderTab("bodega")
+end)
+
+----------------------------------------------------------------------
+-- PANEL DE LA CAJA FUERTE
+----------------------------------------------------------------------
+-- Aqui decides que te llevas y cuanto. Lo que dejes adentro esta a salvo
+-- de la Unidad de Aduanas.
+local VAULT_W, VAULT_H = 460, 330
+local vault = frame(gui, {
+	Size = UDim2.fromOffset(VAULT_W, VAULT_H),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundColor3 = BG1,
+	Visible = false,
+})
+corner(vault, 12)
+stroke(vault, Color3.fromRGB(80, 220, 160), 2)
+fitPanel(vault, VAULT_W, VAULT_H)
+
+label(vault, {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 14, 0, 10),
+	TextSize = 20, Text = "CAJA FUERTE", TextColor3 = Color3.fromRGB(130, 255, 190)})
+
+local vaultClose = button(vault, "X", {
+	Size = UDim2.fromOffset(30, 30), Position = UDim2.new(1, -40, 0, 10),
+	BackgroundColor3 = Color3.fromRGB(70, 40, 45)})
+corner(vaultClose, 8)
+vaultClose.MouseButton1Click:Connect(function() vault.Visible = false end)
+
+local vaultInfo = label(vault, {Size = UDim2.new(1, -28, 0, 20), Position = UDim2.new(0, 14, 0, 40),
+	TextSize = 13, Text = "", TextColor3 = Color3.fromRGB(175, 180, 195)})
+
+-- cuanto mover por operacion
+local vaultAmount = 25
+local amtBtns = {}
+local amtRow = frame(vault, {Size = UDim2.new(1, -28, 0, 30), Position = UDim2.new(0, 14, 0, 64),
+	BackgroundTransparency = 1})
+for i, opt in ipairs({10, 25, 100, -1}) do
+	local txt = (opt == -1) and "TODO" or tostring(opt)
+	local b = button(amtRow, txt, {
+		Size = UDim2.new(0.25, -6, 1, 0),
+		Position = UDim2.new(0.25 * (i - 1), 3, 0, 0),
+		BackgroundColor3 = BG2, TextSize = 14})
+	corner(b, 6)
+	amtBtns[opt] = b
+	b.MouseButton1Click:Connect(function()
+		vaultAmount = opt
+		for o, bb in pairs(amtBtns) do
+			bb.BackgroundColor3 = (o == opt) and Color3.fromRGB(45, 110, 80) or BG2
+		end
+	end)
+end
+amtBtns[25].BackgroundColor3 = Color3.fromRGB(45, 110, 80)
+
+-- una fila por producto
+local function vaultRow(y, title, kind, colr)
+	local row = frame(vault, {Size = UDim2.new(1, -28, 0, 82), Position = UDim2.new(0, 14, 0, y),
+		BackgroundColor3 = BG2})
+	corner(row, 8)
+	local t = label(row, {Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 12, 0, 8),
+		TextSize = 16, Text = title, TextColor3 = colr})
+	local d = label(row, {Size = UDim2.new(1, -20, 0, 18), Position = UDim2.new(0, 12, 0, 28),
+		TextSize = 13, Text = "", TextColor3 = Color3.fromRGB(170, 175, 190)})
+
+	local outBtn = button(row, "SACAR", {
+		Size = UDim2.new(0.44, -8, 0, 26), Position = UDim2.new(0, 12, 0, 50),
+		BackgroundColor3 = Color3.fromRGB(45, 110, 80), TextSize = 14})
+	corner(outBtn, 6)
+	local inBtn = button(row, "GUARDAR", {
+		Size = UDim2.new(0.44, -8, 0, 26), Position = UDim2.new(0.5, 4, 0, 50),
+		BackgroundColor3 = Color3.fromRGB(60, 70, 90), TextSize = 14})
+	corner(inBtn, 6)
+
+	outBtn.MouseButton1Click:Connect(function()
+		local n = vaultAmount
+		if n == -1 then n = 999999 end
+		act("withdraw", kind, n)
+	end)
+	inBtn.MouseButton1Click:Connect(function()
+		local n = vaultAmount
+		if n == -1 then n = 999999 end
+		act("deposit", kind, n)
+	end)
+	return d
+end
+
+local vaultLeafTxt = vaultRow(100, "HOJAS", "leaves", Color3.fromRGB(150, 240, 150))
+local vaultBlockTxt = vaultRow(190, "BLOQUES", "blocks", Color3.fromRGB(240, 220, 150))
+
+label(vault, {Size = UDim2.new(1, -28, 0, 32), Position = UDim2.new(0, 14, 0, 284),
+	TextSize = 12, TextWrapped = true,
+	Text = "Lo que dejes en la caja esta a salvo. Aduanas solo te quita lo que traigas encima.",
+	TextColor3 = Color3.fromRGB(140, 200, 165)})
+
+refreshVault = function()
+	if not vault.Visible or not State then return end
+	local cl, cb = State.CarryLeaves or 0, State.CarryBlocks or 0
+	local used = (State.Leaves or 0) + (State.Blocks or 0)
+	vaultInfo.Text = string.format("Caja %d/%d          Cargas %d/%d  (%s)",
+		used, State.Storage or 0, cl + cb, State.CarryCap or 0,
+		State.BackpackName or "Bolsillos")
+	vaultLeafTxt.Text = string.format("En la caja: %d      Traes: %d", State.Leaves or 0, cl)
+	vaultBlockTxt.Text = string.format("En la caja: %d      Traes: %d", State.Blocks or 0, cb)
+end
+
+RE_OpenVault.OnClientEvent:Connect(function()
+	if vault.Visible then return end
+	vault.Visible = true
+	refreshVault()
+end)
+
+-- boton del dock (va aqui y no arriba porque necesita que 'vault' ya exista)
+dockBtn("Caja", "C", function()
+	vault.Visible = not vault.Visible
+	if vault.Visible then refreshVault() end
 end)
 
 -- El servidor avisa cuando te paras en el tapete del escritorio:
@@ -887,13 +1021,19 @@ RE_State.OnClientEvent:Connect(function(data)
 	cashLbl.Text = cashTxt
 	miniCash.Text = cashTxt
 
-	local used = data.Leaves + data.Blocks * 3
-	invLbl.Text = string.format("Hojas %d  |  Bloques %d  |  Espacio %d/%d",
-		data.Leaves, data.Blocks, used, data.Storage)
+	-- El HUD muestra dos cosas distintas: lo GUARDADO en la caja fuerte y
+	-- lo que traes CARGANDO (que es lo unico que te puede quitar Aduanas).
+	local used = data.Leaves + data.Blocks
+	local cl, cb = data.CarryLeaves or 0, data.CarryBlocks or 0
+	local carrying = cl + cb
+	invLbl.Text = string.format("CAJA  %d hojas / %d bloques  (%d/%d)     CARGAS  %d/%d",
+		data.Leaves, data.Blocks, used, data.Storage, carrying, data.CarryCap or 0)
 
-	chipLeaf.Text = Config.Abbrev(data.Leaves)
-	chipBlock.Text = Config.Abbrev(data.Blocks)
-	chipBag.Text = string.format("%d/%d", used, data.Storage)
+	refreshVault()
+
+	chipLeaf.Text = Config.Abbrev(cl)
+	chipBlock.Text = Config.Abbrev(cb)
+	chipBag.Text = string.format("%d/%d", carrying, data.CarryCap or 0)
 
 	local ratio = data.Heat / Config.Heat.Max
 	heatTxt.Text = string.format("HEAT %d%%", math.floor(ratio * 100))
@@ -919,6 +1059,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		shop.Visible = true
 		renderTab("bodega")
 	elseif k == Enum.KeyCode.R then act("press")
+	elseif k == Enum.KeyCode.C then
+		vault.Visible = not vault.Visible
+		if vault.Visible then refreshVault() end
 	elseif k == Enum.KeyCode.H then act("teleportHome")
 	elseif k == Enum.KeyCode.B then
 		shop.Visible = not shop.Visible

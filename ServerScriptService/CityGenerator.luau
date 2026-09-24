@@ -1590,6 +1590,136 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	safeLight.Range = 16
 	safeLight.Parent = safe
 
+	-- ===== CAJA FUERTE =====
+	-- Aqui se guarda TODO lo que produces. Lo que esta adentro esta a salvo
+	-- de la Unidad de Aduanas; solo te pueden incautar lo que traigas encima.
+	local vaultZ = -D * 0.5 + 26
+	local vaultBody = part({
+		Name = "VaultBody",
+		Size = Vector3.new(10, 11, 6),
+		Position = Vector3.new(safeX, 7.5, vaultZ),
+		Color = Color3.fromRGB(58, 64, 74),
+		Material = Enum.Material.DiamondPlate,
+	})
+	vaultBody.Parent = model
+	makeBillboard(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190), 7)
+
+	-- marco de la puerta
+	local vaultFrame = part({
+		Name = "VaultFrame",
+		Size = Vector3.new(8.4, 9.4, 0.5),
+		Position = Vector3.new(safeX, 7.5, vaultZ - 3.1),
+		Color = Color3.fromRGB(38, 42, 50),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	vaultFrame.Parent = model
+
+	-- puerta redonda
+	local vaultDoor = part({
+		Name = "VaultDoor",
+		Size = Vector3.new(0.7, 7.6, 7.6),
+		Position = Vector3.new(safeX, 7.5, vaultZ - 3.4),
+		Color = Color3.fromRGB(96, 104, 116),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+		Shape = Enum.PartType.Cylinder,
+	})
+	vaultDoor.CFrame = CFrame.new(vaultDoor.Position) * CFrame.Angles(0, math.rad(90), 0)
+	vaultDoor.Parent = model
+
+	-- volante giratorio
+	local wheel = part({
+		Name = "VaultWheel",
+		Size = Vector3.new(0.5, 3.2, 3.2),
+		Position = Vector3.new(safeX, 7.5, vaultZ - 3.9),
+		Color = Color3.fromRGB(190, 160, 70),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+		Shape = Enum.PartType.Cylinder,
+	})
+	wheel.CFrame = CFrame.new(wheel.Position) * CFrame.Angles(0, math.rad(90), 0)
+	wheel.Parent = model
+	for i = 0, 3 do
+		local spoke = part({
+			Name = "VaultSpoke",
+			Size = Vector3.new(0.35, 0.35, 3.6),
+			Position = Vector3.new(safeX, 7.5, vaultZ - 4.0),
+			Color = Color3.fromRGB(210, 180, 90),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		spoke.CFrame = CFrame.new(spoke.Position) * CFrame.Angles(0, 0, math.rad(i * 45))
+		spoke.Parent = model
+	end
+
+	-- bisagras
+	for _, hy in ipairs({10.4, 4.6}) do
+		local hinge = part({
+			Name = "VaultHinge",
+			Size = Vector3.new(1, 1.2, 1.6),
+			Position = Vector3.new(safeX + 4.1, hy, vaultZ - 3.2),
+			Color = Color3.fromRGB(40, 44, 52),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		hinge.Parent = model
+	end
+
+	-- pantallita con el contenido (la llena Main.luau)
+	local vaultScreen = part({
+		Name = "VaultScreen",
+		Size = Vector3.new(4.6, 2.4, 0.12),
+		Position = Vector3.new(safeX, 11.6, vaultZ - 3.15),
+		Color = Color3.fromRGB(12, 20, 16),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+	vaultScreen.Parent = model
+
+	local vsGui = Instance.new("SurfaceGui")
+	vsGui.Name = "ScreenGui"
+	vsGui.Face = Enum.NormalId.Back
+	vsGui.CanvasSize = Vector2.new(300, 160)
+	vsGui.LightInfluence = 0
+	vsGui.AlwaysOnTop = false
+	vsGui.Parent = vaultScreen
+
+	local vsBg = Instance.new("Frame")
+	vsBg.Size = UDim2.fromScale(1, 1)
+	vsBg.BackgroundColor3 = Color3.fromRGB(10, 18, 15)
+	vsBg.BorderSizePixel = 0
+	vsBg.Parent = vsGui
+
+	local vsBody = Instance.new("TextLabel")
+	vsBody.Name = "VaultText"
+	vsBody.Size = UDim2.fromScale(1, 1)
+	vsBody.BackgroundTransparency = 1
+	vsBody.Font = Enum.Font.GothamBold
+	vsBody.TextSize = 26
+	vsBody.TextWrapped = true
+	vsBody.TextColor3 = Color3.fromRGB(130, 255, 190)
+	vsBody.Text = "CAJA FUERTE"
+	vsBody.Parent = vsGui
+
+	-- tapete para pararte enfrente
+	local vaultPad = part({
+		Name = "VaultPad",
+		Size = Vector3.new(9, 0.25, 6),
+		Position = Vector3.new(safeX, 2.25, vaultZ - 7),
+		Color = Color3.fromRGB(80, 220, 160),
+		Material = Enum.Material.Neon,
+		Transparency = 0.45,
+		CanCollide = false,
+	})
+	vaultPad.Parent = model
+
+	local vLight = Instance.new("PointLight")
+	vLight.Color = Color3.fromRGB(120, 255, 190)
+	vLight.Brightness = 0.8
+	vLight.Range = 14
+	vLight.Parent = vaultScreen
+
 	-- sillon y mesa en la zona segura
 	local couch = part({
 		Name = "Couch",

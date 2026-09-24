@@ -18,7 +18,7 @@ local pg = Instance.new("PlayerGui") ; pg.Name="PlayerGui" ; pg.Parent=plr
 game:GetService("Players").LocalPlayer = plr
 local rs = game:GetService("ReplicatedStorage")
 local remotes = Instance.new("Folder") ; remotes.Name="Remotes" ; remotes.Parent=rs
-local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","Sfx","Action"}
+local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Action"}
 for _,n in ipairs(NEEDED) do
   local e=Instance.new(n=="Action" and "RemoteFunction" or "RemoteEvent")
   e.Name=n ; e.OnClientEvent=newSignal() ; e.InvokeServer=function() return {ok=true} end

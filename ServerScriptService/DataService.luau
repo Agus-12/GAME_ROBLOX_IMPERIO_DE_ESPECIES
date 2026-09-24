@@ -19,8 +19,13 @@ local profiles: {[Player]: any} = {}
 local function defaultProfile()
 	return {
 		Cash = Config.StartingCash,
+		-- lo que esta GUARDADO en la caja fuerte de la bodega (a salvo de Aduanas)
 		Leaves = 0,
 		Blocks = 0,
+		-- lo que traes CARGANDO encima (esto si te lo pueden incautar)
+		CarryLeaves = 0,
+		CarryBlocks = 0,
+		Backpack = "",   -- id de la mochila comprada; "" = capacidad base
 		Plots = Config.Plots.StartingPlots,
 		WarehouseTier = 1,
 		PressLevel = Config.Press.StartingLevel,

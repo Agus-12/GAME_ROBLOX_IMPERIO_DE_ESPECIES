@@ -41,6 +41,7 @@ local RE_Toast   = mkEvent("Toast")           -- server -> client, mensajitos
 local RE_Mission = mkEvent("MissionUpdate")    -- server -> client, encargo activo
 local RE_OpenUp  = mkEvent("OpenUpgrades")     -- server -> client, abrir panel de mejoras
 local RE_Sfx     = mkEvent("Sfx")              -- server -> client, efecto de sonido
+local RE_OpenVault = mkEvent("OpenVault")      -- server -> client, abrir la caja fuerte
 local RF_Action  = mkFunc("Action")           -- client -> server, todo lo demas
 
 ----------------------------------------------------------------------
@@ -198,6 +199,42 @@ local function updateWarehouseScreen(player: Player, profile)
 	end
 end
 
+-- ===== CARGA DEL JUGADOR =====
+-- Cuanto puede traer encima (segun la mochila comprada)
+local function carryCap(profile): number
+	local cap = Config.Carry.BaseCapacity
+	for _, b in ipairs(Config.Carry.Backpacks) do
+		if b.Id == profile.Backpack then cap = b.Capacity end
+	end
+	return cap
+end
+
+local function carried(profile): number
+	return (profile.CarryLeaves or 0) + (profile.CarryBlocks or 0)
+end
+
+-- nombre de la mochila actual, para la UI
+local function backpackName(profile): string
+	for _, b in ipairs(Config.Carry.Backpacks) do
+		if b.Id == profile.Backpack then return b.Name end
+	end
+	return "Bolsillos"
+end
+
+-- pantallita de la caja fuerte
+local function updateVaultScreen(player: Player, profile)
+	local model = warehouses[player]
+	if not model then return end
+	local screen = model:FindFirstChild("VaultScreen", true)
+	local gui = screen and screen:FindFirstChild("ScreenGui")
+	local txt = gui and gui:FindFirstChild("VaultText")
+	if not txt then return end
+
+	local used = (profile.Leaves or 0) + (profile.Blocks or 0)
+	txt.Text = string.format("CAJA FUERTE\n%d hojas  |  %d bloques\n%d / %d",
+		profile.Leaves or 0, profile.Blocks or 0, used, storageCap(profile))
+end
+
 local function push(player: Player)
 	local profile = DataService.Get(player)
 	if not profile then return end
@@ -218,10 +255,16 @@ local function push(player: Player)
 		TotalEarned = profile.TotalEarned,
 		Storage = storageCap(profile),
 		WarehouseTier = profile.WarehouseTier or 1,
+		CarryLeaves = profile.CarryLeaves or 0,
+		CarryBlocks = profile.CarryBlocks or 0,
+		CarryCap = carryCap(profile),
+		Backpack = profile.Backpack or "",
+		BackpackName = backpackName(profile),
 		CrewName = crewName,
 		Wanted = profile.Heat >= Config.Heat.ArrestThreshold,
 	})
 	pcall(updateWarehouseScreen, player, profile)
+	pcall(updateVaultScreen, player, profile)
 end
 
 local function toast(player: Player, text: string, kind: string?)
@@ -664,20 +707,23 @@ local function doSell(player: Player, buyerId: string)
 		return false, "Estas muy lejos del comprador"
 	end
 
-	if profile.Leaves <= 0 and profile.Blocks <= 0 then
-		return false, "No traes nada que vender"
+	-- Se vende lo que traes CARGANDO, no lo que tienes guardado en la caja.
+	local cl = profile.CarryLeaves or 0
+	local cb = profile.CarryBlocks or 0
+	if cl <= 0 and cb <= 0 then
+		return false, "No traes nada encima. Saca producto de tu caja fuerte"
 	end
 
-	local leafValue = profile.Leaves * Config.Products.Leaf.BasePrice * buyer.PriceMult
-	local blockValue = profile.Blocks * Config.Products.Block.BasePrice * buyer.PriceMult
+	local leafValue = cl * Config.Products.Leaf.BasePrice * buyer.PriceMult
+	local blockValue = cb * Config.Products.Block.BasePrice * buyer.PriceMult
 	local total = math.floor(leafValue + blockValue)
 
-	local heatGain = (profile.Leaves * Config.Heat.PerLeafSold
-		+ profile.Blocks * Config.Heat.PerBlockSold) * buyer.HeatMult
+	local heatGain = (cl * Config.Heat.PerLeafSold
+		+ cb * Config.Heat.PerBlockSold) * buyer.HeatMult
 
-	local soldL, soldB = profile.Leaves, profile.Blocks
-	profile.Leaves = 0
-	profile.Blocks = 0
+	local soldL, soldB = cl, cb
+	profile.CarryLeaves = 0
+	profile.CarryBlocks = 0
 
 	-- bono si esta venta completa un encargo
 	local bonus = checkMissionOnSell and checkMissionOnSell(player, buyerId, soldL, soldB) or 0
@@ -707,13 +753,15 @@ local function arrest(player: Player)
 
 	sfx(player, "Arrest")
 
+	-- Solo te pueden quitar lo que traes ENCIMA. Lo que esta guardado en la
+	-- caja fuerte de la bodega no lo tocan: para eso existe la caja.
 	local fine = math.floor(profile.Cash * Config.Heat.FineRate)
-	local lostL = math.floor(profile.Leaves * Config.Heat.ConfiscatePercent)
-	local lostB = math.floor(profile.Blocks * Config.Heat.ConfiscatePercent)
+	local lostL = math.floor((profile.CarryLeaves or 0) * Config.Heat.ConfiscatePercent)
+	local lostB = math.floor((profile.CarryBlocks or 0) * Config.Heat.ConfiscatePercent)
 
 	profile.Cash -= fine
-	profile.Leaves -= lostL
-	profile.Blocks -= lostB
+	profile.CarryLeaves = (profile.CarryLeaves or 0) - lostL
+	profile.CarryBlocks = (profile.CarryBlocks or 0) - lostB
 	profile.Heat = 0
 
 	local station = city:FindFirstChild("CustomsStation")
@@ -1762,6 +1810,100 @@ function spawnBike(player: Player)
 	return true, "Tu bicicleta esta afuera de la bodega"
 end
 
+----------------------------------------------------------------------
+-- CAJA FUERTE
+----------------------------------------------------------------------
+-- Todo lo que produces vive aqui. Para vender tienes que venir por ello.
+-- Lo que esta adentro esta a salvo de Aduanas.
+
+local function nearVault(player: Player): boolean
+	local wh = warehouses[player]
+	local vault = wh and wh:FindFirstChild("VaultBody", true)
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not (vault and hrp) then return false end
+	return (hrp.Position - vault.Position).Magnitude <= Config.Carry.VaultRadius
+end
+
+-- saca producto de la caja y te lo echas encima
+local function vaultWithdraw(player: Player, kind: string, amount: number)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if not nearVault(player) then return false, "Acercate a tu caja fuerte" end
+
+	amount = math.max(0, math.floor(tonumber(amount) or 0))
+	if amount <= 0 then return false, "Cantidad invalida" end
+
+	local field = (kind == "blocks") and "Blocks" or "Leaves"
+	local carryField = (kind == "blocks") and "CarryBlocks" or "CarryLeaves"
+	local nice = (kind == "blocks") and "bloques" or "hojas"
+
+	local have = profile[field] or 0
+	if have <= 0 then return false, "No tienes " .. nice .. " en la caja" end
+
+	-- no puedes sacar mas de lo que hay ni mas de lo que te cabe
+	local space = carryCap(profile) - carried(profile)
+	if space <= 0 then return false, "Ya vas lleno. Compra una mochila mas grande" end
+
+	local take = math.min(amount, have, space)
+	profile[field] = have - take
+	profile[carryField] = (profile[carryField] or 0) + take
+
+	push(player)
+	return true, string.format("Sacaste %d %s", take, nice)
+end
+
+-- guarda en la caja lo que traes encima
+local function vaultDeposit(player: Player, kind: string, amount: number)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if not nearVault(player) then return false, "Acercate a tu caja fuerte" end
+
+	amount = math.max(0, math.floor(tonumber(amount) or 0))
+	if amount <= 0 then return false, "Cantidad invalida" end
+
+	local field = (kind == "blocks") and "Blocks" or "Leaves"
+	local carryField = (kind == "blocks") and "CarryBlocks" or "CarryLeaves"
+	local nice = (kind == "blocks") and "bloques" or "hojas"
+
+	local have = profile[carryField] or 0
+	if have <= 0 then return false, "No traes " .. nice .. " encima" end
+
+	local space = storageCap(profile) - ((profile.Leaves or 0) + (profile.Blocks or 0))
+	if space <= 0 then return false, "Tu caja esta llena. Mejora la bodega" end
+
+	local put = math.min(amount, have, space)
+	profile[carryField] = have - put
+	profile[field] = (profile[field] or 0) + put
+
+	push(player)
+	return true, string.format("Guardaste %d %s", put, nice)
+end
+
+local function buyBackpack(player: Player, id: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.Backpack == id then return false, "Ya tienes esa mochila" end
+
+	for i, b in ipairs(Config.Carry.Backpacks) do
+		if b.Id == id then
+			-- no dejar comprar una mas chica que la que ya traes
+			local curCap = carryCap(profile)
+			if b.Capacity <= curCap then
+				return false, "Ya tienes una mas grande"
+			end
+			if profile.Cash < b.Cost then
+				return false, "Te faltan $" .. Config.Abbrev(b.Cost - profile.Cash)
+			end
+			profile.Cash -= b.Cost
+			profile.Backpack = id
+			push(player); syncLeaderstats(player)
+			return true, "Compraste: " .. b.Name .. " (cargas " .. b.Capacity .. ")"
+		end
+	end
+	return false, "mochila invalida"
+end
+
 local function buyVehicle(player: Player, id: string)
 	local profile = DataService.Get(player)
 	if not profile then return false, "sin perfil" end
@@ -1895,6 +2037,9 @@ RF_Action.OnServerInvoke = function(player: Player, action: string, arg1: any, a
 	elseif action == "spawnVehicle" then ok, msg = spawnVehicle(player, tostring(arg1))
 	elseif action == "upgradeWarehouse" then ok, msg = upgradeWarehouse(player)
 	elseif action == "spawnBike" then ok, msg = spawnBike(player)
+	elseif action == "withdraw" then ok, msg = vaultWithdraw(player, arg1, arg2)
+	elseif action == "deposit" then ok, msg = vaultDeposit(player, arg1, arg2)
+	elseif action == "buyBackpack" then ok, msg = buyBackpack(player, arg1)
 	elseif action == "answerCall" then ok, msg = answerCall(player, arg1 == true)
 	elseif action == "hangUp" then hangUp(player); ok, msg = true, "Colgaste"
 	elseif action == "createCrew" then ok, msg = createCrew(player, tostring(arg1))
@@ -1932,6 +2077,9 @@ RF_Action.OnServerInvoke = function(player: Player, action: string, arg1: any, a
 			hire = "Buy",
 			buyVehicle = "Buy",
 			buyProperty = "Buy",
+			buyBackpack = "Buy",
+			withdraw = "Buy",
+			deposit = "Buy",
 		}
 		local key = SFX_BY_ACTION[action]
 		if key then sfx(player, key) end
@@ -1960,6 +2108,7 @@ end)
 -- Usa histeresis (5 para entrar, 9 para salir) para que no parpadee
 -- cuando te quedas justo en la orilla.
 local onPad: {[Player]: boolean} = {}
+local onVaultPad: {[Player]: boolean} = {}
 
 task.spawn(function()
 	while true do
@@ -1969,6 +2118,7 @@ task.spawn(function()
 			local char = pl.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart")
 			local pad = model and model:FindFirstChild("UpgradePad", true)
+			local vpad = model and model:FindFirstChild("VaultPad", true)
 
 			if hrp and pad then
 				local d = (hrp.Position - pad.Position).Magnitude
@@ -1981,12 +2131,26 @@ task.spawn(function()
 			else
 				onPad[pl] = nil
 			end
+
+			-- mismo truco para el tapete de la caja fuerte
+			if hrp and vpad then
+				local d = (hrp.Position - vpad.Position).Magnitude
+				if d < 6 and not onVaultPad[pl] then
+					onVaultPad[pl] = true
+					RE_OpenVault:FireClient(pl)
+				elseif d > 10 and onVaultPad[pl] then
+					onVaultPad[pl] = false
+				end
+			else
+				onVaultPad[pl] = nil
+			end
 		end
 	end
 end)
 
 Players.PlayerRemoving:Connect(function(pl)
 	onPad[pl] = nil
+	onVaultPad[pl] = nil
 end)
 
 print("[SpiceEmpire] Servidor listo.")

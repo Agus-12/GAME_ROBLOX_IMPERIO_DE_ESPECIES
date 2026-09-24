@@ -13,6 +13,15 @@ Perillas para cambiar cosas sin rediseñar nada.
 | Desactivar la policía | `GameConfig.Agents` | `Enabled = false` |
 | Desactivar la bici inicial | `GameConfig.StarterBike` | `Enabled = false` |
 
+## Carga y caja fuerte
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Que carguen más sin mochila | `GameConfig.Carry` | `BaseCapacity = 80` |
+| Usar la caja desde más lejos | `GameConfig.Carry` | `VaultRadius = 16` |
+| Mochilas más baratas | `GameConfig.Carry.Backpacks` | baja los `Cost` |
+| Prensar desde más lejos | `GameConfig.Press` | `UseRadius = 14` |
+
 ## Visual
 
 | Quiero… | Dónde | Cómo |

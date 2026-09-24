@@ -28,18 +28,22 @@ Action:InvokeServer(action, arg1, arg2)  -->  { ok = boolean, msg = string }
 | `hangUp` | — | Cuelga |
 | `createCrew` / `joinCrew` / `leaveCrew` | nombre | Crews |
 | `teleportHome` | — | Te lleva a tu bodega |
+| `withdraw` | `"leaves"`\|`"blocks"`, cantidad | Saca de la caja fuerte a tu carga |
+| `deposit` | `"leaves"`\|`"blocks"`, cantidad | Guarda tu carga en la caja fuerte |
+| `buyBackpack` | id | Compra mochila (sube capacidad de carga) |
 
 ### RemoteEvents (servidor → cliente)
 
 | Evento | Carga |
 |---|---|
-| `StateUpdate` | `{Cash, Leaves, Blocks, Plots, PressLevel, Employees, Vehicles, Properties, Heat, TotalEarned, Storage, WarehouseTier, CrewName, Wanted}` |
+| `StateUpdate` | `{Cash, Leaves, Blocks, CarryLeaves, CarryBlocks, CarryCap, Backpack, BackpackName, Plots, PressLevel, Employees, Vehicles, Properties, Heat, TotalEarned, Storage, WarehouseTier, CrewName, Wanted}` · **`Leaves`/`Blocks` = lo GUARDADO en la caja; `Carry*` = lo que trae encima** |
 | `PhoneAlert` | `{Title, Body, Kind, Time}` · Kind = `info`\|`danger`\|`good`\|`money` |
 | `Toast` | `(text, kind)` |
 | `MissionUpdate` | `nil` o `{Title, Text, BuyerName, Item, Amount, Reward, EndsAt}` · EndsAt es `os.time()` absoluto |
 | `IncomingCall` | `nil` o `{Caller, Line, Title, Text, BuyerName, Item, Amount, Reward, Seconds}` |
 | `OpenUpgrades` | — · se dispara al pisar el tapete del escritorio (v15) |
 | `Sfx` | `(key)` · nombre del sonido en `Config.Sounds` (v16) |
+| `OpenVault` | — · se dispara al pisar el tapete de la caja fuerte (v18) |
 
 ---
 
@@ -99,6 +103,9 @@ Attrs del Model: `PlotIndex`, `Ripe`, `Growth`, `PlantedAt`. 6 macetas por mesa,
 cada hoja con folder hijo `Ribs` cuyas `GateRib` llevan `OffX`/`OffY`/`OffZ`.
 También `GateSensor`, `GateFrame`, `GateLamp`, `FrontWall`.
 
+**Caja fuerte** — `VaultBody`, `VaultFrame`, `VaultDoor`, `VaultWheel`, `VaultSpoke`,
+`VaultHinge`, `VaultScreen` (SurfaceGui → `VaultText`), `VaultPad`. Va en la zona segura.
+
 **Escritorio** — `UpgradePad`, `Desk`, `DeskLeg`, `PCTower`, `PCLed`, `MonitorStand`,
 `MonitorPost`, `MonitorBody`, `UpgradeScreen` (SurfaceGui → `ScreenTitle`/`ScreenBody`),
 `DeskChair`, `ChairBack`, `DeskRug`.
@@ -132,13 +139,26 @@ Helpers: `frame` / `label` / `button` / `corner` / `stroke`.
   (evita el joystick abajo-izquierda y el salto abajo-derecha). Botones 106×46, sin `[tecla]`
 - Desktop: barra horizontal 660×56 abajo-centro, botones 100×38, con `[tecla]`
 
-**7 botones:** Cosechar E · Prensar R · Vender F · Tienda B · Teléfono T · Bodega H · Mejoras G
+**8 botones:** Cosechar E · Prensar R · Vender F · Tienda B · Teléfono T · Bodega H ·
+Mejoras G · **Caja C**
 
 **Paneles:** `shop` 620×460 · `phone` 300×440 · `missionPanel` 300×86 · `dialog` 520×92
 · `callGui` 290×330 + `callShadow`
 
 **Controles de teclado:** E cosechar · R prensar · F vender · G mejoras · B tienda ·
-T teléfono · H bodega · **M minimizar HUD** (único sin botón en el dock)
+T teléfono · H bodega · **C caja fuerte** · **M minimizar HUD** (único sin botón en el dock)
+
+## Economía de dos bolsas (v18)
+
+| Dónde | Campo del perfil | ¿Aduanas lo puede quitar? |
+|---|---|---|
+| Caja fuerte de la bodega | `Leaves` / `Blocks` | ❌ No |
+| Encima del jugador | `CarryLeaves` / `CarryBlocks` | ✅ Sí |
+
+- Cosechar y prensar depositan en la **caja**
+- Vender consume lo **cargado**
+- `carryCap(profile)` = `Config.Carry.BaseCapacity` o la capacidad de la mochila comprada
+- `storageCap(profile)` = límite de la caja (sube con el nivel de bodega y propiedades)
 
 ---
 

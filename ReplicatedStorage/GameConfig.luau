@@ -66,6 +66,23 @@ GameConfig.Press = {
 	UseRadius = 14,
 }
 
+-- ========== CARGA DEL JUGADOR / MOCHILAS ==========
+-- Lo que produces se guarda en la CAJA FUERTE de la bodega, no en tu
+-- inventario. Para vender tienes que ir a la caja y sacar producto.
+-- Aduanas solo te puede incautar lo que traigas cargando.
+GameConfig.Carry = {
+	BaseCapacity = 80,      -- cuanto cargas sin mochila
+	VaultRadius = 16,       -- que tan cerca de la caja para poder usarla
+
+	-- Se compran en la tienda, pestana Bodega. Cada una reemplaza a la anterior.
+	Backpacks = {
+		{Id = "morral",  Name = "Morral",           Cost = 2500,   Capacity = 180},
+		{Id = "duffel",  Name = "Maleta de lona",   Cost = 12000,  Capacity = 400},
+		{Id = "carrito", Name = "Diablito de carga", Cost = 55000,  Capacity = 900},
+		{Id = "contene", Name = "Contenedor rodante", Cost = 250000, Capacity = 2000},
+	},
+}
+
 -- ========== NIVELES DE BODEGA ==========
 -- Empiezas en un garage cochambroso y terminas en una mega procesadora.
 GameConfig.WarehouseTiers = {
