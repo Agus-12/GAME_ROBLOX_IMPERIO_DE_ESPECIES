@@ -366,7 +366,7 @@ GameConfig.Properties = {
 }
 GameConfig.PropertyPayoutInterval = 60
 
-GameConfig.BaseStorage = 450
+GameConfig.BaseStorage = 200
 
 -- ========== HELPERS ==========
 function GameConfig.CostCurve(base: number, growth: number, owned: number): number
@@ -405,10 +405,11 @@ GameConfig.Sounds = {
 	Upgrade = { Id = "rbxassetid://9113704038", Volume = 0.70, Pitch = 1.00 },
 	-- no se pudo: el mismo clic pero grave
 	Error   = { Id = "rbxassetid://12221967",   Volume = 0.45, Pitch = 0.55 },
+	-- voz de los NPC: un blip corto que suena por letra mientras escriben.
+	-- Con el tono aleatorio suena a "guiri guiri guiri" sin decir nada.
+	Talk    = { Id = "rbxassetid://16480579431", Volume = 0.28, Pitch = 1.00 },
 	-- te agarro Aduanas: esposas
 	Arrest  = { Id = "rbxassetid://9114764731", Volume = 0.80, Pitch = 1.00 },
-	-- blip que suena letra por letra cuando un NPC te habla ("guiri guiri")
-	Blip    = { Id = "rbxassetid://16480580213", Volume = 0.22, Pitch = 1.40 },
 }
 
 return GameConfig

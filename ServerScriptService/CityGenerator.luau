@@ -1440,53 +1440,29 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 	-- ===== ZONA DE PRENSA =====
 	local pressX = -W * 0.5 + 22
-	local pressZ = -D * 0.5 + 20
-	-- Tapete de taller: hule gris oscuro, no un piso neon amarillo.
+	-- Tapete de hule de taller. Antes esto era un cuadro de neon naranja
+	-- que se veia horrible y encandilaba toda la zona de la prensa.
 	local press = part({
 		Name = "PressPad",
-		Size = Vector3.new(16, 0.16, 16),
-		Position = Vector3.new(pressX, 2.1, pressZ),
-		Color = Color3.fromRGB(44, 46, 52),
+		Size = Vector3.new(16, 0.14, 16),
+		Position = Vector3.new(pressX, 2.07, -D * 0.5 + 20),
+		Color = Color3.fromRGB(38, 40, 44),
 		Material = Enum.Material.Pebble,
 		CanCollide = false,
 	})
-	press.Parent = model
-
-	-- franjas de peligro amarillas y negras en la orilla, como en un taller
-	for _, side in ipairs({-1, 1}) do
+	-- franjas de peligro amarillas en la orilla, como en los talleres
+	for _, sx in ipairs({-1, 1}) do
 		local edge = part({
-			Name = "PressEdge",
-			Size = Vector3.new(16.6, 0.18, 1.1),
-			Position = Vector3.new(pressX, 2.1, pressZ + side * 8.2),
-			Color = Color3.fromRGB(226, 182, 48),
-			Material = Enum.Material.SmoothPlastic,
+			Name = "PressPadEdge",
+			Size = Vector3.new(0.9, 0.16, 16),
+			Position = Vector3.new(pressX + sx * 7.5, 2.08, -D * 0.5 + 20),
+			Color = Color3.fromRGB(196, 158, 44),
+			Material = Enum.Material.Pebble,
 			CanCollide = false,
 		})
 		edge.Parent = model
-		local edge2 = part({
-			Name = "PressEdge",
-			Size = Vector3.new(1.1, 0.18, 16.6),
-			Position = Vector3.new(pressX + side * 8.2, 2.1, pressZ),
-			Color = Color3.fromRGB(226, 182, 48),
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = false,
-		})
-		edge2.Parent = model
 	end
-	-- rayitas negras encima de las franjas
-	for i = -7, 7, 2 do
-		for _, side in ipairs({-1, 1}) do
-			local d = part({
-				Name = "PressStripe",
-				Size = Vector3.new(0.9, 0.2, 1.15),
-				Position = Vector3.new(pressX + i, 2.11, pressZ + side * 8.2),
-				Color = Color3.fromRGB(30, 30, 34),
-				Material = Enum.Material.SmoothPlastic,
-				CanCollide = false,
-			})
-			d.Parent = model
-		end
-	end
+	press.Parent = model
 	makeBillboard(press, "PRENSA [R]", Color3.fromRGB(255, 170, 110), 11)
 
 	-- ===== MAQUINA DE PRENSA (industrial, no un cubo) =====
@@ -1575,9 +1551,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		Color = Color3.fromRGB(196, 150, 60),
 		Material = Enum.Material.Metal,
 	})
-	-- Altura de reposo guardada de una vez. Main la usa para regresar el
-	-- piston SIEMPRE al mismo lugar; si la leyera en vivo y prensas dos
-	-- veces seguidas, leeria la posicion de abajo y el piston se atora.
+	-- Altura de reposo. Main la usa para regresar el piston SIEMPRE al
+	-- mismo sitio; antes leia la posicion actual y si prensabas dos veces
+	-- seguidas se quedaba hundido para siempre.
 	piston:SetAttribute("HomeY", 9.2)
 	piston.Parent = model
 
@@ -1631,7 +1607,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		CanCollide = false,
 	})
 	safe.Parent = model
-	makeBillboard(safe, "ZONA SEGURA - escondete aqui para bajar tu HEAT",
+	-- El letrero explica para que sirve: nadie adivinaba que pararse aqui
+	-- enfria el Heat mas rapido.
+	makeBillboard(safe, "ZONA SEGURA - escondete aqui para bajar el HEAT",
 		Color3.fromRGB(130, 255, 190), 8)
 
 	local safeLight = Instance.new("PointLight")
@@ -1641,37 +1619,39 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	safeLight.Parent = safe
 
 	-- ===== CAJA FUERTE =====
-	-- Va PEGADA A LA PARED DEL FONDO, al lado del escritorio de mejoras,
-	-- que es donde esta el "centro de operaciones" de la bodega.
-	-- La puerta mira hacia adentro del cuarto (+Z).
+	-- Aqui se guarda TODO lo que produces. Lo que esta adentro esta a salvo
+	-- de la Unidad de Aduanas; solo te pueden incautar lo que traigas encima.
+	-- Pegada a la pared del fondo, al lado del escritorio con la computadora.
+	-- (Antes estaba suelta a medio cuarto y se veia rara.)
 	local vaultX = 17
-	local vaultZ = -D * 0.5 + 4.5
-	local vaultFront = vaultZ + 3.2     -- cara de la puerta
-
+	local vaultZ = -D * 0.5 + 3.6
 	local vaultBody = part({
 		Name = "VaultBody",
-		Size = Vector3.new(11, 12, 6),
-		Position = Vector3.new(vaultX, 8, vaultZ),
+		Size = Vector3.new(10, 11, 6),
+		Position = Vector3.new(vaultX, 7.5, vaultZ),
 		Color = Color3.fromRGB(58, 64, 74),
 		Material = Enum.Material.DiamondPlate,
 	})
 	vaultBody.Parent = model
-	makeBillboard(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190), 8)
+	makeBillboard(vaultBody, "CAJA FUERTE [C] - aqui no te la quita Aduanas",
+		Color3.fromRGB(130, 255, 190), 7)
 
+	-- marco de la puerta
 	local vaultFrame = part({
 		Name = "VaultFrame",
-		Size = Vector3.new(9.2, 10.2, 0.5),
-		Position = Vector3.new(vaultX, 8, vaultFront),
+		Size = Vector3.new(8.4, 9.4, 0.5),
+		Position = Vector3.new(vaultX, 7.5, vaultZ + 3.1),
 		Color = Color3.fromRGB(38, 42, 50),
 		Material = Enum.Material.Metal,
 		CanCollide = false,
 	})
 	vaultFrame.Parent = model
 
+	-- puerta redonda
 	local vaultDoor = part({
 		Name = "VaultDoor",
-		Size = Vector3.new(0.8, 8.2, 8.2),
-		Position = Vector3.new(vaultX, 8, vaultFront + 0.35),
+		Size = Vector3.new(0.7, 7.6, 7.6),
+		Position = Vector3.new(vaultX, 7.5, vaultZ + 3.4),
 		Color = Color3.fromRGB(96, 104, 116),
 		Material = Enum.Material.Metal,
 		CanCollide = false,
@@ -1680,10 +1660,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	vaultDoor.CFrame = CFrame.new(vaultDoor.Position) * CFrame.Angles(0, math.rad(90), 0)
 	vaultDoor.Parent = model
 
+	-- volante giratorio
 	local wheel = part({
 		Name = "VaultWheel",
-		Size = Vector3.new(0.5, 3.4, 3.4),
-		Position = Vector3.new(vaultX, 8, vaultFront + 0.85),
+		Size = Vector3.new(0.5, 3.2, 3.2),
+		Position = Vector3.new(vaultX, 7.5, vaultZ + 3.9),
 		Color = Color3.fromRGB(190, 160, 70),
 		Material = Enum.Material.Metal,
 		CanCollide = false,
@@ -1694,8 +1675,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	for i = 0, 3 do
 		local spoke = part({
 			Name = "VaultSpoke",
-			Size = Vector3.new(0.35, 0.35, 3.8),
-			Position = Vector3.new(vaultX, 8, vaultFront + 0.95),
+			Size = Vector3.new(0.35, 0.35, 3.6),
+			Position = Vector3.new(vaultX, 7.5, vaultZ + 4.0),
 			Color = Color3.fromRGB(210, 180, 90),
 			Material = Enum.Material.Metal,
 			CanCollide = false,
@@ -1704,11 +1685,12 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		spoke.Parent = model
 	end
 
-	for _, hy in ipairs({11.2, 4.8}) do
+	-- bisagras
+	for _, hy in ipairs({10.4, 4.6}) do
 		local hinge = part({
 			Name = "VaultHinge",
 			Size = Vector3.new(1, 1.2, 1.6),
-			Position = Vector3.new(vaultX - 4.5, hy, vaultFront),
+			Position = Vector3.new(vaultX + 4.1, hy, vaultZ + 3.2),
 			Color = Color3.fromRGB(40, 44, 52),
 			Material = Enum.Material.Metal,
 			CanCollide = false,
@@ -1716,10 +1698,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		hinge.Parent = model
 	end
 
+	-- pantallita con el contenido (la llena Main.luau)
 	local vaultScreen = part({
 		Name = "VaultScreen",
-		Size = Vector3.new(5, 2.6, 0.12),
-		Position = Vector3.new(vaultX, 12.8, vaultFront + 0.1),
+		Size = Vector3.new(4.6, 2.4, 0.12),
+		Position = Vector3.new(vaultX, 11.6, vaultZ + 3.15),
 		Color = Color3.fromRGB(12, 20, 16),
 		Material = Enum.Material.Neon,
 		CanCollide = false,
@@ -1751,13 +1734,14 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	vsBody.Text = "CAJA FUERTE"
 	vsBody.Parent = vsGui
 
+	-- tapete para pararte enfrente
 	local vaultPad = part({
 		Name = "VaultPad",
-		Size = Vector3.new(10, 0.2, 6),
-		Position = Vector3.new(vaultX, 2.1, vaultFront + 4),
+		Size = Vector3.new(9, 0.25, 6),
+		Position = Vector3.new(vaultX, 2.25, vaultZ + 7),
 		Color = Color3.fromRGB(80, 220, 160),
 		Material = Enum.Material.Neon,
-		Transparency = 0.55,
+		Transparency = 0.45,
 		CanCollide = false,
 	})
 	vaultPad.Parent = model
@@ -2334,11 +2318,12 @@ end
 function CityGenerator.MakeWorker(parent: Instance, pos: Vector3, facing: Vector3?, tag: string?): Model
 	local info = {Id = tag or "Worker", Name = tag or "Trabajador"}
 	local npc = makeBuyerNPC(parent, pos, info, facing, "worker")
-	-- Son TUS empleados, no comercian: quitarles el tag de comprador para
-	-- que no salga el dialogo de "tienes mercancia / presiona F para vender".
+	-- Tus empleados NO son compradores: sin esto el cliente les sacaba el
+	-- globo de dialogo de "tienes mercancia?" y el "presiona F para vender".
 	CollectionService:RemoveTag(npc, "BuyerNPC")
 	npc:SetAttribute("BuyerId", nil)
-	npc.Name = "Worker_" .. (tag or "Worker")
+	npc:SetAttribute("Worker", true)
+	npc.Name = "Worker_" .. (tag or "X")
 	return npc
 end
 

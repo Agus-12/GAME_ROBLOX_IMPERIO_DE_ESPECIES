@@ -1,4 +1,4 @@
-# 🧹 v20 — Los 5 bugs
+# 🐛 v20 — Los 5 bugs
 
 ## 📂 Abrir los archivos a copiar
 
@@ -18,122 +18,114 @@
 
 ---
 
-## 1. 🏭 La prensa atorada + el piso amarillo
+## 1. 🏭 La prensa se quedaba pegada
 
-### El pistón
+**La causa:** el código leía la posición del pistón **en el momento de prensar** y la
+guardaba como "su lugar de arriba". Si prensabas otra vez mientras seguía bajando,
+guardaba la posición **ya hundida** como si fuera la de reposo. A la tercera o cuarta
+prensada el pistón estaba enterrado en la máquina y ya no volvía nunca.
 
-Bug bueno. El código leía la posición del pistón **al empezar cada animación** para saber
-a dónde regresarlo:
+Dos arreglos:
+- La altura de reposo ahora se **graba al construir la bodega** y nunca cambia
+- Un candado impide que dos prensadas se encimen, y al final el pistón se **coloca
+  exacto** en su sitio por si el tween se interrumpió
 
-```lua
-local top = piston.Position   -- ← aquí estaba el problema
-```
+### Y el piso amarillo ya no está
 
-Si prensabas otra vez mientras el pistón iba bajando, esa lectura agarraba la posición
-**de abajo** y la tomaba como "arriba". Entonces bajaba otros 3 studs desde ahí. Prensa
-tras prensa se iba hundiendo hasta quedarse pegado.
+Era un cuadro de neón naranja de 16×16 que encandilaba toda la zona. Ahora es un
+**tapete de hule de taller** gris oscuro, con dos franjas amarillas de peligro a los
+costados, como los de un taller mecánico.
 
-Ahora la altura de reposo se guarda **una sola vez** cuando se construye la máquina, y
-hay una bandera para que dos animaciones no se encimen. Al terminar, el pistón se
-reposiciona a la fuerza por si el tween quedó a medias.
+## 2. 🔐 La caja fuerte contra la pared
 
-### El piso
+La moví a la **pared del fondo, al lado del escritorio con la computadora**. La puerta y
+el volante ahora miran hacia adentro del cuarto, y la pantallita también.
 
-Era un cuadro neón naranja gigante. Lo cambié por un **tapete de taller**: hule gris
-oscuro con **franjas de peligro amarillas y negras** en las cuatro orillas, como las que
-marcan zona de maquinaria en un taller de verdad.
+### Qué es la "zona segura"
 
-## 2. 🔐 La caja fuerte se mudó
+Buena pregunta, porque **nada te lo decía**. Sí hace algo:
 
-Tienes razón, estaba plantada en medio de la nada. Ahora va **pegada a la pared del
-fondo, al lado del escritorio** — todo el centro de operaciones junto. La puerta mira
-hacia adentro del cuarto y el tapete verde está enfrente.
+> **Parado ahí, tu HEAT baja mucho más rápido.** Es el escondite: cuando andas caliente
+> y la Unidad de Aduanas te trae ganas, te metes ahí a que se enfríe.
 
-### Y qué es la "zona segura"
+Por eso está el sillón. Ahora el letrero lo dice: *"ZONA SEGURA — escóndete aquí para
+bajar el HEAT"*. Y el de la caja dice *"CAJA FUERTE [C] — aquí no te la quita Aduanas"*.
 
-Buena pregunta, porque el letrero no lo decía. **Es donde te escondes cuando traes mucho
-Heat**: parado ahí tu Heat baja mucho más rápido que en cualquier otro lado. Es tu
-escondite para cuando Aduanas te anda buscando.
+## 3. 📊 El HUD te estaba mintiendo
 
-Ya lo dice el letrero: **"ZONA SEGURA - escóndete aquí para bajar tu HEAT"**.
+**Este era mi bug y era feo.** Cuando metí la caja fuerte en la v18, cambié los chips de
+arriba para que mostraran **lo que traes cargando**… pero el mensaje de "almacén lleno"
+habla de **la caja**. Entonces veías `0` y el juego te decía que estabas lleno. Las dos
+cosas eran ciertas, simplemente no te estaba enseñando el número correcto.
 
-## 3. 📦 "Almacén lleno" pero se veía 0
+Ahora hay **cuatro chips**:
 
-Este fue culpa mía de la v18. Cuando metí la caja fuerte cambié los tres chips del HUD
-para que mostraran **lo que traes cargando**. Como la carga empieza en 0 y todo lo que
-produces se va directo a la caja, veías `0 · 0 · 0/80` **con la caja a reventar**.
+| Chip | Qué es |
+|---|---|
+| 🟢 verde | Hojas **en la caja** |
+| ⬜ crema | Bloques **en la caja** |
+| 🟩 menta | **Espacio de la caja** (`157/200`) — se pone rojo si está llena |
+| 🎒 azul | Lo que **traes encima** (`0/80`) |
 
-Y cuando intentabas guardar, te decía "no tienes nada" — porque era cierto: no traías
-nada encima, ya estaba todo guardado.
+Y el texto largo ahora dice `CAJA FUERTE ... <<< LLENA` cuando se acabó el espacio.
 
-Arreglado:
-- Los chips ahora muestran **lo que tienes en la caja** (que es lo que te importa)
-- El chip de la mochila sigue mostrando lo que cargas
-- El mensaje de lleno ahora dice el número: *"Tu caja fuerte está llena (450/450). Saca
-  producto y véndelo, o mejora la bodega"*
-- El de guardar aclara: *"No traes hojas encima. Lo que produces ya se guarda solo en la caja"*
-- **Subí el almacén base de 200 a 450**, porque con 4 mesas se llenaba en nada
+> También corregí que el cliente contaba un bloque como 1 de espacio y el servidor como
+> 3. Ahora los dos cuentan 3, así que el número por fin cuadra.
+
+Y el mensaje cambió por uno que sí ayuda:
+*"Tu caja fuerte está llena. Prensa las hojas en bloques o mejora la bodega"*.
 
 ## 4. 🛒 El mercado roto
 
-El limpiador de la tienda borraba solo los `Frame`:
+**La causa:** al cambiar de pestaña, el código borraba lo dibujado… pero **solo los
+marcos**, no los textos sueltos. Los títulos que agregué en la v18 y v19 (el de
+"MOCHILAS") eran textos sueltos, así que **nunca se borraban** y se iban apilando encima
+de todas las pestañas. Por eso veías "MOCHILAS" cuatro veces debajo de los autos.
 
-```lua
-if c:IsA("Frame") then c:Destroy() end
-```
-
-Los títulos de sección son `TextLabel`, no `Frame` — así que **nunca se borraban**. Cada
-vez que abrías el mercado se apilaba otro "MOCHILAS · actual: Bolsillos (80)" encima del
-contenido. Por eso viste cuatro.
-
-Ahora borra todo lo que sea `GuiObject`.
+Ahora borra **todo** lo que se dibujó antes.
 
 ## 5. 👷 Los cosechadores
 
-### Ya no hablan
+**Ya no hablan.** Los estaba creando con la misma función que a los compradores, y se
+llevaban la etiqueta de "comprador" pegada — por eso te salía *"Que onda. ¿Tienes
+mercancía?"* y *"Presiona F para vender"* con un cosechador. Ahora se les quita.
 
-Los creaba con la misma función que a los compradores, y esa función les pone el tag
-`BuyerNPC`. Por eso te salía *"Que onda. ¿Tienes mercancía?"* y el *"Presiona F para
-vender"* — el juego los trataba como vendedores. Ya se les quita el tag.
+**Ya no flotan.** Los estaba parando a la altura de la mesa en vez de la del piso
+(3.7 studs arriba). Mismo arreglo para los prensadores.
 
-### Ya no flotan
+### 🗣️ Y la vocecita
 
-Los rigs de Roblox se colocan **por los pies**, no por el centro. Yo estaba usando la
-altura de la mesa (que está elevada), así que quedaban 3 studs en el aire. Ahora se
-paran en el piso.
+Los que **sí** hablan (compradores y el vigilante) ahora tienen voz: un blip corto que
+suena **cada dos letras mientras el texto se escribe**, con el tono movido al azar en
+cada golpe. Da justo ese *"guiri guiri guiri"* de los juegos viejos — hablan sin decir
+nada.
 
-### 🗣️ Guiri guiri guiri
+El texto ya se escribía letra por letra desde antes; lo que faltaba era el sonido. Le
+bajé un poquito la velocidad para que se alcance a oír.
 
-Jajaja sí te entendí. Cuando un NPC te habla, ahora suena un **blip corto por cada par
-de letras** mientras el texto se va escribiendo, y el tono cambia al azar en cada uno.
-El resultado es que parece que están balbuceando algo — pero no dicen nada.
-
-No suena en los espacios, para que se escuche por sílabas y no como metralleta. El texto
-ya se escribía dinámicamente desde antes; ahora también se oye.
-
-> Ajustable en `GameConfig.Sounds.Blip` (volumen y tono).
+> Ajustable en `GameConfig.Sounds.Talk` (volumen y tono base).
 
 ---
 
 ## Cómo probar
 
-1. **Prensa:** dale a prensar **cinco veces seguidas rápido**. El pistón debe volver
-   siempre arriba y nunca hundirse. De paso mira el tapete nuevo.
-2. **Caja:** entra a la bodega, debe estar junto al escritorio pegada a la pared.
-3. **Almacén:** cosecha. Los chips de arriba deben subir. Cuando se llene te va a decir
-   el número exacto.
-4. **Mercado:** ábrelo y ciérralo **cinco veces**. No se debe apilar nada.
-5. **Cosechadores:** contrata uno. Debe estar **parado en el piso**, junto a su mesa, y
-   **no** debe salirte diálogo de venta al acercarte.
-6. **Guiri guiri:** acércate a un comprador en la ciudad y escucha el globo de texto.
+1. **Prensa:** dale a R como loco, cinco veces seguidas. El pistón debe volver siempre
+   a su lugar.
+2. **Piso:** ya no hay cuadro naranja; es tapete gris con franjas amarillas.
+3. **Caja:** está pegada a la pared del fondo junto a la computadora.
+4. **HUD:** cosecha y fíjate que suba el chip verde y el de espacio.
+5. **Mercado:** cambia entre todas las pestañas varias veces. No se debe apilar nada.
+6. **Cosechadores:** párate junto a uno — **no** debe salir globo de diálogo, y debe
+   estar pisando el piso.
+7. **Voz:** acércate a un comprador en la ciudad. Debe hablar con blips.
 
 ---
 
-## 🗺️ Lo que sigue
+## 🗺️ Roadmap
 
 | Pendiente | Qué es |
 |---|---|
-| **Asaltos que roben de la caja fuerte** | Le daría sentido real a los guardias y a la alerta del celular |
-| **Territorios de crews** | Zonas capturables + guerra entre crews |
-| **Interiores de propiedades** | Las casas que compras son solo fachada |
+| **Asaltos que roben de la caja fuerte** | Le daría sentido a los guardias y a la alerta del celular |
+| **Territorios de crews** | Zonas capturables + guerra |
+| **Interiores de propiedades** | Hoy son solo fachada |
 | **Garaje real** | Un lugar físico para tus autos |

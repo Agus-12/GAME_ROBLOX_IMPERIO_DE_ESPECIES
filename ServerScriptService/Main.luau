@@ -592,9 +592,7 @@ local function doHarvest(player: Player)
 	local total = #ripeNear * G.LeavesPerPlant
 	local added = addLeaves(player, total)
 	if added == 0 then
-		return false, string.format(
-			"Tu caja fuerte esta llena (%d/%d). Saca producto y vendelo, o mejora la bodega",
-			vaultUsed(profile), storageCap(profile))
+		return false, "Tu caja fuerte esta llena. Prensa las hojas en bloques o mejora la bodega"
 	end
 
 	local harvested = math.min(#ripeNear, math.max(1, math.ceil(added / G.LeavesPerPlant)))
@@ -664,13 +662,13 @@ local function doPress(player: Player)
 	-- animar el piston de la prensa
 	local wh = warehouses[player]
 	local piston = wh and wh:FindFirstChild("Piston")
-	-- OJO: antes leia piston.Position como punto de reposo. Si prensabas dos
-	-- veces seguidas, la segunda leia la posicion de ABAJO y desde ahi volvia
-	-- a bajar: el piston se iba hundiendo hasta quedarse atorado. Ahora la
-	-- altura de reposo viene de un atributo fijo y no se encima con si misma.
-	if piston and piston:IsA("BasePart") and not piston:GetAttribute("Busy") then
-		piston:SetAttribute("Busy", true)
+	-- El "Pressing" evita que dos prensadas encimadas se peleen por el
+	-- tween. Sin esto, la segunda leia la posicion ya hundida como si
+	-- fuera la de reposo y el piston se quedaba abajo para siempre.
+	if piston and piston:IsA("BasePart") and not piston:GetAttribute("Pressing") then
+		piston:SetAttribute("Pressing", true)
 		task.spawn(function()
+			-- altura de reposo fija, grabada al construir la bodega
 			local homeY = piston:GetAttribute("HomeY") or piston.Position.Y
 			local top = Vector3.new(piston.Position.X, homeY, piston.Position.Z)
 			local down = top - Vector3.new(0, 3.2, 0)
@@ -691,8 +689,9 @@ local function doPress(player: Player)
 					Enum.EasingDirection.Out), {Position = top}):Play()
 			end)
 			task.wait(0.55)
-			piston.Position = top          -- por si el tween quedo a medias
-			piston:SetAttribute("Busy", false)
+			-- por si el tween se interrumpio, lo dejamos exacto en su sitio
+			piston.Position = top
+			piston:SetAttribute("Pressing", false)
 		end)
 	end
 
@@ -885,10 +884,11 @@ function syncWorkers(player: Player)
 	for i = 1, nH do
 		local plot = plotPart(wh, i)
 		if plot then
-			-- El rig se coloca por los PIES, no por el centro. La mesa esta
-			-- elevada, asi que si usaba su Y los dejaba flotando 3 studs.
-			-- El piso de la bodega esta en Y = 2.
-			local pos = Vector3.new(plot.Position.X, 2, plot.Position.Z + 6.2)
+			-- Parado al costado de su mesa, viendo hacia ella.
+			-- El piso de la bodega esta 3.7 studs abajo del Plot; si no se
+			-- resta, el NPC queda flotando a la altura de la mesa.
+			local pos = Vector3.new(plot.Position.X, plot.Position.Y - 3.7,
+				plot.Position.Z + 6.2)
 			local ok, npc = pcall(function()
 				return CityGenerator.MakeWorker(wh, pos, Vector3.new(0, 0, -1), "Cosechador")
 			end)
@@ -904,10 +904,13 @@ function syncWorkers(player: Player)
 		local press = wh:FindFirstChild("PressBase", true)
 		if press then
 			for i = 1, math.min(nP, 4) do
-				local pp = Vector3.new(press.Position.X - 6 + (i - 1) * 4, 2,
-					press.Position.Z + 7)
+				-- PressBase esta 1.1 arriba del piso
+				local base = Vector3.new(press.Position.X, press.Position.Y - 1.1,
+					press.Position.Z)
+				local off = Vector3.new(-6 + (i - 1) * 4, 0, 7)
 				local ok, npc = pcall(function()
-					return CityGenerator.MakeWorker(wh, pp, Vector3.new(0, 0, -1), "Prensador")
+					return CityGenerator.MakeWorker(wh, base + off,
+						Vector3.new(0, 0, -1), "Prensador")
 				end)
 				if ok and npc then table.insert(workerModels[player], npc) end
 			end
@@ -2061,9 +2064,7 @@ local function vaultDeposit(player: Player, kind: string, amount: number)
 	local nice = (kind == "blocks") and "bloques" or "hojas"
 
 	local have = profile[carryField] or 0
-	if have <= 0 then
-		return false, "No traes " .. nice .. " encima. Lo que produces ya se guarda solo en la caja"
-	end
+	if have <= 0 then return false, "No traes " .. nice .. " encima" end
 
 	local space = storageCap(profile) - vaultUsed(profile)
 	if space <= 0 then return false, "Tu caja esta llena. Mejora la bodega" end

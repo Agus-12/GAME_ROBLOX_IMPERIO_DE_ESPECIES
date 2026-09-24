@@ -71,11 +71,8 @@ tools/                                Validadores. Corre bash tools/validate.sh
 | # | Bug | Estado |
 |---|---|---|
 | 1 | **Bici** — historial largo de fallas, ver `docs/03-NO-HAGAS-ESTO.md` §1 | v17 la ancló por completo. **SIN CONFIRMAR por el usuario** |
-| 2 | ~~Trabajadores invisibles~~ | ✅ v19 |
-| 3 | ~~Pistón de la prensa se atoraba~~ | ✅ v20 |
-| 4 | ~~Mercado con etiquetas apiladas~~ | ✅ v20 |
-| 5 | ~~Trabajadores flotando y hablando como vendedores~~ | ✅ v20 |
-| 6 | ~~HUD mostraba 0 con la caja llena~~ | ✅ v20 |
+| 2 | ~~Trabajadores invisibles~~ | ✅ v19 · v20 les quitó el diálogo de comprador y la flotación |
+| 3 | ~~Prensa pegada / HUD mentía / mercado apilado~~ | ✅ resuelto en v20. **SIN CONFIRMAR** |
 
 ## 2.1 🔨 El rediseño de producción física (decisiones ya tomadas)
 

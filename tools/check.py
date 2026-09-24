@@ -1,4 +1,6 @@
 import re,sys,subprocess,tempfile,os
+HERE=os.path.dirname(os.path.abspath(__file__))
+LUAC=os.path.join(HERE,"lua/usr/bin/luac5.4")
 def strip_luau(c):
     c=c.replace("--!strict","")
     c=re.sub(r'^(\s*)export\s+type\s+[^\n]*\n',r'\1\n',c,flags=re.M)
@@ -26,11 +28,13 @@ def strip_luau(c):
     c=re.sub(r'\bcontinue\b','goto cont',c)
     return c
 if __name__=="__main__":
+    if not os.path.exists(LUAC):
+        sys.exit("Falta Lua. Corre primero:  bash tools/setup.sh")
     bad=0
     for f in sys.argv[1:]:
         src=strip_luau(open(f).read())
         t=tempfile.NamedTemporaryFile("w",suffix=".lua",delete=False);t.write(src);t.close()
-        r=subprocess.run(["/tmp/lua/usr/bin/luac5.4","-p",t.name],capture_output=True,text=True)
+        r=subprocess.run([LUAC,"-p",t.name],capture_output=True,text=True)
         os.unlink(t.name)
         if r.returncode==0: print("OK   ",f)
         elif "no visible label" in r.stderr: print("OK   ",f," (continue)")

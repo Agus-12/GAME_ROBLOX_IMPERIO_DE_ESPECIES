@@ -386,8 +386,13 @@ local function chip(iconColor: Color3, shape: string)
 	return txt
 end
 
+-- Los dos primeros son lo que hay EN LA CAJA FUERTE (el "almacen"),
+-- el tercero el espacio de la caja y el ultimo lo que traes CARGANDO.
+-- Antes solo se veia lo cargado y por eso parecia que tenias 0 aunque
+-- la caja estuviera a reventar.
 local chipLeaf  = chip(Color3.fromRGB(110, 205, 95),  "leaf")
 local chipBlock = chip(Color3.fromRGB(226, 208, 168), "block")
+local chipVault = chip(Color3.fromRGB(120, 235, 180), "block")
 local chipBag   = chip(Color3.fromRGB(150, 175, 220), "bag")
 
 ----------------------------------------------------------------------
@@ -604,10 +609,10 @@ end
 
 renderTab = function(tab: string)
 	currentTab = tab
-	-- OJO: antes solo borraba Frames. Los TextLabel sueltos (los titulos de
-	-- seccion) se quedaban pegados y se iban apilando cada vez que abrias
-	-- el mercado, encimados sobre el contenido. Hay que borrar TODO lo que
-	-- sea GuiObject y dejar solo el layout.
+	-- OJO: hay que borrar TODO lo que se dibujo antes, no solo los Frame.
+	-- Cuando esto solo borraba Frames, los TextLabel sueltos (los titulos
+	-- de MOCHILAS, por ejemplo) se quedaban pegados y se iban apilando en
+	-- todas las pestanas. Eso era el "mercado roto".
 	for _, c in ipairs(content:GetChildren()) do
 		if c:IsA("GuiObject") then c:Destroy() end
 	end
@@ -1040,19 +1045,22 @@ RE_State.OnClientEvent:Connect(function(data)
 
 	-- El HUD muestra dos cosas distintas: lo GUARDADO en la caja fuerte y
 	-- lo que traes CARGANDO (que es lo unico que te puede quitar Aduanas).
-	local used = data.Leaves + data.Blocks
+	-- Un bloque ocupa 3 de espacio, igual que en el servidor.
+	local used = data.Leaves + data.Blocks * 3
 	local cl, cb = data.CarryLeaves or 0, data.CarryBlocks or 0
 	local carrying = cl + cb
-	invLbl.Text = string.format("CAJA  %d hojas / %d bloques  (%d/%d)     CARGAS  %d/%d",
-		data.Leaves, data.Blocks, used, data.Storage, carrying, data.CarryCap or 0)
+	local lleno = (used >= data.Storage) and "  <<< LLENA" or ""
+	invLbl.Text = string.format(
+		"CAJA FUERTE  %d hojas / %d bloques  (%d/%d)%s        LLEVAS ENCIMA  %d/%d",
+		data.Leaves, data.Blocks, used, data.Storage, lleno, carrying, data.CarryCap or 0)
 
 	refreshVault()
 
-	-- Los chips muestran lo que TIENES (la caja). El de la mochila muestra
-	-- lo que traes encima. Antes los tres mostraban la carga, asi que con la
-	-- caja llena seguias viendo 0 y parecia que no tenias nada.
 	chipLeaf.Text = Config.Abbrev(data.Leaves)
 	chipBlock.Text = Config.Abbrev(data.Blocks)
+	chipVault.Text = string.format("%d/%d", used, data.Storage)
+	chipVault.TextColor3 = (used >= data.Storage)
+		and Color3.fromRGB(255, 120, 120) or Color3.fromRGB(235, 235, 245)
 	chipBag.Text = string.format("%d/%d", carrying, data.CarryCap or 0)
 
 	local ratio = data.Heat / Config.Heat.Max
@@ -1501,37 +1509,38 @@ local dlgHint = label(dialog, {
 	Text = "",
 })
 
--- efecto maquina de escribir
-local typeToken = 0
--- Blip que suena mientras el NPC "habla". Un pitido corto por cada par de
--- letras, con el tono variando: da el efecto de que balbucea sin decir nada.
-local blipSound: Sound? = nil
+-- Efecto maquina de escribir + vocecita.
+-- El blip suena cada 2 letras con el tono movido al azar: da ese
+-- "guiri guiri guiri" de los juegos viejos, sin decir nada de verdad.
+local talkSound: Sound? = nil
 do
-	local def = Config.Sounds and Config.Sounds.Blip
+	local def = Config.Sounds and Config.Sounds.Talk
 	if def and Config.Sounds.Enabled then
 		local sd = Instance.new("Sound")
-		sd.Name = "NpcBlip"
+		sd.Name = "NPCTalk"
 		sd.SoundId = def.Id
-		sd.Volume = def.Volume or 0.2
+		sd.Volume = def.Volume or 0.3
 		sd.Parent = gui
-		blipSound = sd
+		talkSound = sd
 	end
 end
 
+local typeToken = 0
 local function typeOut(txt: string)
 	typeToken += 1
 	local myToken = typeToken
 	dlgText.Text = ""
-	local base = (Config.Sounds and Config.Sounds.Blip and Config.Sounds.Blip.Pitch) or 1.4
 	for i = 1, #txt do
 		if typeToken ~= myToken then return end
 		dlgText.Text = string.sub(txt, 1, i)
+
+		-- no sonar en los espacios ni en cada letra: queda ametrallado
 		local ch = string.sub(txt, i, i)
-		-- no sonar en espacios ni en signos, para que suene a silabas
-		if blipSound and ch ~= " " and i % 2 == 0 then
-			blipSound.PlaybackSpeed = base * (0.88 + math.random() * 0.3)
-			blipSound:Play()
+		if talkSound and ch ~= " " and i % 2 == 0 then
+			talkSound.PlaybackSpeed = 0.82 + math.random() * 0.5
+			talkSound:Play()
 		end
+
 		task.wait(0.028)
 	end
 end
