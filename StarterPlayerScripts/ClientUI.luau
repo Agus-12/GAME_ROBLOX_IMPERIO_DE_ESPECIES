@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v40 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v40"
+local MI_VERSION = "v41"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -1207,10 +1207,16 @@ colList.SortOrder = Enum.SortOrder.LayoutOrder
 colList.Padding = UDim.new(0, 3)
 colList.Parent = mini
 
--- el alto de la columna se calcula sola (AutomaticSize) para que nunca
--- se corte una fila ni se encime con los botones de abajo
-local colSize = Instance.new("AutomaticSize")
-colSize.Parent = mini
+-- el alto de la columna se calcula sola para que nunca se corte una fila ni se
+-- encime con los botones de abajo.
+-- >>> ESTE ERA EL BUG QUE ROMPIA TODA LA INTERFAZ (v41) <<<
+-- Antes decia:  local colSize = Instance.new("AutomaticSize")
+-- y "AutomaticSize" NO ES UNA CLASE de Roblox (es una PROPIEDAD). En Studio eso
+-- truena ahi mismo: la barra ancha ya estaba dibujada y el script moria ANTES de
+-- llegar al setHud(true) que la esconde -> el jugador veia la barra vieja para
+-- siempre ("pegue todo y sigue igual"). El simulador no lo cazo porque aceptaba
+-- cualquier clase inventada; ya no (tools/clases.py + mock estricto).
+mini.AutomaticSize = Enum.AutomaticSize.Y
 
 -- efectivo, arriba de todo y bien visible
 local miniCash = label(mini, {

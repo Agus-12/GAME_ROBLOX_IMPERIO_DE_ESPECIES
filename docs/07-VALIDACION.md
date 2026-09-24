@@ -337,6 +337,7 @@ Simula **el caso real del usuario** (captura con el cartel "HAY COPIAS PEGADAS")
 | 12. **basura escondida en StarterGui** + LocalScript sospechoso | la carpeta queda vacia, se reportan `BASURA` y `DIBUJA`, y **no** se marca la ClientUI buena |
 | 13. **carpeta `Remotes` que aparece a media partida** (Main viejo) | se borra **al instante** y el aviso dice que hay un `Main` viejo de mas |
 | 14. **el aviso de carpetas de mas** | sale cuando hay 2 carpetas y **se quita solo** cuando queda 1 |
+| 15. **clases inventadas** (`Instance.new("AutomaticSize")`) | el chequeo `tools/clases.py` la **caza** y el simulador **truena** igual que Studio |
 
 Probado quitando el arreglo a proposito: con el avisito convertido en `if false` fallan
 los escenarios 2 y 5; desactivando el **cambio en caliente** de los remotes falla el

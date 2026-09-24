@@ -58,7 +58,31 @@ UDim2={new=function() return setmetatable({},U2mt) end,
   fromOffset=function() return setmetatable({},U2mt) end}
 UDim={new=function() return {} end} ; TweenInfo={new=function() return {} end}
 local Instance_={}
+-- ===== CLASES VALIDAS DE ROBLOX (v41) =====
+-- CASO REAL: el cliente hacia  Instance.new("AutomaticSize")  y AutomaticSize NO es
+-- una clase de Roblox (es una PROPIEDAD). En Studio eso TRUENA a media construccion
+-- de la interfaz (se dibujaba la barra ancha y el script moria justo despues: el
+-- jugador veia el tablero viejo para siempre). El simulador no lo cazo en varias
+-- rondas porque aceptaba cualquier nombre inventado. Ahora se compara contra la
+-- lista real (tools/clases-roblox.txt) y TRUENA igual que Roblox.
+local CLASES_VALIDAS = nil
+do
+  local ruta = (os.getenv("TOOLS") or ".") .. "/clases-roblox.txt"
+  local f = io.open(ruta, "r")
+  if f then
+    CLASES_VALIDAS = {}
+    for linea in f:lines() do
+      if linea ~= "" and string.sub(linea, 1, 1) ~= "#" then CLASES_VALIDAS[linea] = true end
+    end
+    f:close()
+  end
+end
+
 function Instance_.new(cls,parent)
+  if CLASES_VALIDAS and not CLASES_VALIDAS[cls] then
+    error('Instance.new("' .. tostring(cls) .. '"): eso NO es una clase de Roblox' ..
+      ' (en Studio truena aqui mismo; mira tools/clases.py)', 2)
+  end
   local o={ClassName=cls,Name=cls,_children={},_attrs={}}
   -- PROPIEDADES CON VALOR POR DEFECTO (como Roblox)
   -- El mock no las ponia y quedaban en nil. Eso rompia codigo real: por ejemplo

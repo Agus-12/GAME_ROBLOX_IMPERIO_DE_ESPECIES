@@ -431,7 +431,7 @@ de efectos de iluminación.
 
 ## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
 
-En la v40, el cliente quedo asi:
+En la v41, el cliente quedo asi:
 
 ```lua
 local function carpetaRemotes()
@@ -441,11 +441,11 @@ local function carpetaRemotes()
     end
 end
 
-local MI_VERSION = "v40"    -- se declara 60 lineas mas abajo
+local MI_VERSION = "v41"    -- se declara 60 lineas mas abajo
 ```
 
 En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
-vale nil**. Entonces la comparacion era `"v40" == nil` -> siempre falso, el avisito
+vale nil**. Entonces la comparacion era `"v41" == nil` -> siempre falso, el avisito
 no salia nunca, y en la consola no habia ni un error. Un bug invisible.
 
 **Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
@@ -454,7 +454,7 @@ toca como globales; si sale uno que deberia ser local, ahi esta el bug.
 
 ---
 
-## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v40)
+## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v41)
 
 ```lua
 -- MAL: te quedas con el objeto. Si el servidor borra esa carpeta (limpieza,
@@ -467,7 +467,7 @@ RE_Shoot.OnClientEvent:Connect(...)     -- nunca vuelve a dispararse
 Sintoma: **los botones no hacen nada y en la consola no sale ni un error**. Es lo
 peor de depurar, porque no hay rastro.
 
-El caso real (v40): el cliente arranca **antes** de que el servidor termine de limpiar.
+El caso real (v41): el cliente arranca **antes** de que el servidor termine de limpiar.
 Si en el lugar habia una carpeta `Remotes` vieja guardada, el cliente se enganchaba a
 esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes muertos.
 
@@ -482,7 +482,7 @@ vieja quede desconectada (`Remotes#false=0`).
 
 ---
 
-## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v40)
+## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v41)
 
 ```js
 for (var k = 0; k < 5; k++) {        // MAL: cuantos paneles hay, escrito a mano
@@ -503,7 +503,7 @@ JavaScript de la pagina y **da clic en cada pestaña**.
 
 ---
 
-## 17. 📦 Pasarse de 200 variables locales (v40)
+## 17. 📦 Pasarse de 200 variables locales (v41)
 
 Luau (y Roblox) permiten **200 variables locales por funcion**, y **el nivel de arriba de
 un script cuenta como una funcion**. `ClientUI.luau` andaba en **185**: al agregar un
@@ -523,7 +523,7 @@ funcion antes de agregarle instrumentacion, para no gastar los locales del guion
 
 ---
 
-## 18. 💀 Apagar la copia NUEVA por algo que puede ser basura (v40)
+## 18. 💀 Apagar la copia NUEVA por algo que puede ser basura (v41)
 
 ```lua
 if playerGui:FindFirstChild("SpiceEmpireUI") then
@@ -548,7 +548,7 @@ quedaba con la vieja durante rondas enteras ("le pegue los archivos y no cambio 
 * y para no volver a adivinar desde una captura: **la ronda se imprime en pantalla**
   (junto al reloj) y el servidor **reporta las interfaces guardadas en `StarterGui`**.
 
-### Y en el simulador (v40)
+### Y en el simulador (v41)
 
 `IsA("GuiObject")` comparaba el nombre exacto: **siempre daba falso**, asi que nada
 verificaba que las filas del HUD se mostraran de verdad. Y `LayoutOrder` valia `nil`
@@ -558,7 +558,7 @@ simulador imita a Roblox (herencia de IsA + valores por defecto de GUI).
 
 ---
 
-## 19. 📸 Creer que "no me lo dijo" es suficiente para saber si corrio (v40)
+## 19. 📸 Creer que "no me lo dijo" es suficiente para saber si corrio (v41)
 
 El usuario reporto **cinco rondas seguidas** "sigue igual" y desde afuera no habia
 forma de saber **que codigo estaba dibujando la pantalla**: el juego no decia su
@@ -567,10 +567,10 @@ pantalla real del jugador).
 
 **Lo que faltaba no era un arreglo: era un TESTIGO.** Ahora el juego lo dice el solo:
 
-* **Cliente**: placa `RONDA v40 (arrancando...)` -> `RONDA v40  OK`, y un letrerito
-  `v40` que se queda para siempre en pantalla.
-* **Servidor**: letrero flotando arriba del spawn con `SERVIDOR v40`.
-* **Output**: inventario con la ronda **de cada archivo** (`OK [v40]`, `VIEJO [v32]`...).
+* **Cliente**: placa `RONDA v41 (arrancando...)` -> `RONDA v41  OK`, y un letrerito
+  `v41` que se queda para siempre en pantalla.
+* **Servidor**: letrero flotando arriba del spawn con `SERVIDOR v41`.
+* **Output**: inventario con la ronda **de cada archivo** (`OK [v41]`, `VIEJO [v32]`...).
 
 **Reglas:**
 
@@ -586,7 +586,7 @@ pantalla real del jugador).
 
 ---
 
-## 20. 🔎 Reconocer la basura por su NOMBRE (v40)
+## 20. 🔎 Reconocer la basura por su NOMBRE (v41)
 
 El barrido de interfaces viejas borraba lo que se llamaba `SpiceEmpire...`. El usuario
 reporto que el tablero viejo **seguia ahi** con la version nueva corriendo. Motivo: su
@@ -611,7 +611,7 @@ copia vieja se llamaba distinto (o estaba dentro de una carpeta).
 
 ---
 
-## 21. 🔕 Dejar avisos "pegados" y arreglos que solo corren 3 veces (v40)
+## 21. 🔕 Dejar avisos "pegados" y arreglos que solo corren 3 veces (v41)
 
 Dos errores de diseño de las rondas anteriores, los dos vistos por el usuario:
 
@@ -631,3 +631,48 @@ Dos errores de diseño de las rondas anteriores, los dos vistos por el usuario:
 * y en el simulador los eventos (`Connect`/`Fire`) tienen que ser **de verdad**: si
   `Connect` no llama a nadie, ninguna prueba de "aparece algo despues" es valida
   (era el caso: las senales del simulador eran de mentiritas).
+
+
+---
+
+## 22. 💀 Instance.new() con una PROPIEDAD en vez de una CLASE (v41)
+
+```lua
+local colSize = Instance.new("AutomaticSize")   -- MAL
+colSize.Parent = mini
+```
+
+`AutomaticSize` **existe en Roblox… como PROPERTY** (una propiedad de los objetos de
+interfaz). Como **clase** no existe. O sea que el nombre *parece* valido, no da aviso
+ninguno, y en Studio **truena** con:
+
+```
+Unable to create an Instance of type "AutomaticSize"
+```
+
+Lo que hace este bug tan caro: **truena a media construccion de la interfaz**. La barra
+ancha ya estaba dibujada, y el script moria **justo antes** de la linea que la esconde.
+Resultado para el jugador: *"pegue todo y sigue igual"*, durante **varias rondas**.
+
+**Reglas:**
+
+1. Para que un panel de interfaz crezca solo: es **propiedad**, no objeto:
+   `panel.AutomaticSize = Enum.AutomaticSize.Y`.
+2. Todo `Instance.new("X")` tiene que estar en la **lista de clases** (`tools/clases.py`,
+   etapa 13 del validate). La lista (`tools/clases-roblox.txt`) sale del API-Dump oficial.
+3. **El simulador no puede aceptar cualquier nombre.** Si el simulador "crea" cosas que
+   Roblox no tiene, miente con confianza y esconde bugs caros. Ahora truena igual.
+
+### Y el error de orden que me paso escribiendo esto
+
+```lua
+function Instance_.new(cls)          -- usa CLASES_VALIDAS...
+  if CLASES_VALIDAS and ... then
+...
+local CLASES_VALIDAS = nil           -- ...pero se declara DESPUES = global nil
+```
+
+En Lua, un `local` declarado **despues** de una funcion no existe dentro de ella: la
+funcion lee un **global** (que vale `nil`) y la validacion queda **apagada sin avisar**.
+Por eso existe `tools/globals.py` (etapa 4) y por eso hay que probar los chequeos
+**al reves**: metiendo el bug y viendo si truena.

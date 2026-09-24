@@ -55,8 +55,14 @@ def lua(guion, timeout=240, env=None):
     t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False)
     t.write(guion)
     t.close()
+    # SIEMPRE se pasa TOOLS: el mock lo necesita para encontrar clases-roblox.txt
+    # (validacion de Instance.new) y cfgload.lua. Sin esto, esas validaciones se
+    # apagaban solas en los escenarios que no armaban su propio entorno (falso verde).
+    usar = dict(os.environ, TOOLS=HERE)
+    if env:
+        usar.update(env)
     r = subprocess.run([LUA, t.name], capture_output=True, text=True, timeout=timeout,
-                       env=env)
+                       env=usar)
     os.unlink(t.name)
     return r.stdout + ("\nSTDERR: " + r.stderr if r.stderr else "")
 
@@ -727,6 +733,54 @@ else:
     if not ok:
         print("         (debe salir, decir que puedes jugar normal, y quitarse solo)")
         fallas += 1
+
+# ---------- 15) CLASES INVENTADAS (v41) ----------
+# EL BUG QUE ROMPIO LA INTERFAZ VARIAS RONDAS: el cliente hacia
+# Instance.new("AutomaticSize") y AutomaticSize NO es una clase de Roblox (es una
+# PROPIEDAD). En Studio truena ahi mismo: la barra ancha ya estaba dibujada y el
+# script moria antes de esconderla (el jugador veia el tablero viejo para siempre).
+# El simulador aceptaba cualquier nombre inventado, asi que no lo cazo.
+# Aqui se prueba que el detector SI cace una clase inventada (y que el mock truene).
+print()
+print("=== 15. clases inventadas: Instance.new(\"X\") con X que no existe ===")
+
+
+def corre_detector_clases():
+    # 1) el detector de python (tools/clases.py) tiene que cazar una clase inventada
+    falso = os.path.join(ROOT, "ServerScriptService", "_PruebaClaseInventada.luau")
+    with open(falso, "w", encoding="utf-8") as f:
+        f.write('local o = Instance.new("AutomaticSize")\n')
+    try:
+        r = subprocess.run([sys.executable, os.path.join(HERE, "clases.py"), falso],
+                           capture_output=True, text=True, timeout=60)
+        caza = r.returncode != 0 and "AutomaticSize" in (r.stdout + r.stderr)
+    finally:
+        os.unlink(falso)
+    # 2) el simulador tambien tiene que tronar (igual que Studio)
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += 'local ok, err = pcall(function() return Instance.new("AutomaticSize") end)\n'
+    guion += 'print("__RESULTADO__ " .. tostring(not ok))\n'
+    sal = lua(guion)
+    m = re.search(r"__RESULTADO__ (true|false)", sal)
+    trono = bool(m) and m.group(1) == "true"
+    # y una clase de verdad NO debe tronar
+    guion2 = 'dofile("%s/mock.lua")\n' % HERE
+    guion2 += 'local ok = pcall(function() return Instance.new("TextLabel") end)\n'
+    guion2 += 'print("__RESULTADO__ " .. tostring(ok))\n'
+    sal2 = lua(guion2)
+    m2 = re.search(r"__RESULTADO__ (true|false)", sal2)
+    buena_ok = bool(m2) and m2.group(1) == "true"
+    return caza, trono, buena_ok
+
+
+caza, trono, buena_ok = corre_detector_clases()
+ok = caza and trono and buena_ok
+print("  %s  tools/clases.py la caza: %s | el simulador truena: %s | una clase de verdad"
+      " pasa: %s" % ("OK   " if ok else "FALLA", "si" if caza else "NO",
+                     "si" if trono else "NO", "si" if buena_ok else "NO"))
+if not ok:
+    print("         (AutomaticSize no es clase: tiene que tronar en el chequeo y en el mock)")
+    fallas += 1
 
 print()
 if fallas:
