@@ -333,6 +333,8 @@ Simula **el caso real del usuario** (captura con el cartel "HAY COPIAS PEGADAS")
 | 8. **interfaz vieja guardada** en el lugar (nombre renombrado) | el cliente **no se apaga**: borra la basura, llega al final y su contenido queda **visible** |
 | 9. **testigo del cliente** (placa de ronda) | la placa existe, esta **visible** y dice la ronda del codigo |
 | 10. **testigo del servidor** (letrero del spawn) | el letrero dice `SERVIDOR` + la ronda del `GameConfig` |
+| 11. **tablero viejo con OTRO nombre** (suelto y dentro de una carpeta) | los dos se borran y la placa lo dice |
+| 12. **basura escondida en StarterGui** + LocalScript sospechoso | la carpeta queda vacia, se reportan `BASURA` y `DIBUJA`, y **no** se marca la ClientUI buena |
 
 Probado quitando el arreglo a proposito: con el avisito convertido en `if false` fallan
 los escenarios 2 y 5; desactivando el **cambio en caliente** de los remotes falla el

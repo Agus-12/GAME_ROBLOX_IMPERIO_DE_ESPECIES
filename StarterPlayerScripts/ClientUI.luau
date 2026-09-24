@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v38 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v39 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v38"
+local MI_VERSION = "v39"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -587,16 +587,38 @@ end
 local playerGui = player:WaitForChild("PlayerGui", 10)
 if playerGui then
 	local basura = {}
-	for _, g in ipairs(playerGui:GetChildren()) do
+	-- por nombre (copia del juego) o por CONTENIDO (el tablero viejo se reconoce
+	-- por sus textos: "Hojas", "HEAT", "Espacio"), aunque se llame de otra forma
+	local okD, todos = pcall(function() return playerGui:GetDescendants() end)
+	for _, g in ipairs((okD and todos) or playerGui:GetChildren()) do
 		local ok, cls = pcall(function() return g.ClassName end)
 		if ok and cls == "ScreenGui" and g.Name ~= "SpiceEmpire_Error"
-			and g.Name ~= "SpiceEmpire_Avisito"
-			and string.sub(g.Name or "", 1, 11) == "SpiceEmpire" then
-			table.insert(basura, g)
+			and g.Name ~= "SpiceEmpire_Avisito" and g.Name ~= "AvisoRonda" then
+			local porNombre = string.sub(g.Name or "", 1, 11) == "SpiceEmpire"
+			local porTexto = false
+			if not porNombre then
+				local okk, desc = pcall(function() return g:GetDescendants() end)
+				if okk and desc then
+					for _, d in ipairs(desc) do
+						local ok2, txt = pcall(function() return d.Text end)
+						if ok2 and type(txt) == "string" and #txt > 0
+							and (string.find(txt, "Hojas", 1, true)
+								or string.find(txt, "HEAT", 1, true)
+								or string.find(txt, "Espacio", 1, true)) then
+							porTexto = true
+							break
+						end
+					end
+				end
+			end
+			if porNombre or porTexto then table.insert(basura, g) end
 		end
 	end
 	if #basura > 0 then
 		for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
+		-- se guarda la cuenta en un ATRIBUTO (no en una variable nueva: este archivo
+		-- anda en 183 de 200 locales permitidos) para que la placa testigo lo diga
+		pcall(function() player:SetAttribute("TablerosBorrados", #basura) end)
 		warn("[SpiceEmpire] encontre " .. #basura .. " interfaz(es) VIEJAS guardadas en el" ..
 			" lugar (por eso seguia saliendo el tablero anterior) y las borre para dibujar la" ..
 			" de esta ronda. Si el juego avisa otra vez: borra el 'ScreenGui' que sobra en" ..
@@ -671,6 +693,13 @@ do
 			pie.TextStrokeTransparency = 0.5
 			pie.TextStrokeColor3 = Color3.new(0, 0, 0)
 			pie.Text = "si no dice " .. MI_VERSION .. ", lo que ves NO es de esta ronda"
+			-- si la limpieza de arriba ya borro tableros viejos, se dice AQUI (en
+			-- pantalla) y no solo en el Output
+			local borrados = tonumber(player:GetAttribute("TablerosBorrados") or 0) or 0
+			if borrados > 0 then
+				pie.Text = "borre " .. borrados .. " tablero(s) viejo(s) que estaban pegados"
+				pie.TextColor3 = Color3.fromRGB(255, 200, 120)
+			end
 			pie.Parent = placa
 		end
 
@@ -729,25 +758,65 @@ gui.Parent = playerGui or player:WaitForChild("PlayerGui")
 do
 	local MIA = gui
 
+	-- >>> v39: AHORA POR CONTENIDO, NO SOLO POR NOMBRE <<<
+	-- El usuario reporto que seguia viendo el tablero VIEJO con la placa nueva en
+	-- pantalla (o sea: la ClientUI nueva SI corria y el tablero viejo seguia ahi).
+	-- La limpieza anterior solo reconocia nombres que empiezan con "SpiceEmpire":
+	-- si la copia vieja se llamaba distinto (o la renombro el usuario), no la
+	-- tocaba. Este tablero se reconoce por lo que DICE: "Hojas", "HEAT", "Espacio".
+	local function tienePintaDeTablero(g: any): boolean
+		local ok, desc = pcall(function() return g:GetDescendants() end)
+		if not ok or not desc then return false end
+		for _, d in ipairs(desc) do
+			local ok2, txt = pcall(function() return d.Text end)
+			if ok2 and type(txt) == "string" and #txt > 0 then
+				if string.find(txt, "Hojas", 1, true)
+					or string.find(txt, "HEAT", 1, true)
+					or string.find(txt, "Espacio", 1, true) then
+					return true
+				end
+			end
+		end
+		return false
+	end
+
 	local function esInterfazDelJuego(g: any): boolean
 		if g == MIA or MIS_GUIS[g] then return false end
 		local ok, cls = pcall(function() return g.ClassName end)
 		if not ok or cls ~= "ScreenGui" then return false end
 		local n = g.Name or ""
-		return string.sub(n, 1, 11) == "SpiceEmpire"
+		-- por nombre (cualquier copia del juego) o por contenido (el tablero viejo,
+		-- aunque se llame de cualquier manera)
+		return string.sub(n, 1, 11) == "SpiceEmpire" or tienePintaDeTablero(g)
 	end
 
 	local function barrerInterfacesViejas(): number
 		local pg = player:FindFirstChild("PlayerGui")
 		if not pg then return 0 end
 		local basura = {}
-		for _, g in ipairs(pg:GetChildren()) do
+		-- GetDescendants y no GetChildren: la basura puede estar dentro de una
+		-- carpeta dentro del PlayerGui
+		local ok, todos = pcall(function() return pg:GetDescendants() end)
+		if not ok or not todos then return 0 end
+		for _, g in ipairs(todos) do
 			if esInterfazDelJuego(g) then table.insert(basura, g) end
 		end
 		for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
 		if #basura > 0 then
-			print("[SpiceEmpire] limpie " .. #basura .. " interfaz(es) de otra copia del juego" ..
-				" (habia mas de una ClientUI corriendo; ver docs/09-SI-SALE-DOBLE.md)")
+			print("[SpiceEmpire] limpie " .. #basura .. " interfaz(es) vieja(s) que estaban en la" ..
+				" pantalla (tablero de otra copia del juego; la nueva ya se dibujo). Docs: docs/09.")
+			-- y se avisa EN PANTALLA, en la placa: asi el usuario ve que SI se limpio
+			pcall(function()
+				local antes = tonumber(player:GetAttribute("TablerosBorrados") or 0) or 0
+				player:SetAttribute("TablerosBorrados", antes + #basura)
+				local aviso = pg:FindFirstChild("AvisoRonda")
+				local placa = aviso and aviso:FindFirstChild("Placa")
+				local pie = placa and placa:FindFirstChild("Pie")
+				if pie then
+					pie.Text = "borre " .. (antes + #basura) .. " tablero(s) viejo(s) que quedaron pegados"
+					pie.TextColor3 = Color3.fromRGB(255, 200, 120)
+				end
+			end)
 		end
 		return #basura
 	end

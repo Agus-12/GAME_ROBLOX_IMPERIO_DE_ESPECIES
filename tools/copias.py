@@ -478,6 +478,131 @@ else:
         print("         (el letrero tiene que decir SERVIDOR + la ronda)")
         fallas += 1
 
+# ------------------- 11) EL TABLERO VIEJO CON OTRO NOMBRE (v39)
+# Reporte del usuario CON la placa nueva en pantalla: "sigue viendose el viejo".
+# El barrido anterior solo reconocia nombres que empiezan con "SpiceEmpire"; si la
+# copia vieja se llama distinto (o esta dentro de una carpeta), no la tocaba. La
+# v39 reconoce el tablero por su CONTENIDO ("Hojas", "HEAT", "Espacio").
+print()
+print("=== 11. el tablero viejo con OTRO nombre (y en una carpeta): se borra ===")
+
+
+def corre_tablero_raro():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += '''
+local pg0 = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local raro = Instance.new("ScreenGui") ; raro.Name = "MiUI_vieja" ; raro.Parent = pg0
+local fr = Instance.new("Frame") ; fr.Parent = raro
+local l1 = Instance.new("TextLabel") ; l1.Text = "Hojas 0  |  Bloques 0  |  Espacio 0/200" ; l1.Parent = fr
+local l2 = Instance.new("TextLabel") ; l2.Text = "HEAT 0%" ; l2.Parent = fr
+local carpeta = Instance.new("Folder") ; carpeta.Name = "Cosas" ; carpeta.Parent = pg0
+local hondo = Instance.new("ScreenGui") ; hondo.Name = "Pantalla" ; hondo.Parent = carpeta
+local l3 = Instance.new("TextLabel") ; l3.Text = "Hojas 5  |  Espacio 2/200" ; l3.Parent = hondo
+'''
+    guion += "local __cli = function()\n" + CLIENTE + "\nend\n__cli()\n"
+    guion += '''
+if task.__sched then task.__sched.advance(2) end
+local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local quedan = 0
+for _, g in ipairs(pg:GetDescendants()) do
+  if g.ClassName == "ScreenGui" and (g.Name == "MiUI_vieja" or g.Name == "Pantalla") then quedan = quedan + 1 end
+end
+local aviso = pg:FindFirstChild("AvisoRonda")
+local placa = aviso and aviso:FindFirstChild("Placa")
+local pie = placa and placa:FindFirstChild("Pie")
+print("__RESULTADO__ viejos=" .. quedan .. "||" .. tostring(pie and pie.Text))
+'''
+    return lua(guion, env=ENTORNO)
+
+
+sal = corre_tablero_raro()
+m = re.search(r"__RESULTADO__ viejos=(\d+)\|\|(.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    quedan, texto = int(m.group(1)), m.group(2)
+    ok = quedan == 0 and "borre" in texto
+    print("  %s  quedan tableros viejos: %d | la placa dice: %s"
+          % ("OK   " if ok else "FALLA", quedan, texto[:80]))
+    if not ok:
+        print("         (los dos (incluso el de la carpeta) deben borrarse, y la placa decirlo)")
+        fallas += 1
+
+print()
+print("=== 12. el SERVIDOR borra la interfaz vieja escondida y lista lo que dibuja ===")
+
+
+def corre_barrido_servidor():
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local _city,_data
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+local sss=game:GetService("ServerScriptService")
+sss.WaitForChild=function(s,n)
+  if n=="CityGenerator" then return "__CITY__" end
+  if n=="DataService" then return "__DATA__" end end
+require=function(x)
+  if x=="__CFG__" then return _cfg end
+  if x=="__CITY__" then return _city end
+  if x=="__DATA__" then return _data end
+  return {} end
+-- el tablero viejo ESCONDIDO en una carpeta de StarterGui, con otro nombre
+local sg = game:GetService("StarterGui")
+local carpeta = Instance.new("Folder") ; carpeta.Name = "Guardado" ; carpeta.Parent = sg
+local tab = Instance.new("ScreenGui") ; tab.Name = "MiTablero" ; tab.Parent = carpeta
+local f = Instance.new("Frame") ; f.Parent = tab
+local l = Instance.new("TextLabel") ; l.Text = "Hojas 0 | Bloques 0 | Espacio 0/200" ; l.Parent = f
+-- una copia vieja de interfaz escondida en StarterCharacterScripts
+local sps = game:GetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts")
+local scs = game:GetService("StarterPlayer"):FindFirstChild("StarterCharacterScripts")
+local bueno = Instance.new("LocalScript") ; bueno.Name = "ClientUI" ; bueno.Parent = sps
+local viejo = Instance.new("LocalScript") ; viejo.Name = "OldHud" ; viejo.Parent = scs
+_city=(function()
+'''
+    guion += L("ServerScriptService/CityGenerator.luau")
+    guion += '''
+end)()
+_data=(function()
+'''
+    guion += L("ServerScriptService/DataService.luau")
+    guion += '''
+end)()
+local ok, err = pcall(function()
+'''
+    guion += L("ServerScriptService/Main.luau")
+    guion += '''
+end)
+if task.__sched then task.__sched.advance(20) end
+print("__RESULTADO__ quedan=" .. #carpeta:GetChildren() .. "||" .. tostring(ok))
+'''
+    return lua(guion)
+
+
+sal = corre_barrido_servidor()
+m = re.search(r"__RESULTADO__ quedan=(\d+)\|\|(.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-8:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    quedan, ok = int(m.group(1)), m.group(2) == "true"
+    reporto_basura = "BASURA" in sal
+    reporto_dibuja = "DIBUJA" in sal and "OldHud" in sal
+    no_marco_buena = "ClientUI (LocalScript)" not in sal.replace("DIBUJA", "DIBUJA ") or sal.count("DIBUJA") == 1
+    todo = quedan == 0 and ok and reporto_basura and reporto_dibuja and no_marco_buena
+    print("  %s  la carpeta quedo vacia: %s | reporto la BASURA: %s | reporto al OldHud: %s | no marco la ClientUI buena: %s"
+          % ("OK   " if todo else "FALLA", "si" if quedan == 0 else "NO",
+             "si" if reporto_basura else "NO", "si" if reporto_dibuja else "NO",
+             "si" if no_marco_buena else "NO"))
+    if not todo:
+        fallas += 1
+
 print()
 if fallas:
     print("FALLA")

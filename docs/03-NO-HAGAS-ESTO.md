@@ -431,7 +431,7 @@ de efectos de iluminación.
 
 ## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
 
-En la v38, el cliente quedo asi:
+En la v39, el cliente quedo asi:
 
 ```lua
 local function carpetaRemotes()
@@ -441,11 +441,11 @@ local function carpetaRemotes()
     end
 end
 
-local MI_VERSION = "v38"    -- se declara 60 lineas mas abajo
+local MI_VERSION = "v39"    -- se declara 60 lineas mas abajo
 ```
 
 En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
-vale nil**. Entonces la comparacion era `"v38" == nil` -> siempre falso, el avisito
+vale nil**. Entonces la comparacion era `"v39" == nil` -> siempre falso, el avisito
 no salia nunca, y en la consola no habia ni un error. Un bug invisible.
 
 **Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
@@ -454,7 +454,7 @@ toca como globales; si sale uno que deberia ser local, ahi esta el bug.
 
 ---
 
-## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v38)
+## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v39)
 
 ```lua
 -- MAL: te quedas con el objeto. Si el servidor borra esa carpeta (limpieza,
@@ -467,7 +467,7 @@ RE_Shoot.OnClientEvent:Connect(...)     -- nunca vuelve a dispararse
 Sintoma: **los botones no hacen nada y en la consola no sale ni un error**. Es lo
 peor de depurar, porque no hay rastro.
 
-El caso real (v38): el cliente arranca **antes** de que el servidor termine de limpiar.
+El caso real (v39): el cliente arranca **antes** de que el servidor termine de limpiar.
 Si en el lugar habia una carpeta `Remotes` vieja guardada, el cliente se enganchaba a
 esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes muertos.
 
@@ -482,7 +482,7 @@ vieja quede desconectada (`Remotes#false=0`).
 
 ---
 
-## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v38)
+## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v39)
 
 ```js
 for (var k = 0; k < 5; k++) {        // MAL: cuantos paneles hay, escrito a mano
@@ -503,7 +503,7 @@ JavaScript de la pagina y **da clic en cada pestaña**.
 
 ---
 
-## 17. 📦 Pasarse de 200 variables locales (v38)
+## 17. 📦 Pasarse de 200 variables locales (v39)
 
 Luau (y Roblox) permiten **200 variables locales por funcion**, y **el nivel de arriba de
 un script cuenta como una funcion**. `ClientUI.luau` andaba en **185**: al agregar un
@@ -523,7 +523,7 @@ funcion antes de agregarle instrumentacion, para no gastar los locales del guion
 
 ---
 
-## 18. 💀 Apagar la copia NUEVA por algo que puede ser basura (v38)
+## 18. 💀 Apagar la copia NUEVA por algo que puede ser basura (v39)
 
 ```lua
 if playerGui:FindFirstChild("SpiceEmpireUI") then
@@ -548,7 +548,7 @@ quedaba con la vieja durante rondas enteras ("le pegue los archivos y no cambio 
 * y para no volver a adivinar desde una captura: **la ronda se imprime en pantalla**
   (junto al reloj) y el servidor **reporta las interfaces guardadas en `StarterGui`**.
 
-### Y en el simulador (v38)
+### Y en el simulador (v39)
 
 `IsA("GuiObject")` comparaba el nombre exacto: **siempre daba falso**, asi que nada
 verificaba que las filas del HUD se mostraran de verdad. Y `LayoutOrder` valia `nil`
@@ -558,7 +558,7 @@ simulador imita a Roblox (herencia de IsA + valores por defecto de GUI).
 
 ---
 
-## 19. 📸 Creer que "no me lo dijo" es suficiente para saber si corrio (v38)
+## 19. 📸 Creer que "no me lo dijo" es suficiente para saber si corrio (v39)
 
 El usuario reporto **cinco rondas seguidas** "sigue igual" y desde afuera no habia
 forma de saber **que codigo estaba dibujando la pantalla**: el juego no decia su
@@ -567,10 +567,10 @@ pantalla real del jugador).
 
 **Lo que faltaba no era un arreglo: era un TESTIGO.** Ahora el juego lo dice el solo:
 
-* **Cliente**: placa `RONDA v38 (arrancando...)` -> `RONDA v38  OK`, y un letrerito
-  `v38` que se queda para siempre en pantalla.
-* **Servidor**: letrero flotando arriba del spawn con `SERVIDOR v38`.
-* **Output**: inventario con la ronda **de cada archivo** (`OK [v38]`, `VIEJO [v32]`...).
+* **Cliente**: placa `RONDA v39 (arrancando...)` -> `RONDA v39  OK`, y un letrerito
+  `v39` que se queda para siempre en pantalla.
+* **Servidor**: letrero flotando arriba del spawn con `SERVIDOR v39`.
+* **Output**: inventario con la ronda **de cada archivo** (`OK [v39]`, `VIEJO [v32]`...).
 
 **Reglas:**
 
@@ -582,3 +582,28 @@ pantalla real del jugador).
    variables arriba, para no gastar locales (este archivo anda en 183 de 200).
 4. El nombre del `ScreenGui` testigo **no** lleva el prefijo del juego, para que
    ningun barrido de copias viejas pueda borrarlo.
+
+
+---
+
+## 20. 🔎 Reconocer la basura por su NOMBRE (v39)
+
+El barrido de interfaces viejas borraba lo que se llamaba `SpiceEmpire...`. El usuario
+reporto que el tablero viejo **seguia ahi** con la version nueva corriendo. Motivo: su
+copia vieja se llamaba distinto (o estaba dentro de una carpeta).
+
+**Reglas:**
+
+1. A un objeto que hay que cazar **no se le reconoce por el nombre** (el usuario lo puede
+   renombrar, Roblox le pone `2` al final, o vive dentro de una carpeta): se le reconoce
+   por **lo que dice o contiene** (aqui: los textos "Hojas", "HEAT", "Espacio").
+2. Los barridos van **recursivos** (`GetDescendants`), nunca solo el primer nivel.
+3. Ademas de arrancar, se limpia **cuando aparece algo nuevo** (`ChildAdded`): la copia
+   vieja puede nacer tarde o renacer en cada respawn.
+4. Y siempre se deja **rastro visible**: la placa dice cuantos borro, el Output dice la
+   **ruta exacta**, y las pruebas (11 y 12) fallan si la limpieza deja de funcionar.
+
+### En el simulador
+
+* `StarterPlayer` no traia sus carpetas (`StarterPlayerScripts`, `StarterCharacterScripts`):
+  los chequeos del servidor sobre la ClientUI no podian probarse. Ahora si.

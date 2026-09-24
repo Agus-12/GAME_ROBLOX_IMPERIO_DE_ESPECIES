@@ -11,13 +11,14 @@ Dale **Play** y mira **arriba al centro** de la pantalla.
 
 | Lo que sale | Que pasa | Que hacer |
 |---|---|---|
-| **`RONDA v38  OK`** | el archivo nuevo SI corre | el juego esta al dia: lo que falte es otro archivo, no la ClientUI |
-| **`RONDA v38  (arrancando...)`** y no cambia | la ClientUI corre pero **truena** a medio camino | paso 3 (mira el Output) |
+| **`RONDA v39  OK`** | el archivo nuevo SI corre | el juego esta al dia: lo que falte es otro archivo, no la ClientUI |
+| **`RONDA v39` + "borre N tablero(s) viejo(s)"** | encontro y borro una copia vieja que se veia encima | perfecto: mira que ya no quede el tablero ancho |
+| **`RONDA v39  (arrancando...)`** y no cambia | la ClientUI corre pero **truena** a medio camino | paso 3 (mira el Output) |
 | **no sale placa** | esa ClientUI **no corre** | pasos 2 y 4 |
 | sale **otra** ronda (v32, v36...) | estas corriendo un archivo **viejo** | paso 2 |
 
 Tambien mira el **letrero del spawn** (arriba de donde apareces): dice
-`SERVIDOR v38`. Si el letrero es viejo y la placa nueva, el problema esta del lado
+`SERVIDOR v39`. Si el letrero es viejo y la placa nueva, el problema esta del lado
 del servidor; si el letrero es nuevo y la placa no sale, el problema es la ClientUI.
 
 ## Paso 2. ¿La ClientUI es LocalScript y esta prendida?
@@ -32,7 +33,7 @@ En Studio, en el **Explorer**:
 2. En la lista de propiedades, **`Enabled`** tiene que estar **palomeado**.
 3. Tiene que haber **un solo** `ClientUI`.
 
-El Output tambien lo dice solo (ronda v38):
+El Output tambien lo dice solo (ronda v39):
 
 ```
 [SpiceEmpire]  MAL    StarterPlayer > StarterPlayerScripts > ClientUI (es Script)
@@ -47,10 +48,10 @@ Ahí el juego escribe un **INVENTARIO** al arrancar. Busca las lineas que empiez
 con `[SpiceEmpire]`:
 
 ```
-[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v38, al arrancar) ====
+[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v39, al arrancar) ====
 [SpiceEmpire]   OK     ReplicatedStorage > GameConfig
 [SpiceEmpire]   VIEJO  [v32] StarterPlayer > StarterPlayerScripts > ClientUI   <- es de otra ronda, pegalo de nuevo
-[SpiceEmpire]   COPIA  [v38] ServerScriptService > Main   <- borra esta (clic derecho > Delete)
+[SpiceEmpire]   COPIA  [v39] ServerScriptService > Main   <- borra esta (clic derecho > Delete)
 [SpiceEmpire]   BASURA StarterGui > SpiceEmpireUI   <- interfaz guardada en el lugar (la borro yo)
 [SpiceEmpire]   FALTA  ServerScriptService > DataService   <- pegalo (falta por completo)
 ```
@@ -58,13 +59,18 @@ con `[SpiceEmpire]`:
 * **FALTA** = ese archivo no esta: pegalo.
 * **VIEJO [vNN]** = esta, pero es de otra ronda: pegalo otra vez.
 * **COPIA** = hay mas de uno: deja UNO (el que diga la ronda nueva) y borra los demas.
-* **BASURA** = interfaz guardada dentro del lugar: la v38 ya la borra sola.
+* **BASURA** = interfaz guardada dentro del lugar: la v39 ya la borra sola.
+* **DIBUJA** = un LocalScript que puede estar dibujando interfaz por su cuenta
+  (una copia vieja escondida): si no debe estar ahi, borralo.
 
 ## Paso 4. La limpieza (si de plano no cambia)
 
 1. En el Explorer, busca **`SpiceEmpireUI`** dentro de **`StarterGui`** y borralo
    (clic derecho > `Delete`). Es una interfaz **guardada** dentro del lugar: viaja
    con el lugar y sale en pantalla en cada Play, aunque pegues todo.
+   **Ojo**: no basta con mirar el primer nivel: revisa tambien **dentro de las carpetas**
+   de `StarterGui` (la ronda v39 ya las borra sola, pero si quieres hacerlo a mano, ahi
+   estan). El Output te da la ruta exacta con la marca `BASURA`.
 2. Borra las carpetas **`Remotes`** de mas (deja una sola; el juego crea la suya).
 3. Deja **un solo** `Main`, un solo `CityGenerator`, un solo `DataService`, un solo
    `GameConfig` y **un solo** `ClientUI`.

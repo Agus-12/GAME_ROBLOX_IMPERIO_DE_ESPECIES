@@ -174,6 +174,13 @@ local function svc(n)
       s.ExposureCompensation = 0 ; s.GeographicLatitude = 20
       s.ClockTimeChanged = newSignal()
     end
+    -- StarterPlayer trae DOS carpetas adentro en Roblox (StarterPlayerScripts y
+    -- StarterCharacterScripts). El mock no las tenia, asi que los chequeos del
+    -- servidor sobre la ClientUI (v38) nunca encontraban nada al probarlos.
+    if n == "StarterPlayer" then
+      local sps = Instance_.new("StarterPlayerScripts") ; sps.Parent = s
+      local scs = Instance_.new("StarterCharacterScripts") ; scs.Parent = s
+    end
     s.GetDataStore=function() return {GetAsync=function() return nil end,SetAsync=function() end} end
     s.Create=function() return {Play=function() end,Completed=newSignal()} end
     s.CreatePath=function() return {ComputeAsync=function() end,Status=nil,GetWaypoints=function() return {} end} end

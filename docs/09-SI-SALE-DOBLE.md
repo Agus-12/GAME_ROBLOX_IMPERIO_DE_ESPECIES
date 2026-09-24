@@ -112,7 +112,7 @@ para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.m
 
 ---
 
-## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v38)
+## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v39)
 
 Todo lo de arriba se hace a mano en el Explorer. Si quieres que se haga solo:
 
@@ -133,20 +133,20 @@ Hace esto:
 * borra **todas** las carpetas `Remotes` (el juego crea la suya al dar Play);
 * te dice **que archivo hay que volver a pegar** si el que tienes es de otra ronda.
 
-**Y desde la v38 el cartel rojo ya no sale cuando el juego en realidad si
+**Y desde la v39 el cartel rojo ya no sale cuando el juego en realidad si
 funciona** (la carpeta buena es de esta ronda y tiene los 11 remotes): en ese caso
 sale un **avisito azul chiquito** abajo durante 14 segundos y puedes jugar normal.
 El cartel rojo queda solo para cuando de verdad hay que arreglar algo.
 
 ---
 
-## 🧾 El juego te dice DONDE esta la copia (v38)
+## 🧾 El juego te dice DONDE esta la copia (v39)
 
 Al arrancar, el servidor imprime en el **Output** un inventario completo con la **ruta** de
 cada archivo del juego y marca las copias:
 
 ```
-[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v38, al arrancar) ====
+[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v39, al arrancar) ====
 [SpiceEmpire]  OK     ServerScriptService > Main
 [SpiceEmpire]  OK     StarterPlayer > StarterPlayerScripts > ClientUI
 [SpiceEmpire]  COPIA  StarterGui > ClientUI   <- borra esta (clic derecho > Delete)
@@ -161,7 +161,7 @@ Busca en el Output la palabra **INVENTARIO**. Ahi sale exactamente que borrar y 
 Cada copia deja un "latido" con su version. La que sobra **se apaga sola** y avisa:
 
 ```
-[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v38) *** esta copia (v38) se apaga sola...
+[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v39) *** esta copia (v39) se apaga sola...
 ```
 
 **Ojo importante:** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`.
@@ -172,7 +172,7 @@ viejo te confunda (paso de verdad: un cartel de la ronda v32 culpando al `Main` 
 
 ---
 
-## 🆕 v37/v38: "no cambio nada" aunque pegues todo
+## 🆕 v37/v39: "no cambio nada" aunque pegues todo
 
 Hay **dos** formas de que el juego se vea igual aunque pegues los archivos nuevos.
 Las dos ya estan arregladas, pero conviene saberlas:
@@ -184,12 +184,12 @@ lo mete en la pantalla **al arrancar**, sin que corra ningun script. Se ve como 
 tablero anterior", y como no lo dibuja nadie, **no cambia nunca**.
 
 * Esa basura se borra: Explorer > `StarterGui` > clic derecho en el `ScreenGui` > `Delete`.
-* La v38 la **borra sola** al arrancar (avisa en el Output con la marca `BASURA`).
+* La v39 la **borra sola** al arrancar (avisa en el Output con la marca `BASURA`).
 
 ### 2. La ClientUI que no corre
 
 Un `Script` **normal** puesto en `StarterPlayerScripts` **no corre**: no dibuja nada y
-no avisa. Igual con `Enabled = false`. La v38 lo revisa y lo grita en el Output:
+no avisa. Igual con `Enabled = false`. La v39 lo revisa y lo grita en el Output:
 
 ```
 MAL    StarterPlayer > StarterPlayerScripts > ClientUI (es Script)
@@ -198,7 +198,40 @@ APAGAD StarterPlayer > StarterPlayerScripts > ClientUI (Disabled)
 
 ### Como saber, en 10 segundos, que ronda esta corriendo
 
-* **Placa verde** arriba al centro (cliente): `RONDA v38 ...`.
-* **Letrero** flotando arriba del spawn (servidor): `SERVIDOR v38`.
-* **Letrerito chiquito** `v38` (se queda siempre, arriba al centro).
+* **Placa verde** arriba al centro (cliente): `RONDA v39 ...`.
+* **Letrero** flotando arriba del spawn (servidor): `SERVIDOR v39`.
+* **Letrerito chiquito** `v39` (se queda siempre, arriba al centro).
 * **INVENTARIO** en el Output con la ronda de **cada** archivo.
+
+
+---
+
+## 🆕 v39: el tablero viejo que "no se iba" aunque pegaras todo
+
+Reporte del usuario **con la placa nueva ya en pantalla**: seguia viendo la barra ancha.
+Eso significa: la ClientUI nueva **si corria**, pero **otra interfaz vieja seguia
+dibujada encima**. Hay dos formas de que eso pase:
+
+1. **La copia vieja tiene otro nombre** (`MiUI`, `Hud`, `Pantalla`...): el barrido
+   anterior solo reconocia nombres que empiezan con `SpiceEmpire`.
+2. **Esta dentro de una carpeta** (`PlayerGui > Cosas > Pantalla`): solo se revisaba el
+   primer nivel.
+
+**Arreglado en v39**: el tablero se reconoce **por lo que dice**:
+
+* textos **"Hojas"**, **"HEAT"**, **"Espacio"** -> es el tablero del juego, se llame como
+  se llame y este donde este;
+* se revisa **todo** el `PlayerGui` (y el `StarterGui` desde el servidor, recursivo);
+* se borra al arrancar, varias veces despues, **y en el instante** en que aparece algo nuevo;
+* la **placa** te dice cuantos borro: `borre 2 tablero(s) viejo(s) que estaban pegados`.
+
+Y si aun asi queda, el INVENTARIO del servidor te da la **ruta exacta** de lo que sobra:
+
+```
+BASURA StarterGui > Guardado > MiTablero   <- interfaz vieja guardada (la borro yo)
+DIBUJA StarterPlayer > StarterCharacterScripts > OldHud (LocalScript)  <- borralo
+```
+
+**Borrar a mano** (siempre funciona): Explorer > busca el objeto por la ruta que dice el
+Output > clic derecho > `Delete`. Para interfaces guardadas: revisa **dentro de las
+carpetas** de `StarterGui`, no solo el primer nivel.

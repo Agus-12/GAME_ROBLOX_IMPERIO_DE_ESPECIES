@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v38 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v39 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -323,31 +323,87 @@ local function inventario(momento: string)
 		end
 	end
 
-	-- ===== INTERFACES GUARDADAS EN EL LUGAR (v37, ahora las borra la v38) =====
-	-- CASO REAL: al usuario le seguia saliendo el tablero viejo y el cliente nuevo
-	-- se apagaba solo. Causa: un ScreenGui del juego GUARDADO dentro del lugar
-	-- (StarterGui). Roblox lo mete en la pantalla al arrancar, y el cliente lo
-	-- tomaba por "otra copia corriendo". Es basura que VIAJA dentro del lugar.
-	-- La v38 ademas la BORRA: asi deja de salir en cada Play.
+	-- ===== ¿DE DONDE SALE EL TABLERO VIEJO? (v39) =====
+	-- El usuario reporto (con la placa nueva en pantalla) que SEGUIA viendo el
+	-- tablero ancho viejo. La v38 solo revisaba el primer nivel de StarterGui y
+	-- solo los nombres que empiezan con "SpiceEmpire". Ahora se revisa TODO,
+	-- recursivo y por CONTENIDO: si una interfaz dice "Hojas"/"HEAT"/"Espacio" es
+	-- el tablero del juego, se llame como se llame y este donde este.
+	-- Tambien se listan los LocalScripts que podrian estar dibujando interfaz por
+	-- su cuenta (una copia vieja escondida en StarterCharacterScripts, por ej.).
 	do
-		local StarterGui = game:GetService("StarterGui")
-		local ok, hijos = pcall(function() return StarterGui:GetChildren() end)
-		if ok and hijos then
-			local basura = {}
-			for _, g in ipairs(hijos) do
-				local okc, cls = pcall(function() return g.ClassName end)
-				if okc and (cls == "ScreenGui" or cls == "BillboardGui" or cls == "SurfaceGui")
-					and string.sub(g.Name or "", 1, 11) == "SpiceEmpire" then
-					apunta("BASURA", rutaLarga(g), "<- interfaz guardada en el lugar (la borro yo)")
-					table.insert(basura, g)
-					problemas += 1
+		local lugares = {}
+		for _, nombre in ipairs({ "StarterGui", "StarterPlayer", "ReplicatedFirst" }) do
+			local ok, svc = pcall(function() return game:GetService(nombre) end)
+			if ok and svc then table.insert(lugares, svc) end
+		end
+		local contenedores = {}
+		for _, svc in ipairs(lugares) do
+			table.insert(contenedores, svc)
+			for _, sub in ipairs({ "StarterPlayerScripts", "StarterCharacterScripts" }) do
+				local ok, c = pcall(function() return svc:FindFirstChild(sub) end)
+				if ok and c then table.insert(contenedores, c) end
+			end
+		end
+
+		local function pintaDeTablero(g: any): boolean
+			local ok, desc = pcall(function() return g:GetDescendants() end)
+			if not ok or not desc then return false end
+			for _, d in ipairs(desc) do
+				local ok2, txt = pcall(function() return d.Text end)
+				if ok2 and type(txt) == "string" and #txt > 0 then
+					if string.find(txt, "Hojas", 1, true)
+						or string.find(txt, "HEAT", 1, true)
+						or string.find(txt, "Espacio", 1, true) then
+						return true
+					end
 				end
 			end
-			if #basura > 0 then
-				for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
-				warn("[SpiceEmpire] borre " .. #basura .. " interfaz(es) VIEJAS guardadas dentro del" ..
-					" lugar: eran las que seguian saliendo en pantalla aunque pegaras los archivos" ..
-					" nuevos. Si el aviso vuelve, borralas tu en StarterGui (docs/09).")
+			return false
+		end
+
+		local basura = {}
+		for _, cont in ipairs(contenedores) do
+			local ok, todos = pcall(function() return cont:GetDescendants() end)
+			if ok and todos then
+				for _, g in ipairs(todos) do
+					local okc, cls = pcall(function() return g.ClassName end)
+					if okc and (cls == "ScreenGui" or cls == "BillboardGui" or cls == "SurfaceGui") then
+						local n = g.Name or ""
+						if string.sub(n, 1, 11) == "SpiceEmpire" or pintaDeTablero(g) then
+							apunta("BASURA", rutaLarga(g),
+								"<- interfaz vieja guardada en el lugar (la borro yo)")
+							table.insert(basura, g)
+							problemas += 1
+						end
+					end
+				end
+			end
+		end
+		if #basura > 0 then
+			for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
+			warn("[SpiceEmpire] borre " .. #basura .. " interfaz(es) VIEJAS guardadas dentro del" ..
+				" lugar: eran las que seguian saliendo en pantalla aunque pegaras los archivos" ..
+				" nuevos. Si el aviso vuelve, borralas tu en StarterGui (docs/09 y docs/11).")
+		end
+
+		-- LocalScripts sospechosos: podrian ser copias viejas dibujando tablero
+		local vistos = {}
+		for _, cont in ipairs(contenedores) do
+			local ok, todos = pcall(function() return cont:GetChildren() end)
+			if ok and todos then
+				for _, g in ipairs(todos) do
+					local okc, cls = pcall(function() return g.ClassName end)
+					local n = string.lower(g.Name or "")
+					local esLaBuena = string.sub(g.Name or "", 1, 8) == "ClientUI"
+						or string.sub(g.Name or "", 1, 11) == "SpiceEmpire"
+					if okc and cls == "LocalScript" and not vistos[g] and not esLaBuena
+						and (string.find(n, "ui") or string.find(n, "client") or string.find(n, "hud")) then
+						vistos[g] = true
+						apunta("DIBUJA", rutaLarga(g) .. " (LocalScript)",
+							"<- si aqui no debe haber interfaz, borralo (deja solo la ClientUI)", g)
+					end
+				end
 			end
 		end
 	end
