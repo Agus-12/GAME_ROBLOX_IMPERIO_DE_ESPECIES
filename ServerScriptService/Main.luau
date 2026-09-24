@@ -1,0 +1,1979 @@
+--!strict
+-- Script (normal) -> ServerScriptService.Main
+-- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
+-- asaltos, crews y PvP.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+
+local Config = require(ReplicatedStorage:WaitForChild("GameConfig"))
+local CityGenerator = require(ServerScriptService:WaitForChild("CityGenerator"))
+local DataService = require(ServerScriptService:WaitForChild("DataService"))
+
+----------------------------------------------------------------------
+-- REMOTES
+----------------------------------------------------------------------
+local Remotes = Instance.new("Folder")
+Remotes.Name = "Remotes"
+Remotes.Parent = ReplicatedStorage
+
+local function mkEvent(name: string): RemoteEvent
+	local r = Instance.new("RemoteEvent")
+	r.Name = name
+	r.Parent = Remotes
+	return r
+end
+local function mkFunc(name: string): RemoteFunction
+	local r = Instance.new("RemoteFunction")
+	r.Name = name
+	r.Parent = Remotes
+	return r
+end
+
+local RE_State   = mkEvent("StateUpdate")     -- server -> client, perfil
+local RE_Phone   = mkEvent("PhoneAlert")      -- server -> client, alertas
+local RE_Toast   = mkEvent("Toast")           -- server -> client, mensajitos
+local RE_Mission = mkEvent("MissionUpdate")    -- server -> client, encargo activo
+local RE_OpenUp  = mkEvent("OpenUpgrades")     -- server -> client, abrir panel de mejoras
+local RE_Sfx     = mkEvent("Sfx")              -- server -> client, efecto de sonido
+local RF_Action  = mkFunc("Action")           -- client -> server, todo lo demas
+
+----------------------------------------------------------------------
+-- MAPA
+----------------------------------------------------------------------
+-- La generacion del mapa va protegida: si algo truena aqui, el resto del
+-- juego (perfiles, dinero, tienda) DEBE seguir funcionando igual.
+local city
+do
+	local ok, result = pcall(CityGenerator.Build)
+	if ok then
+		city = result
+		print("[SpiceEmpire] Ciudad generada.")
+	else
+		warn("[SpiceEmpire] ERROR generando la ciudad: " .. tostring(result))
+		-- carpeta vacia de respaldo para que nada mas falle
+		city = Workspace:FindFirstChild("City") or Instance.new("Folder")
+		city.Name = "City"
+		city.Parent = Workspace
+		if not city:FindFirstChild("Buyers") then
+			local b = Instance.new("Folder")
+			b.Name = "Buyers"
+			b.Parent = city
+		end
+	end
+end
+
+local warehouses: {[Player]: Model} = {}
+local warehouseSlots: {[number]: Player?} = {}
+
+local WAREHOUSE_ORIGIN = Vector3.new(0, 0, -(Config.City.GridZ * (Config.City.BlockSize + Config.City.RoadWidth)) * 0.5 - 200)
+local WAREHOUSE_SPACING = 140
+
+-- definidas mas abajo (sistema de plantas / porton)
+local initPlants
+local setupGate
+
+-- estado de encargos y llamadas (se declara aqui arriba porque
+-- PlayerRemoving lo limpia antes de que se definan las funciones)
+local activeMission: {[Player]: any} = {}
+local missionCooldown: {[Player]: number} = {}
+local pendingCall: {[Player]: any} = {}
+local nextCallAt: {[Player]: number} = {}
+
+local function assignWarehouse(player: Player): Model
+	local slot
+	for i = 1, 20 do
+		if warehouseSlots[i] == nil then
+			slot = i
+			break
+		end
+	end
+	slot = slot or 1
+	warehouseSlots[slot] = player
+
+	local profile = DataService.Get(player)
+	local tier = (profile and profile.WarehouseTier) or 1
+
+	local clone = CityGenerator.BuildWarehouse(tier)
+	clone.Name = "Warehouse_" .. player.UserId
+	clone:SetAttribute("OwnerId", player.UserId)
+	clone:PivotTo(CFrame.new(WAREHOUSE_ORIGIN + Vector3.new((slot - 1) * WAREHOUSE_SPACING - 600, 0, 0)))
+	clone.Parent = Workspace
+
+	-- letrero con el nombre
+	local sign = Instance.new("BillboardGui")
+	sign.Size = UDim2.new(0, 260, 0, 50)
+	sign.StudsOffset = Vector3.new(0, 30, 0)
+	sign.AlwaysOnTop = false
+	sign.MaxDistance = 500
+	sign.LightInfluence = 0
+	sign.Parent = clone.PrimaryPart
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextScaled = true
+	lbl.TextColor3 = Color3.fromRGB(255, 220, 140)
+	lbl.TextStrokeTransparency = 0.3
+	lbl.Text = "BODEGA DE " .. string.upper(player.Name)
+	lbl.Parent = sign
+
+	warehouses[player] = clone
+	if initPlants then pcall(initPlants, clone) end
+	if setupGate then pcall(setupGate, clone) end
+	return clone
+end
+
+local function releaseWarehouse(player: Player)
+	local w = warehouses[player]
+	if w then w:Destroy() end
+	warehouses[player] = nil
+	for i, p in pairs(warehouseSlots) do
+		if p == player then warehouseSlots[i] = nil end
+	end
+end
+
+----------------------------------------------------------------------
+-- ESTADO / SYNC
+----------------------------------------------------------------------
+local crews: {[string]: {Name: string, Owner: number, Members: {number}}} = {}
+
+local function storageCap(profile): number
+	local cap = Config.BaseStorage
+
+	local tier = Config.WarehouseTiers[profile.WarehouseTier or 1]
+	if tier then cap += tier.StorageBonus end
+
+	for id in pairs(profile.Properties) do
+		for _, p in ipairs(Config.Properties) do
+			if p.Id == id then cap += p.Storage end
+		end
+	end
+	return cap
+end
+
+-- ===== LA COMPUTADORA DEL ESCRITORIO =====
+-- Escribe en la pantalla del monitor el estado real de la bodega.
+local function updateWarehouseScreen(player: Player, profile)
+	local model = warehouses[player]
+	if not model then return end
+	local screen = model:FindFirstChild("UpgradeScreen", true)
+	if not screen then return end
+	local gui = screen:FindFirstChild("ScreenGui")
+	if not gui then return end
+	local title = gui:FindFirstChild("ScreenTitle")
+	local body = gui:FindFirstChild("ScreenBody")
+	if not (title and body) then return end
+
+	local cur = profile.WarehouseTier or 1
+	local T = Config.WarehouseTiers[cur]
+	local nextT = Config.WarehouseTiers[cur + 1]
+
+	title.Text = "BODEGA  -  NIVEL " .. cur .. "/" .. #Config.WarehouseTiers
+
+	if not nextT then
+		body.Text = string.format(
+			"%s\n\nNIVEL MAXIMO ALCANZADO.\n\nAlmacen: %d",
+			T.Name, Config.BaseStorage + T.StorageBonus)
+		body.TextColor3 = Color3.fromRGB(150, 255, 190)
+		return
+	end
+
+	local falta = nextT.Cost - profile.Cash
+	if falta <= 0 then
+		body.Text = string.format(
+			"Actual: %s\n\nSIGUIENTE: %s\nCosto: $%s\n\nYA PUEDES MEJORAR.\nParate en el tapete.",
+			T.Name, nextT.Name, Config.Abbrev(nextT.Cost))
+		body.TextColor3 = Color3.fromRGB(150, 255, 190)
+	else
+		body.Text = string.format(
+			"Actual: %s\n\nSIGUIENTE: %s\nCosto: $%s\n\nTe faltan $%s",
+			T.Name, nextT.Name, Config.Abbrev(nextT.Cost), Config.Abbrev(falta))
+		body.TextColor3 = Color3.fromRGB(150, 220, 255)
+	end
+end
+
+local function push(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return end
+	local crewName = nil
+	if profile.CrewId and crews[profile.CrewId] then
+		crewName = crews[profile.CrewId].Name
+	end
+	RE_State:FireClient(player, {
+		Cash = profile.Cash,
+		Leaves = profile.Leaves,
+		Blocks = profile.Blocks,
+		Plots = profile.Plots,
+		PressLevel = profile.PressLevel,
+		Employees = profile.Employees,
+		Vehicles = profile.Vehicles,
+		Properties = profile.Properties,
+		Heat = profile.Heat,
+		TotalEarned = profile.TotalEarned,
+		Storage = storageCap(profile),
+		WarehouseTier = profile.WarehouseTier or 1,
+		CrewName = crewName,
+		Wanted = profile.Heat >= Config.Heat.ArrestThreshold,
+	})
+	pcall(updateWarehouseScreen, player, profile)
+end
+
+local function toast(player: Player, text: string, kind: string?)
+	RE_Toast:FireClient(player, text, kind or "info")
+end
+
+-- pide al cliente que suene un efecto (los IDs viven en GameConfig.Sounds)
+local function sfx(player: Player, key: string)
+	RE_Sfx:FireClient(player, key)
+end
+
+local function alert(player: Player, title: string, body: string, kind: string?)
+	RE_Phone:FireClient(player, {Title = title, Body = body, Kind = kind or "info", Time = os.time()})
+end
+
+----------------------------------------------------------------------
+-- LEADERBOARD
+----------------------------------------------------------------------
+local function setupLeaderstats(player: Player, profile)
+	local ls = Instance.new("Folder")
+	ls.Name = "leaderstats"
+	ls.Parent = player
+
+	local cash = Instance.new("IntValue")
+	cash.Name = "Efectivo"
+	cash.Value = profile.Cash
+	cash.Parent = ls
+
+	local heat = Instance.new("IntValue")
+	heat.Name = "Heat"
+	heat.Value = math.floor(profile.Heat)
+	heat.Parent = ls
+end
+
+local function syncLeaderstats(player: Player)
+	local profile = DataService.Get(player)
+	local ls = player:FindFirstChild("leaderstats")
+	if not profile or not ls then return end
+	local c = ls:FindFirstChild("Efectivo") :: IntValue?
+	local h = ls:FindFirstChild("Heat") :: IntValue?
+	if c then c.Value = math.floor(profile.Cash) end
+	if h then h.Value = math.floor(profile.Heat) end
+end
+
+----------------------------------------------------------------------
+-- JOIN / LEAVE
+----------------------------------------------------------------------
+-- declaradas arriba, se definen mas abajo
+local onCharacter
+local spawnBike
+
+local setupDone: {[Player]: boolean} = {}
+
+local function setupPlayer(player: Player)
+	if setupDone[player] then return end
+	setupDone[player] = true
+
+	local profile = DataService.Load(player)
+	setupLeaderstats(player, profile)
+	local wh = assignWarehouse(player)
+
+	local function placeInWarehouse(char: Model)
+		task.wait(0.4)
+		local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 5)
+		if hrp and wh and wh.PrimaryPart then
+			(hrp :: BasePart).CFrame = wh.PrimaryPart.CFrame + Vector3.new(0, 6, 0)
+		end
+		-- bici gratis para explorar el mapa
+		task.wait(0.6)
+		if spawnBike then pcall(spawnBike, player) end
+	end
+
+	player.CharacterAdded:Connect(function(char)
+		placeInWarehouse(char)
+		if onCharacter then onCharacter(player, char) end
+	end)
+
+	-- si el personaje YA existe (pasa en Studio: el player entra antes
+	-- de que termine de generarse la ciudad), atiendelo tambien
+	if player.Character then
+		task.spawn(placeInWarehouse, player.Character)
+		if onCharacter then onCharacter(player, player.Character) end
+	end
+
+	task.wait(0.3)
+	push(player)
+	alert(player, "Bienvenido", "Tu bodega esta lista. Cosecha hojas, prensalas y vendelas en la ciudad. Ojo con el Heat.", "info")
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+
+-- jugadores que ya estaban en el servidor cuando arranco este script
+for _, p in ipairs(Players:GetPlayers()) do
+	task.spawn(setupPlayer, p)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	setupDone[player] = nil
+	activeMission[player] = nil
+	missionCooldown[player] = nil
+	pendingCall[player] = nil
+	nextCallAt[player] = nil
+	releaseWarehouse(player)
+	DataService.Release(player)
+end)
+
+----------------------------------------------------------------------
+-- PRODUCCION
+----------------------------------------------------------------------
+local function addLeaves(player: Player, amount: number): number
+	local profile = DataService.Get(player)
+	if not profile then return 0 end
+	local cap = storageCap(profile)
+	local used = profile.Leaves + profile.Blocks * 3
+	local space = math.max(0, cap - used)
+	local added = math.min(amount, space)
+	profile.Leaves += added
+	return added
+end
+
+local harvestCooldown: {[Player]: number} = {}
+
+----------------------------------------------------------------------
+-- CRECIMIENTO DE PLANTAS (individual, cada maceta su propio estado)
+----------------------------------------------------------------------
+local G = Config.Growth
+
+-- aspecto de una planta segun cuanto ha crecido (0 = recien cortada, 1 = lista)
+local function applyPlantVisual(plant: Model, g: number)
+	local ripe = g >= 1
+	local stageIdx = math.clamp(math.floor(g * #G.StageColors) + 1, 1, #G.StageColors)
+	local col = G.StageColors[stageIdx]
+
+	for _, d in ipairs(plant:GetChildren()) do
+		if d:IsA("BasePart") and d.Name == "Leaf" then
+			local fx = d:GetAttribute("FullX") or 1
+			local fy = d:GetAttribute("FullY") or 0.28
+			local scale = 0.15 + 0.85 * g
+			d.Size = Vector3.new(fx * scale, fy * math.max(0.4, scale), fx * scale)
+			d.Color = col
+			d.Transparency = (g < 0.06) and 0.5 or 0
+		elseif d:IsA("BasePart") and d.Name == "Stem" then
+			d.Size = Vector3.new(0.22, 0.5 + 1.3 * g, 0.22)
+		elseif d:IsA("BasePart") and d.Name == "RipeGlow" then
+			d.Transparency = ripe and 0.25 or 1
+			local l = d:FindFirstChild("RipeLight")
+			if l and l:IsA("PointLight") then
+				l.Brightness = ripe and 1.1 or 0
+			end
+		end
+	end
+	plant:SetAttribute("Growth", g)
+	plant:SetAttribute("Ripe", ripe)
+end
+
+local function eachPlant(wh: Model, fn)
+	local plots = wh and wh:FindFirstChild("Plots")
+	if not plots then return end
+	for _, d in ipairs(plots:GetChildren()) do
+		if d:IsA("Model") and d.Name == "Plant" then fn(d) end
+	end
+end
+
+-- arranca las plantas escalonadas para que no maduren todas al mismo tiempo
+function initPlants(wh: Model)
+	local n = 0
+	eachPlant(wh, function(plant)
+		n += 1
+		local start = (n <= 6) and (0.55 + (n % 3) * 0.14) or (n % 10) / 14
+		start = math.clamp(start, 0, 0.97)
+		plant:SetAttribute("PlantedAt", os.clock() - start * G.TimePerPlant)
+		applyPlantVisual(plant, start)
+	end)
+end
+
+-- reloj de crecimiento
+task.spawn(function()
+	while true do
+		task.wait(1)
+		local now = os.clock()
+		for _, wh in pairs(warehouses) do
+			if wh and wh.Parent then
+				eachPlant(wh, function(plant)
+					if plant:GetAttribute("Ripe") then return end
+					local at = plant:GetAttribute("PlantedAt")
+					if not at then
+						plant:SetAttribute("PlantedAt", now)
+						return
+					end
+					local g = math.clamp((now - at) / G.TimePerPlant, 0, 1)
+					applyPlantVisual(plant, g)
+				end)
+			end
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- PORTON AUTOMATICO DE LA BODEGA
+----------------------------------------------------------------------
+function setupGate(wh: Model)
+	local gate = wh:FindFirstChild("Gate")
+	local sensor = wh:FindFirstChild("GateSensor")
+	if not gate or not sensor or not sensor:IsA("BasePart") then return end
+
+	local leaves = {}
+	for _, d in ipairs(gate:GetChildren()) do
+		if d:IsA("BasePart") and (d.Name == "GateLeft" or d.Name == "GateRight") then
+			table.insert(leaves, d)
+		end
+	end
+	if #leaves == 0 then return end
+
+	local isOpen = false
+
+	-- version simple y confiable: guardamos la posicion cerrada real
+	for _, leaf in ipairs(leaves) do
+		leaf:SetAttribute("HomeX", leaf.Position.X)
+	end
+
+	local info = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	local function move(open: boolean)
+		for _, leaf in ipairs(leaves) do
+			local homeX = leaf:GetAttribute("HomeX")
+			local closedX = leaf:GetAttribute("ClosedX") or 0
+			local openX = leaf:GetAttribute("OpenX") or 0
+			if homeX then
+				local delta = open and (openX - closedX) or 0
+				local targetX = homeX + delta
+				local target = CFrame.new(targetX, leaf.Position.Y, leaf.Position.Z)
+
+				pcall(function()
+					TweenService:Create(leaf, info, {CFrame = target}):Play()
+				end)
+
+				-- mover tambien las nervaduras: van sueltas, no soldadas
+				local ribs = leaf:FindFirstChild("Ribs")
+				if ribs then
+					for _, rib in ipairs(ribs:GetChildren()) do
+						if rib:IsA("BasePart") then
+							local ox = rib:GetAttribute("OffX") or 0
+							local oy = rib:GetAttribute("OffY") or 0
+							local oz = rib:GetAttribute("OffZ") or 0
+							pcall(function()
+								TweenService:Create(rib, info, {
+									CFrame = CFrame.new(targetX + ox,
+										leaf.Position.Y + oy, leaf.Position.Z + oz),
+								}):Play()
+							end)
+						end
+					end
+				end
+			end
+		end
+	end
+
+	task.spawn(function()
+		while wh.Parent do
+			task.wait(0.4)
+			local anyNear = false
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local ch = pl.Character
+				local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+				if hrp and hrp:IsA("BasePart") then
+					if (hrp.Position - sensor.Position).Magnitude <= 26 then
+						anyNear = true
+						break
+					end
+				end
+			end
+			if anyNear ~= isOpen then
+				isOpen = anyNear
+				move(anyNear)
+			end
+		end
+	end)
+end
+
+local function doHarvest(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false, "sin personaje" end
+
+	local wh = warehouses[player]
+	if not wh then return false, "sin bodega" end
+
+	-- solo las plantas MADURAS que tengas CERCA
+	local ripeNear = {}
+	local anyRipeFar = false
+	eachPlant(wh, function(plant)
+		if not plant:GetAttribute("Ripe") then return end
+		local pp = plant.PrimaryPart
+		if not pp then return end
+		if (pp.Position - hrp.Position).Magnitude <= G.HarvestRadius then
+			table.insert(ripeNear, plant)
+		else
+			anyRipeFar = true
+		end
+	end)
+
+	if #ripeNear == 0 then
+		if anyRipeFar then
+			return false, "Acercate a una mesa con plantas listas"
+		end
+		return false, "Ninguna planta esta lista todavia"
+	end
+
+	local total = #ripeNear * G.LeavesPerPlant
+	local added = addLeaves(player, total)
+	if added == 0 then
+		return false, "Almacen lleno. Compra propiedades para ampliar."
+	end
+
+	local harvested = math.min(#ripeNear, math.max(1, math.ceil(added / G.LeavesPerPlant)))
+	local now = os.clock()
+
+	for k = 1, harvested do
+		local plant = ripeNear[k]
+		plant:SetAttribute("PlantedAt", now)
+		plant:SetAttribute("Ripe", false)
+
+		task.spawn(function()
+			local pp = plant.PrimaryPart
+			if pp then
+				local flash = Instance.new("PointLight")
+				flash.Color = Color3.fromRGB(150, 255, 170)
+				flash.Brightness = 4
+				flash.Range = 12
+				flash.Parent = pp
+				task.delay(0.35, function() flash:Destroy() end)
+			end
+			for _, d in ipairs(plant:GetChildren()) do
+				if d:IsA("BasePart") and d.Name == "Leaf" then
+					pcall(function()
+						TweenService:Create(d,
+							TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+							{Size = Vector3.new(0.12, 0.08, 0.12)}):Play()
+					end)
+				end
+			end
+			task.wait(0.3)
+			applyPlantVisual(plant, 0)
+		end)
+	end
+
+	push(player)
+	return true, string.format("+%d hojas (%d plantas)", added, harvested)
+end
+
+local function doPress(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+
+	local cost = Config.Products.Block.PressCost
+	local output = Config.Press.OutputPerLevel * profile.PressLevel
+	local needed = cost * output
+
+	if profile.Leaves < needed then
+		return false, string.format("Necesitas %d hojas (tienes %d)", needed, profile.Leaves)
+	end
+
+	profile.Leaves -= needed
+	profile.Blocks += output
+
+	-- animar el piston de la prensa
+	local wh = warehouses[player]
+	local piston = wh and wh:FindFirstChild("Piston")
+	if piston and piston:IsA("BasePart") then
+		task.spawn(function()
+			local top = piston.Position
+			local down = top - Vector3.new(0, 3.2, 0)
+			pcall(function()
+				TweenService:Create(piston, TweenInfo.new(0.18, Enum.EasingStyle.Quad,
+					Enum.EasingDirection.In), {Position = down}):Play()
+			end)
+			task.wait(0.22)
+			local flash = Instance.new("PointLight")
+			flash.Color = Color3.fromRGB(255, 170, 80)
+			flash.Brightness = 5
+			flash.Range = 22
+			flash.Parent = piston
+			task.delay(0.25, function() flash:Destroy() end)
+			task.wait(0.15)
+			pcall(function()
+				TweenService:Create(piston, TweenInfo.new(0.5, Enum.EasingStyle.Quad,
+					Enum.EasingDirection.Out), {Position = top}):Play()
+			end)
+		end)
+	end
+
+	push(player)
+	return true, string.format("Prensaste %d bloque(s)", output)
+end
+
+----------------------------------------------------------------------
+-- VENTA + HEAT
+----------------------------------------------------------------------
+local function findBuyer(id: string)
+	for _, b in ipairs(Config.Buyers) do
+		if b.Id == id then return b end
+	end
+	return nil
+end
+
+-- definida mas abajo (sistema de encargos)
+local checkMissionOnSell
+
+local function doSell(player: Player, buyerId: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+
+	local buyer = findBuyer(buyerId)
+	if not buyer then return false, "comprador invalido" end
+
+	-- valida distancia real al pad
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false, "sin personaje" end
+
+	local pad = city:FindFirstChild("Buyers") and city.Buyers:FindFirstChild(buyerId)
+	if not pad then return false, "comprador no existe" end
+	if (hrp.Position - (pad :: BasePart).Position).Magnitude > 28 then
+		return false, "Estas muy lejos del comprador"
+	end
+
+	if profile.Leaves <= 0 and profile.Blocks <= 0 then
+		return false, "No traes nada que vender"
+	end
+
+	local leafValue = profile.Leaves * Config.Products.Leaf.BasePrice * buyer.PriceMult
+	local blockValue = profile.Blocks * Config.Products.Block.BasePrice * buyer.PriceMult
+	local total = math.floor(leafValue + blockValue)
+
+	local heatGain = (profile.Leaves * Config.Heat.PerLeafSold
+		+ profile.Blocks * Config.Heat.PerBlockSold) * buyer.HeatMult
+
+	local soldL, soldB = profile.Leaves, profile.Blocks
+	profile.Leaves = 0
+	profile.Blocks = 0
+
+	-- bono si esta venta completa un encargo
+	local bonus = checkMissionOnSell and checkMissionOnSell(player, buyerId, soldL, soldB) or 0
+	total += bonus
+
+	profile.Cash += total
+	profile.TotalEarned += total
+	profile.Heat = math.min(Config.Heat.Max, profile.Heat + heatGain)
+
+	push(player)
+	syncLeaderstats(player)
+
+	if profile.Heat >= Config.Heat.ArrestThreshold then
+		alert(player, "ALERTA", "La Unidad de Aduanas te tiene fichado. Escondete en tu Zona Segura.", "danger")
+	end
+
+	return true, string.format("Vendiste %d hojas y %d bloques en %s por $%s (+%.0f heat)",
+		soldL, soldB, buyer.Name, Config.Abbrev(total), heatGain)
+end
+
+----------------------------------------------------------------------
+-- ADUANAS (policia)
+----------------------------------------------------------------------
+local function arrest(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return end
+
+	sfx(player, "Arrest")
+
+	local fine = math.floor(profile.Cash * Config.Heat.FineRate)
+	local lostL = math.floor(profile.Leaves * Config.Heat.ConfiscatePercent)
+	local lostB = math.floor(profile.Blocks * Config.Heat.ConfiscatePercent)
+
+	profile.Cash -= fine
+	profile.Leaves -= lostL
+	profile.Blocks -= lostB
+	profile.Heat = 0
+
+	local station = city:FindFirstChild("CustomsStation")
+	local jail = station and station:FindFirstChild("JailSpawn") :: BasePart?
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if jail and hrp then
+		hrp.CFrame = jail.CFrame + Vector3.new(0, 5, 0)
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.WalkSpeed = 0
+			task.delay(Config.Heat.JailTime, function()
+				if hum and hum.Parent then hum.WalkSpeed = 16 end
+			end)
+		end
+	end
+
+	push(player)
+	syncLeaderstats(player)
+	alert(player, "DETENIDO", string.format("Multa de $%s y decomiso de %d hojas / %d bloques. %ds en la celda.",
+		Config.Abbrev(fine), lostL, lostB, Config.Heat.JailTime), "danger")
+end
+
+-- loop de heat
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local profile = DataService.Get(player)
+			if not profile then continue end
+
+			local decay = Config.Heat.DecayPerSecond
+
+			-- si esta parado en su SafePad, baja mas rapido
+			local wh = warehouses[player]
+			local safe = wh and wh:FindFirstChild("SafePad") :: BasePart?
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if safe and hrp and (hrp.Position - safe.Position).Magnitude < 14 then
+				decay = Config.Heat.LayLowRate
+			end
+
+			if profile.Heat > 0 then
+				profile.Heat = math.max(0, profile.Heat - decay)
+			end
+
+			-- persecucion
+			if profile.Heat >= Config.Heat.ArrestThreshold then
+				local roll = (profile.Heat - Config.Heat.ArrestThreshold) / (Config.Heat.Max - Config.Heat.ArrestThreshold)
+				if math.random() < roll * 0.035 then
+					arrest(player)
+				end
+			end
+
+			syncLeaderstats(player)
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- EMPLEADOS AUTOMATICOS
+----------------------------------------------------------------------
+task.spawn(function()
+	while true do
+		task.wait(Config.Employees.Harvester.Interval)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local profile = DataService.Get(player)
+			if profile and profile.Employees.Harvester > 0 then
+				addLeaves(player, profile.Employees.Harvester * Config.Employees.Harvester.Amount)
+				push(player)
+			end
+		end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(Config.Employees.Presser.Interval)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local profile = DataService.Get(player)
+			if profile and profile.Employees.Presser > 0 then
+				local n = profile.Employees.Presser * Config.Employees.Presser.Amount
+				local needed = n * Config.Products.Block.PressCost
+				if profile.Leaves >= needed then
+					profile.Leaves -= needed
+					profile.Blocks += n
+					push(player)
+				end
+			end
+		end
+	end
+end)
+
+-- renta de propiedades
+task.spawn(function()
+	while true do
+		task.wait(Config.PropertyPayoutInterval)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local profile = DataService.Get(player)
+			if not profile then continue end
+			local income = 0
+			for id in pairs(profile.Properties) do
+				for _, p in ipairs(Config.Properties) do
+					if p.Id == id then income += p.Income end
+				end
+			end
+			if income > 0 then
+				profile.Cash += income
+				push(player)
+				syncLeaderstats(player)
+				alert(player, "Rentas", string.format("Cobraste $%s de tus propiedades.", Config.Abbrev(income)), "money")
+			end
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- ASALTOS A LA BODEGA
+----------------------------------------------------------------------
+local function runRaid(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return end
+
+	alert(player, "ASALTO EN CAMINO",
+		string.format("Van a golpear tu bodega en %d segundos. Llega y defiendela.", Config.Raids.WarnSeconds),
+		"danger")
+
+	task.delay(Config.Raids.WarnSeconds, function()
+		local p = DataService.Get(player)
+		if not p then return end
+
+		local wh = warehouses[player]
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+		local defended = false
+		if wh and wh.PrimaryPart and hrp then
+			defended = (hrp.Position - wh.PrimaryPart.Position).Magnitude <= Config.Raids.DefendRadius
+		end
+
+		if defended then
+			local reward = math.floor(200 + p.TotalEarned * 0.01)
+			p.Cash += reward
+			alert(player, "ASALTO REPELIDO",
+				string.format("Defendiste tu bodega. Recuperaste $%s de los atacantes.", Config.Abbrev(reward)), "good")
+		else
+			local lostL = math.floor(p.Leaves * Config.Raids.StealPercent)
+			local lostB = math.floor(p.Blocks * Config.Raids.StealPercent)
+			p.Leaves -= lostL
+			p.Blocks -= lostB
+			alert(player, "TE ROBARON",
+				string.format("No llegaste. Se llevaron %d hojas y %d bloques.", lostL, lostB), "danger")
+		end
+
+		push(player)
+		syncLeaderstats(player)
+	end)
+end
+
+task.spawn(function()
+	while true do
+		task.wait(Config.Raids.CheckInterval)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local profile = DataService.Get(player)
+			if not profile then continue end
+
+			local chance = Config.Raids.BaseChance + profile.Blocks * Config.Raids.ChancePerBlock
+			chance -= profile.Employees.Guard * Config.Employees.Guard.RaidReduction
+			chance = math.clamp(chance, 0, 0.9)
+
+			if math.random() < chance then
+				runRaid(player)
+			end
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- ENCARGOS / MISIONES
+----------------------------------------------------------------------
+local scheduleNextCall   -- definida abajo (sistema de llamadas)
+
+local function missionState(player: Player)
+	local m = activeMission[player]
+	if not m then return nil end
+	return {
+		Title = m.Title,
+		Text = m.Text,
+		BuyerName = m.BuyerName,
+		Item = m.Item,
+		Amount = m.Amount,
+		Reward = m.Reward,
+		EndsAt = m.EndsAt,
+	}
+end
+
+local function sendMission(player: Player)
+	local m = missionState(player)
+	RE_Mission:FireClient(player, m)
+end
+
+-- arma una propuesta de encargo (todavia NO la activa)
+local function rollMission()
+	local tpl = Config.Missions.Templates[math.random(1, #Config.Missions.Templates)]
+	local buyer = Config.Buyers[math.random(1, #Config.Buyers)]
+	local amount = math.random(tpl.AmountMin, tpl.AmountMax)
+
+	local unitPrice = (tpl.Item == "Blocks")
+		and Config.Products.Block.BasePrice
+		or Config.Products.Leaf.BasePrice
+	local reward = math.floor(amount * unitPrice * buyer.PriceMult * tpl.RewardMult)
+
+	local minutes = math.floor(tpl.TimeLimit / 60)
+	local text = string.format(tpl.Desc, amount, buyer.Name, minutes)
+
+	return {
+		Id = tpl.Id,
+		Title = tpl.Title,
+		Text = text,
+		BuyerId = buyer.Id,
+		BuyerName = buyer.Name,
+		Item = tpl.Item,
+		Amount = amount,
+		Reward = reward,
+		HeatMult = tpl.HeatMult,
+		TimeLimit = tpl.TimeLimit,
+	}
+end
+
+-- activa un encargo ya aceptado
+local function startMission(player: Player, m: any)
+	if not Config.Missions.Enabled then return end
+	if activeMission[player] then return end
+
+	m.EndsAt = os.time() + m.TimeLimit
+	activeMission[player] = m
+
+	sendMission(player)
+	alert(player, "ENCARGO ACEPTADO: " .. m.Title,
+		string.format("%s  Pago: $%s", m.Text, Config.Abbrev(m.Reward)), "money")
+end
+
+local function failMission(player: Player, reason: string)
+	if not activeMission[player] then return end
+	activeMission[player] = nil
+	missionCooldown[player] = os.clock() + Config.Missions.CooldownAfterFinish
+	sendMission(player)
+	if scheduleNextCall then pcall(scheduleNextCall, player) end
+	alert(player, "ENCARGO FALLIDO", reason, "danger")
+end
+
+-- revisa si una venta completa el encargo. Devuelve bono extra.
+function checkMissionOnSell(player: Player, buyerId: string, soldL: number, soldB: number): number
+	local m = activeMission[player]
+	if not m then return 0 end
+	if m.BuyerId ~= buyerId then return 0 end
+
+	local delivered = (m.Item == "Blocks") and soldB or soldL
+	if delivered < m.Amount then return 0 end
+
+	local profile = DataService.Get(player)
+	if not profile then return 0 end
+
+	activeMission[player] = nil
+	missionCooldown[player] = os.clock() + Config.Missions.CooldownAfterFinish
+	sendMission(player)
+	if scheduleNextCall then pcall(scheduleNextCall, player) end
+
+	alert(player, "ENCARGO COMPLETADO",
+		string.format("+$%s de bono por '%s'.", Config.Abbrev(m.Reward), m.Title), "good")
+
+	return m.Reward
+end
+
+----------------------------------------------------------------------
+-- LLAMADAS AL CELULAR: te marca un desconocido y tu decides
+----------------------------------------------------------------------
+local RE_Call = mkEvent("IncomingCall")
+
+local MC = Config.MissionCalls
+
+function scheduleNextCall(player: Player, delaySec: number?)
+	local wait_ = delaySec or math.random(MC.MinWait, MC.MaxWait)
+	nextCallAt[player] = os.clock() + wait_
+end
+local scheduleCall = scheduleNextCall
+
+local function hangUp(player: Player)
+	pendingCall[player] = nil
+	RE_Call:FireClient(player, nil)
+end
+
+local function ringPlayer(player: Player)
+	if pendingCall[player] then return end
+	if activeMission[player] then return end
+
+	local m = rollMission()
+	local line = MC.Lines[math.random(1, #MC.Lines)]
+
+	pendingCall[player] = {
+		Mission = m,
+		ExpiresAt = os.clock() + MC.RingSeconds,
+	}
+
+	alert(player, "Llamada de " .. MC.CallerName,
+		line .. "  [" .. m.Title .. " - $" .. Config.Abbrev(m.Reward) .. "]", "info")
+
+	RE_Call:FireClient(player, {
+		Caller = MC.CallerName,
+		Line = line,
+		Title = m.Title,
+		Text = m.Text,
+		BuyerName = m.BuyerName,
+		Item = m.Item,
+		Amount = m.Amount,
+		Reward = m.Reward,
+		Seconds = MC.RingSeconds,
+	})
+end
+
+local function answerCall(player: Player, accept: boolean)
+	local call = pendingCall[player]
+	if not call then return false, "No hay ninguna llamada" end
+	pendingCall[player] = nil
+	RE_Call:FireClient(player, nil)
+
+	if accept then
+		startMission(player, call.Mission)
+		return true, "Encargo aceptado"
+	end
+
+	scheduleCall(player, MC.RejectPenalty)
+	alert(player, "Llamada rechazada", "Colgaste. Ya te volveran a marcar.", "info")
+	return true, "Rechazaste el encargo"
+end
+
+-- loop: expiracion de encargos y de llamadas + programar nuevas
+task.spawn(function()
+	while true do
+		task.wait(2)
+		local now = os.clock()
+		for _, player in ipairs(Players:GetPlayers()) do
+			-- encargo activo que se vencio
+			local m = activeMission[player]
+			if m and os.time() > m.EndsAt then
+				failMission(player, "Se acabo el tiempo para '" .. m.Title .. "'.")
+			end
+
+			-- llamada que nadie contesto
+			local call = pendingCall[player]
+			if call and now > call.ExpiresAt then
+				pendingCall[player] = nil
+				RE_Call:FireClient(player, nil)
+				scheduleCall(player, MC.RejectPenalty)
+				alert(player, "Llamada perdida",
+					"No contestaste a " .. MC.CallerName .. ". Te vuelven a marcar al rato.",
+					"danger")
+			end
+
+			-- toca marcarle?
+			if MC.Enabled and not activeMission[player] and not pendingCall[player] then
+				local at = nextCallAt[player]
+				if not at then
+					scheduleCall(player, MC.FirstCallWait)
+				elseif now >= at then
+					ringPlayer(player)
+				end
+			end
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- AGENTES DE ADUANAS: persecucion real con pathfinding
+----------------------------------------------------------------------
+local PathfindingService = game:GetService("PathfindingService")
+
+local agentsFolder = Instance.new("Folder")
+agentsFolder.Name = "Agents"
+agentsFolder.Parent = Workspace
+
+local activeAgents: {[Player]: {Model}} = {}
+
+local function countAgents(player: Player): number
+	local list = activeAgents[player]
+	if not list then return 0 end
+	local n = 0
+	for _, a in ipairs(list) do
+		if a.Parent then n += 1 end
+	end
+	return n
+end
+
+local function despawnAgent(player: Player, agent: Model)
+	local list = activeAgents[player]
+	if list then
+		for i, a in ipairs(list) do
+			if a == agent then table.remove(list, i) break end
+		end
+	end
+	if agent.Parent then
+		-- se desvanece en vez de desaparecer de golpe
+		task.spawn(function()
+			for _, d in ipairs(agent:GetDescendants()) do
+				if d:IsA("BasePart") and d.Transparency < 1 then
+					pcall(function()
+						TweenService:Create(d, TweenInfo.new(0.8), {Transparency = 1}):Play()
+					end)
+				end
+			end
+			task.wait(0.9)
+			agent:Destroy()
+		end)
+	end
+end
+
+-- busca un punto de spawn valido alrededor del jugador
+local function findSpawnPoint(hrp: BasePart): Vector3?
+	local A = Config.Agents
+	for attempt = 1, 8 do
+		local angle = math.random() * math.pi * 2
+		local dist = A.SpawnDistance * (0.7 + math.random() * 0.6)
+		local origin = hrp.Position + Vector3.new(math.cos(angle) * dist, 60, math.sin(angle) * dist)
+
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = {agentsFolder}
+
+		local hit = Workspace:Raycast(origin, Vector3.new(0, -200, 0), params)
+		if hit then
+			return hit.Position + Vector3.new(0, 4, 0)
+		end
+	end
+	return nil
+end
+
+local function spawnAgent(player: Player)
+	local A = Config.Agents
+	if not A.Enabled then return end
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return end
+
+	if countAgents(player) >= A.MaxActive then return end
+
+	local spawnPos = findSpawnPoint(hrp)
+	if not spawnPos then return end
+
+	local ok, agent = pcall(CityGenerator.BuildAgent)
+	if not ok or not agent then
+		warn("[SpiceEmpire] no se pudo crear el agente: " .. tostring(agent))
+		return
+	end
+
+	agent:PivotTo(CFrame.new(spawnPos))
+	agent.Parent = agentsFolder
+
+	activeAgents[player] = activeAgents[player] or {}
+	table.insert(activeAgents[player], agent)
+
+	local hum = agent:FindFirstChildOfClass("Humanoid")
+	local aHrp = agent.PrimaryPart
+	if not hum or not aHrp then
+		despawnAgent(player, agent)
+		return
+	end
+
+	alert(player, "ADUANAS EN LA ZONA",
+		"Un agente te esta buscando. Piérdete o escóndete en tu Zona Segura.", "danger")
+
+	-- ===== LOOP DE PERSECUCION =====
+	task.spawn(function()
+		local startTime = os.clock()
+		local path = PathfindingService:CreatePath({
+			AgentRadius = 2.5,
+			AgentHeight = 5,
+			AgentCanJump = true,
+			WaypointSpacing = 6,
+		})
+
+		while agent.Parent and hum.Health > 0 do
+			local profile = DataService.Get(player)
+			local pchar = player.Character
+			local phrp = pchar and pchar:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+			-- condiciones de rendirse
+			if not profile or not phrp then break end
+			if os.clock() - startTime > Config.Agents.GiveUpTime then
+				alert(player, "LOS PERDISTE", "El agente dejó de seguirte.", "good")
+				break
+			end
+			if profile.Heat < Config.Heat.ArrestThreshold * 0.5 then
+				alert(player, "SE ENFRIÓ", "Aduanas dejó de buscarte.", "good")
+				break
+			end
+
+			local dist = (phrp.Position - aHrp.Position).Magnitude
+			if dist > Config.Agents.GiveUpDistance then
+				alert(player, "LOS PERDISTE", "Te alejaste demasiado del agente.", "good")
+				break
+			end
+
+			-- ¿te alcanzó?
+			if dist <= Config.Agents.CatchDistance then
+				arrest(player)
+				despawnAgent(player, agent)
+				return
+			end
+
+			-- recalcular ruta
+			local okPath = pcall(function()
+				path:ComputeAsync(aHrp.Position, phrp.Position)
+			end)
+
+			if okPath and path.Status == Enum.PathStatus.Success then
+				local waypoints = path:GetWaypoints()
+				-- seguimos solo los primeros para poder re-planear seguido
+				for i = 2, math.min(#waypoints, 5) do
+					if not agent.Parent or hum.Health <= 0 then return end
+					local wp = waypoints[i]
+					if wp.Action == Enum.PathWaypointAction.Jump then
+						hum.Jump = true
+					end
+					hum:MoveTo(wp.Position)
+					local reached = hum.MoveToFinished:Wait()
+					if not reached then break end
+				end
+			else
+				-- sin ruta: camina en linea recta
+				hum:MoveTo(phrp.Position)
+				task.wait(Config.Agents.RepathInterval)
+			end
+
+			task.wait(0.1)
+		end
+
+		despawnAgent(player, agent)
+	end)
+
+	-- si lo matan, recompensa
+	hum.Died:Connect(function()
+		local profile = DataService.Get(player)
+		if profile then
+			profile.Heat = math.max(0, profile.Heat - 18)
+			push(player)
+			alert(player, "AGENTE NEUTRALIZADO",
+				"Bajaste 18 de Heat. Pero van a mandar más.", "good")
+		end
+		despawnAgent(player, agent)
+	end)
+end
+
+-- loop que decide cuando mandar agentes
+task.spawn(function()
+	while true do
+		task.wait(6)
+		if Config.Agents.Enabled then
+			for _, player in ipairs(Players:GetPlayers()) do
+				local profile = DataService.Get(player)
+				if profile and profile.Heat >= Config.Agents.SpawnHeat then
+					-- mas heat = mas probabilidad
+					local over = (profile.Heat - Config.Agents.SpawnHeat)
+						/ math.max(1, Config.Heat.Max - Config.Agents.SpawnHeat)
+					if math.random() < 0.25 + over * 0.5 then
+						pcall(spawnAgent, player)
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- limpiar agentes al salir
+Players.PlayerRemoving:Connect(function(player)
+	local list = activeAgents[player]
+	if list then
+		for _, a in ipairs(list) do
+			if a.Parent then a:Destroy() end
+		end
+	end
+	activeAgents[player] = nil
+end)
+
+----------------------------------------------------------------------
+-- PVP: robar al matar
+----------------------------------------------------------------------
+function onCharacter(player: Player, char: Model)
+	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	hum.Died:Connect(function()
+		local killerPlayer
+		local creator = hum:FindFirstChild("creator") :: ObjectValue?
+		if creator and creator.Value and creator.Value:IsA("Player") then
+			killerPlayer = creator.Value
+		end
+		if not killerPlayer or killerPlayer == player then return end
+
+		local victim = DataService.Get(player)
+		local killer = DataService.Get(killerPlayer)
+		if not victim or not killer then return end
+
+		-- no robar entre miembros del mismo crew
+		if victim.CrewId and victim.CrewId == killer.CrewId then return end
+
+		local sL = math.floor(victim.Leaves * Config.Crew.StealOnKillPercent)
+		local sB = math.floor(victim.Blocks * Config.Crew.StealOnKillPercent)
+		local sC = math.floor(victim.Cash * Config.Crew.KillCashSteal)
+
+		victim.Leaves -= sL; victim.Blocks -= sB; victim.Cash -= sC
+		killer.Leaves += sL; killer.Blocks += sB; killer.Cash += sC
+
+		push(player); push(killerPlayer)
+		syncLeaderstats(player); syncLeaderstats(killerPlayer)
+
+		alert(player, "TE TUMBARON", string.format("%s te quito %d hojas, %d bloques y $%s.",
+			killerPlayer.Name, sL, sB, Config.Abbrev(sC)), "danger")
+		alert(killerPlayer, "BOTIN", string.format("Le quitaste a %s: %d hojas, %d bloques, $%s.",
+			player.Name, sL, sB, Config.Abbrev(sC)), "good")
+	end)
+end
+
+-- (el enganche de personaje lo hace setupPlayer)
+
+----------------------------------------------------------------------
+-- CREWS
+----------------------------------------------------------------------
+local function createCrew(player: Player, name: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.CrewId then return false, "Ya perteneces a un crew" end
+
+	name = string.sub(tostring(name), 1, Config.Crew.NameMaxLength)
+	if #name < 3 then return false, "Nombre muy corto" end
+
+	local id = "crew_" .. player.UserId
+	crews[id] = {Name = name, Owner = player.UserId, Members = {player.UserId}}
+	profile.CrewId = id
+	push(player)
+	return true, "Crew '" .. name .. "' creado"
+end
+
+local function joinCrew(player: Player, ownerName: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.CrewId then return false, "Ya perteneces a un crew" end
+
+	local owner = Players:FindFirstChild(tostring(ownerName))
+	if not owner then return false, "Ese jugador no esta en el servidor" end
+
+	local ownerProfile = DataService.Get(owner)
+	if not ownerProfile or not ownerProfile.CrewId then return false, "Ese jugador no tiene crew" end
+
+	local crew = crews[ownerProfile.CrewId]
+	if not crew then return false, "crew invalido" end
+	if #crew.Members >= Config.Crew.MaxMembers then return false, "El crew esta lleno" end
+
+	table.insert(crew.Members, player.UserId)
+	profile.CrewId = ownerProfile.CrewId
+	push(player)
+	alert(owner, "Nuevo miembro", player.Name .. " se unio a tu crew.", "good")
+	return true, "Te uniste a " .. crew.Name
+end
+
+local function leaveCrew(player: Player)
+	local profile = DataService.Get(player)
+	if not profile or not profile.CrewId then return false, "No tienes crew" end
+	local crew = crews[profile.CrewId]
+	if crew then
+		for i, uid in ipairs(crew.Members) do
+			if uid == player.UserId then table.remove(crew.Members, i) break end
+		end
+		if #crew.Members == 0 then crews[profile.CrewId] = nil end
+	end
+	profile.CrewId = nil
+	push(player)
+	return true, "Saliste del crew"
+end
+
+----------------------------------------------------------------------
+-- COMPRAS
+----------------------------------------------------------------------
+local function buyPlot(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.Plots >= Config.Plots.MaxPlots then return false, "Ya tienes el maximo de parcelas" end
+
+	local cost = Config.CostCurve(Config.Plots.BaseCost, Config.Plots.Growth, profile.Plots - Config.Plots.StartingPlots)
+	if profile.Cash < cost then return false, "Te faltan $" .. Config.Abbrev(cost - profile.Cash) end
+
+	profile.Cash -= cost
+	profile.Plots += 1
+	push(player); syncLeaderstats(player)
+	return true, "Parcela comprada (" .. profile.Plots .. ")"
+end
+
+local function upgradePress(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.PressLevel >= Config.Press.MaxLevel then return false, "Prensa al maximo" end
+
+	local cost = Config.CostCurve(Config.Press.BaseCost, Config.Press.Growth, profile.PressLevel - 1)
+	if profile.Cash < cost then return false, "Te faltan $" .. Config.Abbrev(cost - profile.Cash) end
+
+	profile.Cash -= cost
+	profile.PressLevel += 1
+	push(player); syncLeaderstats(player)
+	return true, "Prensa nivel " .. profile.PressLevel
+end
+
+local function hire(player: Player, role: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	local info = Config.Employees[role]
+	if not info then return false, "rol invalido" end
+
+	local owned = profile.Employees[role] or 0
+	if owned >= info.Max then return false, "Maximo de " .. info.Name end
+
+	local cost = Config.CostCurve(info.BaseCost, info.Growth, owned)
+	if profile.Cash < cost then return false, "Te faltan $" .. Config.Abbrev(cost - profile.Cash) end
+
+	profile.Cash -= cost
+	profile.Employees[role] = owned + 1
+	push(player); syncLeaderstats(player)
+	return true, "Contrataste un " .. info.Name
+end
+
+local function upgradeWarehouse(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+
+	local cur = profile.WarehouseTier or 1
+	local nextTier = Config.WarehouseTiers[cur + 1]
+	if not nextTier then return false, "Tu bodega ya esta al maximo" end
+
+	if profile.Cash < nextTier.Cost then
+		return false, "Te faltan $" .. Config.Abbrev(nextTier.Cost - profile.Cash)
+	end
+
+	profile.Cash -= nextTier.Cost
+	profile.WarehouseTier = cur + 1
+
+	-- reconstruir la bodega en el mismo lugar
+	local oldWh = warehouses[player]
+	local cf = oldWh and oldWh.PrimaryPart and oldWh.PrimaryPart.CFrame
+	releaseWarehouse(player)
+	local newWh = assignWarehouse(player)
+	if cf and newWh then
+		newWh:PivotTo(cf)
+	end
+
+	-- reubicar al jugador dentro
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if hrp and newWh and newWh.PrimaryPart then
+		hrp.CFrame = newWh.PrimaryPart.CFrame + Vector3.new(0, 8, 0)
+	end
+
+	push(player); syncLeaderstats(player)
+	alert(player, "BODEGA MEJORADA",
+		string.format("Ahora tienes: %s. %s", nextTier.Name, nextTier.Desc), "good")
+	return true, "Mejoraste a " .. nextTier.Name
+end
+
+-- ===== BICICLETA INICIAL =====
+function spawnBike(player: Player)
+	local B = Config.StarterBike
+	if not B.Enabled then return false, "desactivada" end
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false, "sin personaje" end
+
+	local old = Workspace:FindFirstChild("Bike_" .. player.UserId)
+	if old then old:Destroy() end
+
+	-- Aparece afuera de la bodega y SIEMPRE derecha.
+	-- Solo tomamos la rotacion en Y, nunca la inclinacion del piso.
+	local basePos
+	local wh = warehouses[player]
+	if wh and wh.PrimaryPart then
+		local whCF = wh.PrimaryPart.CFrame
+		local size = wh.PrimaryPart.Size
+		basePos = (whCF * CFrame.new(0, 0, size.Z * 0.5 + 18)).Position
+	else
+		basePos = (hrp.CFrame * CFrame.new(7, 0, -7)).Position
+	end
+	basePos = Vector3.new(basePos.X, basePos.Y + 3, basePos.Z)
+
+	-- mira en la misma direccion horizontal que el jugador
+	local flatLook = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z)
+	if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, 1) end
+	local spawnCF = CFrame.lookAt(basePos, basePos + flatLook.Unit)
+
+	local model = Instance.new("Model")
+	model.Name = "Bike_" .. player.UserId
+
+	local function bp(name, size, cf, color, mat, shape)
+		local pp = Instance.new("Part")
+		pp.Name = name
+		pp.Size = size
+		pp.CFrame = cf
+		pp.Color = color
+		pp.Material = mat or Enum.Material.Metal
+		if shape then pp.Shape = shape end
+		pp.CanCollide = false          -- choca el chasis invisible, no las piezas
+		pp.Massless = true
+		pp.TopSurface = Enum.SurfaceType.Smooth
+		pp.BottomSurface = Enum.SurfaceType.Smooth
+		pp.Parent = model
+		return pp
+	end
+
+	-- ===== CHASIS INVISIBLE =====
+	-- Es lo unico con masa y colision. Asi la bici nunca se atora ni se
+	-- retuerce: se comporta como un solo cuerpo solido.
+	-- La altura TIENE que llegar hasta abajo de las ruedas, si no la bici
+	-- se queda flotando (la caja se apoya en el piso antes que las llantas).
+	-- Ruedas: centro en Y = -0.95, radio 1.3  ->  fondo en -2.25
+	local chassis = Instance.new("Part")
+	chassis.Name = "Chassis"
+	chassis.Size = Vector3.new(1.9, 4.5, 5)
+	chassis.CFrame = spawnCF
+	chassis.Transparency = 1
+	-- SIN colision y ANCLADO. Las versiones anteriores fallaban por esto:
+	-- mientras la bici fuera un cuerpo fisico, el solver de Roblox podia
+	-- empujarla (contra una pared la levantaba; con el jugador encima la
+	-- mandaba a volar). Anclada, la fisica sencillamente no la toca.
+	chassis.CanCollide = false
+	chassis.Anchored = true
+	chassis.CustomPhysicalProperties = PhysicalProperties.new(0.6, 0.2, 0, 1, 1)
+	chassis.TopSurface = Enum.SurfaceType.Smooth
+	chassis.BottomSurface = Enum.SurfaceType.Smooth
+	chassis.Parent = model
+	model.PrimaryPart = chassis
+
+	-- ===== CUADRO =====
+	bp("TopTube", Vector3.new(0.3, 0.3, 4.2),
+		spawnCF * CFrame.new(0, 0.55, 0), B.Color)
+	bp("DownTube", Vector3.new(0.3, 0.3, 3.4),
+		spawnCF * CFrame.new(0, -0.35, -0.45) * CFrame.Angles(math.rad(34), 0, 0), B.Color)
+	bp("SeatTube", Vector3.new(0.3, 2, 0.3),
+		spawnCF * CFrame.new(0, 0.7, 1.5), B.Color)
+	bp("ChainStay", Vector3.new(0.26, 0.26, 2.4),
+		spawnCF * CFrame.new(0, -0.7, 1.5), B.Color)
+	bp("Fork", Vector3.new(0.28, 2.6, 0.28),
+		spawnCF * CFrame.new(0, 0.1, -2.1) * CFrame.Angles(math.rad(-16), 0, 0),
+		Color3.fromRGB(60, 60, 66))
+
+	-- ===== ASIENTO =====
+	local seat = Instance.new("VehicleSeat")
+	seat.Name = "Seat"
+	seat.Size = Vector3.new(1.3, 0.35, 1.7)
+	seat.CFrame = spawnCF * CFrame.new(0, 1.85, 1.5)
+	seat.MaxSpeed = B.Speed
+	seat.Torque = 0
+	seat.TurnSpeed = 0
+	seat.Color = Color3.fromRGB(28, 28, 32)
+	seat.Material = Enum.Material.Fabric
+	seat.HeadsUpDisplay = false
+	seat.CanCollide = false
+	seat.Massless = true
+	seat.Parent = model
+
+	-- ===== MANUBRIO =====
+	bp("Stem", Vector3.new(0.25, 0.25, 0.9),
+		spawnCF * CFrame.new(0, 1.55, -1.9), Color3.fromRGB(50, 50, 56))
+	bp("Handlebar", Vector3.new(3.2, 0.25, 0.25),
+		spawnCF * CFrame.new(0, 1.8, -2.1), Color3.fromRGB(40, 40, 46))
+	for _, gx in ipairs({-1.4, 1.4}) do
+		bp("Grip", Vector3.new(0.75, 0.32, 0.32),
+			spawnCF * CFrame.new(gx, 1.8, -2.1), Color3.fromRGB(22, 22, 26),
+			Enum.Material.Rubber)
+	end
+
+	-- ===== PEDALES =====
+	bp("Crank", Vector3.new(0.55, 0.55, 0.16),
+		spawnCF * CFrame.new(0, -0.95, 0.3), Color3.fromRGB(70, 70, 78),
+		Enum.Material.Metal, Enum.PartType.Cylinder)
+	for _, px in ipairs({-0.5, 0.5}) do
+		bp("Pedal", Vector3.new(0.85, 0.14, 0.45),
+			spawnCF * CFrame.new(px, -1.25, 0.3), Color3.fromRGB(30, 30, 34),
+			Enum.Material.Plastic)
+	end
+
+	-- ===== RUEDAS (decorativas, giran solas al avanzar) =====
+	local wheelParts = {}
+	for wi, off in ipairs({Vector3.new(0, -0.95, -2.2), Vector3.new(0, -0.95, 2.2)}) do
+		-- OJO: el cilindro de Roblox ya trae el eje en X (caras redondas a
+		-- los lados), que es justo como va una llanta. NO hay que rotarlo:
+		-- el CFrame.Angles(0,0,90) las dejaba acostadas como platos.
+		local wheel = bp(wi == 1 and "WheelFront" or "WheelRear",
+			Vector3.new(0.32, 2.6, 2.6),
+			spawnCF * CFrame.new(off),
+			Color3.fromRGB(26, 26, 28), Enum.Material.Rubber, Enum.PartType.Cylinder)
+		local rim = bp("Rim", Vector3.new(0.36, 1.5, 1.5),
+			wheel.CFrame, Color3.fromRGB(180, 182, 188),
+			Enum.Material.Metal, Enum.PartType.Cylinder)
+		table.insert(wheelParts, {wheel = wheel, rim = rim, offset = off})
+	end
+
+	-- ===== TODO ANCLADO =====
+	-- Ni soldaduras ni masa: CERO fisica. Guardamos la posicion de cada
+	-- pieza respecto al chasis y las reacomodamos nosotros cada frame.
+	-- Asi el motor de fisica no puede lanzar la bici por los aires.
+	local isWheel = {}
+	for _, w in ipairs(wheelParts) do
+		isWheel[w.wheel] = true
+		isWheel[w.rim] = true
+	end
+
+	local rigidParts = {}
+	for _, c in ipairs(model:GetDescendants()) do
+		if c:IsA("BasePart") then
+			c.Anchored = true
+			if c ~= chassis and not isWheel[c] then
+				table.insert(rigidParts, {part = c, off = spawnCF:ToObjectSpace(c.CFrame)})
+			end
+		end
+	end
+
+	-- ===== CONTROL (cinematico, sin fisica) =====
+	-- Se probaron 3 versiones con fisica (bisagras, luego velocidad, luego
+	-- velocidad en plano) y las 3 acabaron flotando o trepandose a los
+	-- edificios: el solver de Roblox resuelve los choques empujando hacia
+	-- arriba. Aqui la bici NO colisiona con nada; calculamos su posicion
+	-- nosotros con raycasts. Es 100% predecible.
+	model.Parent = Workspace
+
+	local RIDE_H = 2.25       -- altura del centro del chasis sobre el piso
+	local MAX_STEP = 1.6      -- escalon maximo que puede subir (banqueta si, pared no)
+	local GRAVITY = 70
+
+	local heading = math.atan2(-flatLook.Unit.X, -flatLook.Unit.Z)
+	local pos = spawnCF.Position
+	local speed = 0
+	local spin = 0
+	local vertVel = 0
+	local lean = 0
+
+	local function rayParams(char)
+		local rp = RaycastParams.new()
+		rp.FilterType = Enum.RaycastFilterType.Exclude
+		local list = {model}
+		if char then table.insert(list, char) end
+		rp.FilterDescendantsInstances = list
+		return rp
+	end
+
+	local conn
+	conn = RunService.Heartbeat:Connect(function(dt)
+		if not model.Parent or not chassis.Parent then
+			if conn then conn:Disconnect() end
+			return
+		end
+		dt = math.min(dt, 0.1)   -- si hay lag, que no pegue un brinco
+
+		local occupant = seat.Occupant
+		local char = occupant and occupant.Parent
+		local rp = rayParams(char)
+		local maxSpeed = B.Speed or 40
+		local steer = 0
+
+		if occupant then
+			local throttle = seat.Throttle
+			steer = seat.Steer
+
+			local target = throttle * maxSpeed
+			local rate = (math.abs(target) > math.abs(speed)) and 26 or 48
+			speed = speed + math.clamp(target - speed, -rate * dt, rate * dt)
+			if math.abs(speed) < 0.4 then speed = 0 end
+
+			if math.abs(speed) > 1 then
+				local turnRate = 2.1 * (speed >= 0 and 1 or -1)
+					* math.clamp(math.abs(speed) / maxSpeed, 0.25, 1)
+				heading = heading - steer * turnRate * dt
+			end
+		else
+			speed = 0
+		end
+
+		local look = Vector3.new(-math.sin(heading), 0, -math.cos(heading))
+
+		-- 1) ¿pared enfrente?
+		if math.abs(speed) > 0.5 then
+			local dir = (speed >= 0) and look or -look
+			local hit = Workspace:Raycast(pos - Vector3.new(0, 0.9, 0), dir * 3.4, rp)
+			if hit and hit.Normal.Y < 0.5 then
+				speed = 0
+			end
+		end
+
+		-- 2) a donde queremos avanzar
+		local newPos = pos + look * (speed * dt)
+
+		-- 3) buscar el piso debajo del destino
+		local down = Workspace:Raycast(
+			newPos + Vector3.new(0, MAX_STEP + 1, 0),
+			Vector3.new(0, -80, 0), rp)
+
+		if down then
+			local groundY = down.Position.Y + RIDE_H
+			if groundY - pos.Y > MAX_STEP then
+				-- el "piso" de adelante esta demasiado alto: es una pared
+				-- o un edificio. No avanzamos ni nos elevamos.
+				newPos = pos
+				speed = 0
+			else
+				newPos = Vector3.new(newPos.X, groundY, newPos.Z)
+			end
+			vertVel = 0
+		else
+			-- en el aire: cae
+			vertVel = vertVel - GRAVITY * dt
+			newPos = newPos + Vector3.new(0, vertVel * dt, 0)
+		end
+
+		pos = newPos
+
+		-- 4) colocar la bici
+		local targetLean = -steer * math.clamp(math.abs(speed) / maxSpeed, 0, 1) * 0.28
+		lean = lean + (targetLean - lean) * math.min(1, dt * 8)
+		chassis.CFrame = CFrame.new(pos)
+			* CFrame.Angles(0, heading, 0)
+			* CFrame.Angles(0, 0, lean)
+		-- 5) todas las piezas siguen al chasis
+		local cf = chassis.CFrame
+		for _, r in ipairs(rigidParts) do
+			r.part.CFrame = cf * r.off
+		end
+
+		-- 6) las ruedas ademas giran
+		spin = spin + speed * dt * 0.75
+		for _, w in ipairs(wheelParts) do
+			local wcf = chassis.CFrame * CFrame.new(w.offset)
+				* CFrame.Angles(spin, 0, 0)
+			w.wheel.CFrame = wcf
+			w.rim.CFrame = wcf
+		end
+	end)
+
+	model.AncestryChanged:Connect(function(_, parent)
+		if not parent and conn then conn:Disconnect() end
+	end)
+
+	return true, "Tu bicicleta esta afuera de la bodega"
+end
+
+local function buyVehicle(player: Player, id: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.Vehicles[id] then return false, "Ya tienes ese vehiculo" end
+
+	for _, v in ipairs(Config.Vehicles) do
+		if v.Id == id then
+			if profile.Cash < v.Cost then return false, "Te faltan $" .. Config.Abbrev(v.Cost - profile.Cash) end
+			profile.Cash -= v.Cost
+			profile.Vehicles[id] = true
+			push(player); syncLeaderstats(player)
+			return true, "Compraste: " .. v.Name
+		end
+	end
+	return false, "vehiculo invalido"
+end
+
+local function buyProperty(player: Player, id: string)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	if profile.Properties[id] then return false, "Ya tienes esa propiedad" end
+
+	for _, p in ipairs(Config.Properties) do
+		if p.Id == id then
+			if profile.Cash < p.Cost then return false, "Te faltan $" .. Config.Abbrev(p.Cost - profile.Cash) end
+			profile.Cash -= p.Cost
+			profile.Properties[id] = true
+			push(player); syncLeaderstats(player)
+			return true, "Compraste: " .. p.Name
+		end
+	end
+	return false, "propiedad invalida"
+end
+
+-- spawnea un carro simple manejable
+local function spawnVehicle(player: Player, id: string)
+	local profile = DataService.Get(player)
+	if not profile or not profile.Vehicles[id] then return false, "No tienes ese vehiculo" end
+
+	local info
+	for _, v in ipairs(Config.Vehicles) do if v.Id == id then info = v end end
+	if not info then return false, "invalido" end
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false, "sin personaje" end
+
+	local old = Workspace:FindFirstChild("Car_" .. player.UserId)
+	if old then old:Destroy() end
+
+	local model = Instance.new("Model")
+	model.Name = "Car_" .. player.UserId
+
+	local body = Instance.new("Part")
+	body.Name = "Body"
+	body.Size = Vector3.new(8, 3, 16)
+	body.CFrame = hrp.CFrame * CFrame.new(0, 2, -14)
+	body.Color = Color3.fromRGB(150, 40, 40)
+	body.Material = Enum.Material.SmoothPlastic
+	body.Parent = model
+	model.PrimaryPart = body
+
+	local seat = Instance.new("VehicleSeat")
+	seat.Name = "Seat"
+	seat.Size = Vector3.new(4, 1, 4)
+	seat.CFrame = body.CFrame * CFrame.new(0, 2, 0)
+	seat.MaxSpeed = info.Speed
+	seat.Torque = 40
+	seat.TurnSpeed = 18
+	seat.Parent = model
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = seat
+	weld.Part1 = body
+	weld.Parent = seat
+
+	for _, off in ipairs({Vector3.new(-4.2,-1.5,5), Vector3.new(4.2,-1.5,5), Vector3.new(-4.2,-1.5,-5), Vector3.new(4.2,-1.5,-5)}) do
+		local w = Instance.new("Part")
+		w.Shape = Enum.PartType.Ball
+		w.Size = Vector3.new(3, 3, 3)
+		w.Color = Color3.fromRGB(30, 30, 30)
+		w.CFrame = body.CFrame * CFrame.new(off)
+		w.Parent = model
+
+		local att0 = Instance.new("Attachment", body)
+		att0.Position = off
+		local att1 = Instance.new("Attachment", w)
+
+		local hinge = Instance.new("HingeConstraint")
+		hinge.Attachment0 = att0
+		hinge.Attachment1 = att1
+		hinge.Parent = body
+	end
+
+	model.Parent = Workspace
+	return true, "Spawneaste tu " .. info.Name
+end
+
+----------------------------------------------------------------------
+-- ROUTER DE ACCIONES
+----------------------------------------------------------------------
+local cooldowns: {[Player]: number} = {}
+
+RF_Action.OnServerInvoke = function(player: Player, action: string, arg1: any, arg2: any)
+	-- anti spam
+	local now = os.clock()
+	if cooldowns[player] and now - cooldowns[player] < 0.08 then
+		return {ok = false, msg = "Mas despacio"}
+	end
+	cooldowns[player] = now
+
+	if type(action) ~= "string" then return {ok = false, msg = "accion invalida"} end
+
+	local ok, msg
+	if action == "sync" then
+		-- el cliente acaba de cargar y pide su estado
+		if not DataService.Get(player) then
+			setupPlayer(player)
+		end
+		push(player)
+		if sendMission then pcall(sendMission, player) end
+		return {ok = true}
+	elseif action == "harvest" then ok, msg = doHarvest(player)
+	elseif action == "press" then ok, msg = doPress(player)
+	elseif action == "sell" then ok, msg = doSell(player, tostring(arg1))
+	elseif action == "buyPlot" then ok, msg = buyPlot(player)
+	elseif action == "upgradePress" then ok, msg = upgradePress(player)
+	elseif action == "hire" then ok, msg = hire(player, tostring(arg1))
+	elseif action == "buyVehicle" then ok, msg = buyVehicle(player, tostring(arg1))
+	elseif action == "buyProperty" then ok, msg = buyProperty(player, tostring(arg1))
+	elseif action == "spawnVehicle" then ok, msg = spawnVehicle(player, tostring(arg1))
+	elseif action == "upgradeWarehouse" then ok, msg = upgradeWarehouse(player)
+	elseif action == "spawnBike" then ok, msg = spawnBike(player)
+	elseif action == "answerCall" then ok, msg = answerCall(player, arg1 == true)
+	elseif action == "hangUp" then hangUp(player); ok, msg = true, "Colgaste"
+	elseif action == "createCrew" then ok, msg = createCrew(player, tostring(arg1))
+	elseif action == "joinCrew" then ok, msg = joinCrew(player, tostring(arg1))
+	elseif action == "leaveCrew" then ok, msg = leaveCrew(player)
+	elseif action == "teleportHome" then
+		local wh = warehouses[player]
+		if not wh then
+			-- red de seguridad: si por lo que sea no tiene bodega, asignala
+			wh = assignWarehouse(player)
+		end
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp then
+			ok, msg = false, "Tu personaje no esta listo"
+		elseif wh and wh.PrimaryPart then
+			hrp.CFrame = wh.PrimaryPart.CFrame + Vector3.new(0, 8, 0)
+			ok, msg = true, "En tu bodega"
+		else
+			ok, msg = false, "No se encontro tu bodega"
+		end
+	else
+		ok, msg = false, "Accion desconocida"
+	end
+
+	-- sonido segun lo que se hizo
+	if ok then
+		local SFX_BY_ACTION = {
+			harvest = "Harvest",
+			press = "Press",
+			sell = "Sell",
+			upgradeWarehouse = "Upgrade",
+			buyPlot = "Buy",
+			upgradePress = "Buy",
+			hire = "Buy",
+			buyVehicle = "Buy",
+			buyProperty = "Buy",
+		}
+		local key = SFX_BY_ACTION[action]
+		if key then sfx(player, key) end
+	elseif msg then
+		sfx(player, "Error")
+	end
+
+	if msg then toast(player, msg, ok and "good" or "bad") end
+	return {ok = ok, msg = msg}
+end
+
+-- respaldo: re-sincroniza a todos cada 5s por si un cliente perdio un push
+task.spawn(function()
+	while true do
+		task.wait(5)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if DataService.Get(pl) then push(pl) end
+		end
+	end
+end)
+
+----------------------------------------------------------------------
+-- TAPETE DE MEJORAS (el escritorio con la computadora)
+----------------------------------------------------------------------
+-- Si te paras en el tapete amarillo, se abre solo el panel de mejoras.
+-- Usa histeresis (5 para entrar, 9 para salir) para que no parpadee
+-- cuando te quedas justo en la orilla.
+local onPad: {[Player]: boolean} = {}
+
+task.spawn(function()
+	while true do
+		task.wait(0.4)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			local model = warehouses[pl]
+			local char = pl.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			local pad = model and model:FindFirstChild("UpgradePad", true)
+
+			if hrp and pad then
+				local d = (hrp.Position - pad.Position).Magnitude
+				if d < 5 and not onPad[pl] then
+					onPad[pl] = true
+					RE_OpenUp:FireClient(pl)
+				elseif d > 9 and onPad[pl] then
+					onPad[pl] = false
+				end
+			else
+				onPad[pl] = nil
+			end
+		end
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(pl)
+	onPad[pl] = nil
+end)
+
+print("[SpiceEmpire] Servidor listo.")

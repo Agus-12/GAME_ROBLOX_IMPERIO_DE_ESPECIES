@@ -1,0 +1,8 @@
+# Lua que instala tools/setup.sh (binarios, no van al repo)
+tools/lua/
+tools/*.deb
+tools/cfgload.lua
+
+__pycache__/
+*.pyc
+.DS_Store
