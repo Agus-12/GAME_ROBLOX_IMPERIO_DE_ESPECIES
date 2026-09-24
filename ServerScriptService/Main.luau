@@ -579,6 +579,19 @@ local function doPress(player: Player)
 	local profile = DataService.Get(player)
 	if not profile then return false, "sin perfil" end
 
+	-- Tienes que estar FRENTE A LA MAQUINA. Antes se podia prensar desde
+	-- cualquier punto del mapa, lo cual hacia que la prensa fuera un adorno.
+	local wh0 = warehouses[player]
+	local press = wh0 and wh0:FindFirstChild("PressBase", true)
+	local char0 = player.Character
+	local hrp0 = char0 and char0:FindFirstChild("HumanoidRootPart")
+	if press and hrp0 then
+		local d = (hrp0.Position - press.Position).Magnitude
+		if d > (Config.Press.UseRadius or 14) then
+			return false, "Acercate a la prensa para poder prensar"
+		end
+	end
+
 	local cost = Config.Products.Block.PressCost
 	local output = Config.Press.OutputPerLevel * profile.PressLevel
 	local needed = cost * output

@@ -62,6 +62,8 @@ GameConfig.Press = {
 	-- cada nivel reduce PressTime 8% y sube output
 	SpeedPerLevel = 0.08,
 	OutputPerLevel = 1,
+	-- que tan cerca tienes que estar de la maquina para poder prensar a mano
+	UseRadius = 14,
 }
 
 -- ========== NIVELES DE BODEGA ==========
