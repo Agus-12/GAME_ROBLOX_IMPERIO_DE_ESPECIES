@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v22** · 23 sep 2026
+> Última actualización: **v23** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v22 |
+| **Versión actual** | v23 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -75,18 +75,21 @@ tools/                                Validadores. Corre bash tools/validate.sh
 | 3 | ~~Prensa pegada / HUD mentía / mercado apilado~~ | ✅ v20 |
 | 4 | ~~Raiders flotando / cosechadores duplicados~~ | ✅ v22 |
 
-## 2.2 🎨 PASE VISUAL PENDIENTE (v23) — pedido explícito del usuario
+## 2.2 ✅ PASE VISUAL — COMPLETADO EN v23
 
-El usuario mandó 8 puntos en una sola tanda. La v22 hizo los estructurales.
-**Estos cinco siguen pendientes y ya están acordados:**
+Los 8 puntos que el usuario mandó en una tanda quedaron cerrados entre v22 y v23:
 
-| # | Qué pidió | Dónde tocar |
+| # | Qué pidió | Dónde quedó |
 |---|---|---|
-| 1 | **Arma realista** — el modelo actual es una caja, se ve falsa. El sonido ya quedó | `Main.luau`, `makeWeapon()` |
-| 2 | **Zona segura horrible** — quitar el cuadro azul neón del piso (`SafePad`), y el sillón no parece sillón (`Couch`) | `CityGenerator`, sección ZONA SEGURA |
-| 4 | **Animación de cosechar** — los empleados están parados sin hacer nada | `Main.luau`, loop de cosechadores |
-| 5 | **Computadora despegada de la pared** y la silla flota sin soporte | `CityGenerator`, sección del escritorio (`deskX/deskZ`) |
-| 6 | **Estantes de almacenamiento** con cajas realistas y pegados a la pared | `CityGenerator` |
+| 1 | Arma realista + sonido | v22 sonido, v23 modelo de 14 piezas + fogonazo |
+| 2 | Zona segura (cuadro azul, sillón) | v23: tapete de tela y sillón por piezas |
+| 3 | Bandidos flotando | v22 |
+| 4 | Cosechadores dobles + animación | v22 duplicados, v23 gesto de cosecha |
+| 5 | Computadora/silla + dock contextual + sonidos de proximidad | v22 dock y sonidos, v23 muebles |
+| 6 | Estantes realistas pegados a la pared | v23 |
+| 7 | Mochila separada de la caja, topes por producto | v22 |
+| 8 | HUD de iconos siempre compacto | v22 |
+
 
 ## 2.1 🔨 El rediseño de producción física (decisiones ya tomadas)
 
@@ -113,7 +116,6 @@ Por orden de valor sugerido:
 | Pendiente | Qué implica |
 |---|---|
 
-| **PASE VISUAL v23** | Ver 2.2. Es lo siguiente que toca |
 | **Territorios de crews** | Zonas capturables en la ciudad + guerra entre crews. Es el feature grande que falta del pedido original |
 | **Interiores de propiedades** | Las casas/departamentos que compras hoy son solo fachada. No se puede entrar |
 | **Garaje real** | Un lugar físico donde aparezcan los autos comprados |

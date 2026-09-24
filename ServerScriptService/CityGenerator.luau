@@ -1413,34 +1413,94 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	end
 
 	-- ===== ESTANTERIA INDUSTRIAL (mas en niveles altos) =====
+	-- Antes eran tablas flotando a 3 studs de la pared: el codigo decia
+	-- "postes" pero nunca los creaba. Ahora el rack va PEGADO al muro,
+	-- con sus cuatro postes, largueros y cajas alineadas en los entrepanos.
 	local shelfRows = T.Level
 	for r = 1, shelfRows do
-		local sz = -D * 0.5 + 12 + (r - 1) * 14
+		local sz = -D * 0.5 + 16 + (r - 1) * 15
 		if sz > D * 0.5 - 24 then break end
+
 		for _, sx in ipairs({-1, 1}) do
-			local rackX = sx * (W * 0.5 - 8)
-			-- postes
+			local rackD = 5.0                      -- fondo del rack
+			local rackX = sx * (W * 0.5 - rackD / 2 - 0.4)   -- casi tocando el muro
+			local rackW = 11
+
+			-- postes verticales
+			for _, px in ipairs({-rackD / 2 + 0.3, rackD / 2 - 0.3}) do
+				for _, pz in ipairs({-rackW / 2 + 0.3, rackW / 2 - 0.3}) do
+					local post = part({
+						Name = "ShelfPost",
+						Size = Vector3.new(0.45, 13, 0.45),
+						Position = Vector3.new(rackX + px, 8.5, sz + pz),
+						Color = Color3.fromRGB(168, 118, 44),
+						Material = Enum.Material.Metal,
+					})
+					post.Parent = model
+				end
+			end
+
 			for lvl = 0, 2 do
+				local y = 3.4 + lvl * 4.6
+
+				-- entrepano
 				local shelf = part({
 					Name = "Shelf",
-					Size = Vector3.new(10, 0.5, 10),
-					Position = Vector3.new(rackX, 4 + lvl * 5, sz),
+					Size = Vector3.new(rackD, 0.35, rackW),
+					Position = Vector3.new(rackX, y, sz),
 					Color = Color3.fromRGB(150, 110, 50),
 					Material = Enum.Material.Metal,
 				})
 				shelf.Parent = model
 
-				-- cajas encima
-				if rng:NextNumber() < 0.7 then
-					local box = part({
-						Name = "StoredCrate",
-						Size = Vector3.new(3.5, 3, 3.5),
-						Position = Vector3.new(rackX + rng:NextNumber(-2, 2), 5.8 + lvl * 5, sz + rng:NextNumber(-2, 2)),
-						Color = Color3.fromRGB(128, 96, 62),
-						Material = Enum.Material.WoodPlanks,
-						Orientation = Vector3.new(0, rng:NextNumber(0, 45), 0),
-					})
-					box.Parent = model
+				-- larguero de seguridad al frente
+				local rail = part({
+					Name = "ShelfRail",
+					Size = Vector3.new(0.22, 0.5, rackW),
+					Position = Vector3.new(rackX - sx * (rackD / 2 - 0.12), y + 0.4, sz),
+					Color = Color3.fromRGB(190, 140, 50),
+					Material = Enum.Material.Metal,
+					CanCollide = false,
+				})
+				rail.Parent = model
+
+				-- cajas alineadas encima (no regadas al azar)
+				for c = 0, 2 do
+					if rng:NextNumber() < 0.72 then
+						local bz = sz - rackW / 2 + 1.9 + c * 3.5
+						local bh = rng:NextNumber() < 0.35 and 2.0 or 2.8
+						local box = part({
+							Name = "StoredCrate",
+							Size = Vector3.new(3.0, bh, 3.0),
+							Position = Vector3.new(rackX, y + 0.18 + bh / 2, bz),
+							Color = Color3.fromRGB(128, 96, 62),
+							Material = Enum.Material.WoodPlanks,
+							CanCollide = false,
+						})
+						box.Parent = model
+
+						-- fleje y etiqueta, para que no sean cubos pelones
+						local strap = part({
+							Name = "CrateStrap",
+							Size = Vector3.new(3.1, 0.18, 0.3),
+							Position = Vector3.new(rackX, y + 0.18 + bh * 0.62, bz),
+							Color = Color3.fromRGB(70, 56, 40),
+							Material = Enum.Material.Fabric,
+							CanCollide = false,
+						})
+						strap.Parent = model
+
+						local tagp = part({
+							Name = "CrateLabel",
+							Size = Vector3.new(0.08, 0.7, 1.1),
+							Position = Vector3.new(rackX - sx * 1.52,
+								y + 0.18 + bh * 0.5, bz),
+							Color = Color3.fromRGB(226, 220, 198),
+							Material = Enum.Material.SmoothPlastic,
+							CanCollide = false,
+						})
+						tagp.Parent = model
+					end
 				end
 			end
 		end
@@ -1605,15 +1665,28 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 	-- ===== ZONA SEGURA =====
 	local safeX = W * 0.5 - 22
+	-- Antes esto era un cuadro de neon turquesa que se veia horrible.
+	-- Ahora es un tapete de sala, con su marco pintado en el piso.
 	local safe = part({
 		Name = "SafePad",
-		Size = Vector3.new(16, 0.4, 16),
-		Position = Vector3.new(safeX, 2.2, -D * 0.5 + 20),
-		Color = Color3.fromRGB(80, 200, 140),
-		Material = Enum.Material.Neon,
-		Transparency = 0.4,
+		Size = Vector3.new(16, 0.12, 14),
+		Position = Vector3.new(safeX, 2.06, -D * 0.5 + 20),
+		Color = Color3.fromRGB(64, 58, 72),
+		Material = Enum.Material.Fabric,
 		CanCollide = false,
 	})
+	-- orilla del tapete
+	for _, off in ipairs({Vector3.new(0, 0, -7.1), Vector3.new(0, 0, 7.1)}) do
+		local edge = part({
+			Name = "RugEdge",
+			Size = Vector3.new(16, 0.14, 0.6),
+			Position = Vector3.new(safeX, 2.07, -D * 0.5 + 20) + off,
+			Color = Color3.fromRGB(96, 84, 108),
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+		})
+		edge.Parent = model
+	end
 	safe.Parent = model
 	-- El letrero explica para que sirve: nadie adivinaba que pararse aqui
 	-- enfria el Heat mas rapido.
@@ -1621,9 +1694,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		Color3.fromRGB(130, 255, 190), 8)
 
 	local safeLight = Instance.new("PointLight")
-	safeLight.Color = Color3.fromRGB(100, 255, 180)
-	safeLight.Brightness = 0.9
-	safeLight.Range = 16
+	safeLight.Color = Color3.fromRGB(255, 226, 180)
+	safeLight.Brightness = 0.7
+	safeLight.Range = 18
 	safeLight.Parent = safe
 
 	-- ===== CAJA FUERTE =====
@@ -1761,14 +1834,59 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	vLight.Parent = vaultScreen
 
 	-- sillon y mesa en la zona segura
-	local couch = part({
-		Name = "Couch",
-		Size = Vector3.new(9, 3, 4),
-		Position = Vector3.new(safeX, 3.5, -D * 0.5 + 13),
-		Color = Color3.fromRGB(78, 62, 58),
-		Material = Enum.Material.Fabric,
+	-- Sillon armado por piezas: base, respaldo, brazos y cojines.
+	-- Antes era UN SOLO CUBO de 9x3x4 y por eso no parecia sillon.
+	local cz = -D * 0.5 + 14
+	local cloth = Color3.fromRGB(86, 68, 64)
+	local function couchPart(name, size, pos, col)
+		local pp = part({
+			Name = name, Size = size, Position = pos,
+			Color = col or cloth, Material = Enum.Material.Fabric,
+		})
+		pp.Parent = model
+		return pp
+	end
+	couchPart("Couch",     Vector3.new(9.4, 1.1, 4.2), Vector3.new(safeX, 3.0, cz))
+	couchPart("CouchBack", Vector3.new(9.4, 2.6, 0.7), Vector3.new(safeX, 4.4, cz - 1.75))
+	for _, ax in ipairs({-4.55, 4.55}) do
+		couchPart("CouchArm", Vector3.new(0.8, 1.9, 4.2), Vector3.new(safeX + ax, 3.9, cz))
+	end
+	for _, cx in ipairs({-2.3, 2.3}) do
+		couchPart("Cushion", Vector3.new(4.1, 0.6, 3.6),
+			Vector3.new(safeX + cx, 3.8, cz + 0.2), Color3.fromRGB(104, 84, 78))
+	end
+	for _, px in ipairs({-3.2, 3.2}) do
+		couchPart("Pillow", Vector3.new(1.6, 1.3, 0.5),
+			Vector3.new(safeX + px, 4.6, cz - 1.3), Color3.fromRGB(128, 100, 92))
+	end
+	-- patitas
+	for _, lx in ipairs({-4.2, 4.2}) do
+		for _, lz in ipairs({-1.6, 1.6}) do
+			local leg = part({
+				Name = "CouchLeg", Size = Vector3.new(0.4, 0.5, 0.4),
+				Position = Vector3.new(safeX + lx, 2.3, cz + lz),
+				Color = Color3.fromRGB(58, 44, 36), Material = Enum.Material.Wood,
+			})
+			leg.Parent = model
+		end
+	end
+	-- mesita de centro
+	local ct = part({
+		Name = "CoffeeTable", Size = Vector3.new(5, 0.3, 2.6),
+		Position = Vector3.new(safeX, 3.4, cz + 4.6),
+		Color = Color3.fromRGB(72, 56, 44), Material = Enum.Material.Wood,
 	})
-	couch.Parent = model
+	ct.Parent = model
+	for _, tx in ipairs({-2.1, 2.1}) do
+		for _, tz in ipairs({-1, 1}) do
+			local tl = part({
+				Name = "TableLegSmall", Size = Vector3.new(0.3, 1.2, 0.3),
+				Position = Vector3.new(safeX + tx, 2.7, cz + 4.6 + tz),
+				Color = Color3.fromRGB(58, 44, 36), Material = Enum.Material.Wood,
+			})
+			tl.Parent = model
+		end
+	end
 
 	-- ===== LAMPARAS DE TECHO =====
 	local lampCount = math.max(3, math.floor(W / 45))
@@ -1995,7 +2113,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 	-- ===== ESCRITORIO DE MEJORAS (con computadora) =====
 	local nextTier = Config.WarehouseTiers[T.Level + 1]
-	local deskZ = -D * 0.5 + 9
+	-- Pegado a la pared del fondo. Antes estaba a 9 studs y se veia flotando
+	-- en medio del cuarto.
+	local deskZ = -D * 0.5 + 4.2
 	local deskX = 0
 
 	-- zona invisible que detecta que estas ahi
@@ -2147,23 +2267,64 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	scrBody.Parent = screenGui
 
 	-- silla
+	-- Silla de oficina completa: asiento, respaldo, columna y base de
+	-- estrella con rueditas. Antes era un asiento suelto flotando.
+	local chairZ = deskZ + 3.6
 	local seat = part({
 		Name = "DeskChair",
-		Size = Vector3.new(2.2, 0.3, 2.2),
-		Position = Vector3.new(deskX, 4.4, deskZ + 3.4),
+		Size = Vector3.new(2.3, 0.35, 2.3),
+		Position = Vector3.new(deskX, 4.3, chairZ),
 		Color = Color3.fromRGB(36, 38, 44),
 		Material = Enum.Material.Fabric,
 	})
 	seat.Parent = model
+
 	local chairBack = part({
 		Name = "ChairBack",
-		Size = Vector3.new(2.2, 3, 0.3),
-		Position = Vector3.new(deskX, 5.9, deskZ + 4.4),
-		Color = Color3.fromRGB(36, 38, 44),
+		Size = Vector3.new(2.3, 3.0, 0.35),
+		Position = Vector3.new(deskX, 5.9, chairZ + 1.1),
+		Color = Color3.fromRGB(32, 34, 40),
 		Material = Enum.Material.Fabric,
-		CanCollide = false,
 	})
 	chairBack.Parent = model
+
+	-- columna central
+	local post = part({
+		Name = "ChairPost",
+		Size = Vector3.new(0.45, 1.9, 0.45),
+		Position = Vector3.new(deskX, 3.2, chairZ),
+		Color = Color3.fromRGB(110, 112, 120),
+		Material = Enum.Material.Metal,
+	})
+	post.Parent = model
+
+	-- base de estrella
+	for k = 0, 4 do
+		local a = (k / 5) * math.pi * 2
+		local leg = part({
+			Name = "ChairFoot",
+			Size = Vector3.new(0.3, 0.2, 2.0),
+			Position = Vector3.new(deskX + math.sin(a) * 0.9, 2.3,
+				chairZ + math.cos(a) * 0.9),
+			Color = Color3.fromRGB(80, 82, 90),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		leg.CFrame = CFrame.new(leg.Position) * CFrame.Angles(0, a, 0)
+		leg.Parent = model
+
+		local wheel = part({
+			Name = "ChairWheel",
+			Size = Vector3.new(0.35, 0.35, 0.35),
+			Position = Vector3.new(deskX + math.sin(a) * 1.8, 2.15,
+				chairZ + math.cos(a) * 1.8),
+			Color = Color3.fromRGB(28, 28, 32),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			Shape = Enum.PartType.Ball,
+		})
+		wheel.Parent = model
+	end
 
 	-- lampara del escritorio
 	local deskLight = Instance.new("PointLight")

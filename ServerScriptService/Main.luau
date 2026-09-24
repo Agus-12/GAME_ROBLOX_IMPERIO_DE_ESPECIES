@@ -970,6 +970,56 @@ Players.PlayerRemoving:Connect(function(pl)
 	workerModels[pl] = nil
 end)
 
+-- Gesto de cosechar: el empleado se agacha tantito y baja los brazos,
+-- como si cortara. Se mueven los Motor6D del rig R6 y se regresan solos.
+local function playHarvestGesture(npc: Model)
+	if not (npc and npc.Parent) then return end
+	if npc:GetAttribute("Busy") then return end
+	npc:SetAttribute("Busy", true)
+
+	local torso = npc:FindFirstChild("Torso")
+	local hrp = npc:FindFirstChild("HumanoidRootPart")
+	if not torso then npc:SetAttribute("Busy", false) return end
+
+	local rs = torso:FindFirstChild("Right Shoulder")
+	local ls = torso:FindFirstChild("Left Shoulder")
+	local root = hrp and hrp:FindFirstChild("RootJoint")
+	if not (rs and rs:IsA("Motor6D")) then npc:SetAttribute("Busy", false) return end
+
+	local rs0, ls0 = rs.C0, ls and ls.C0
+	local root0 = root and root.C0
+
+	task.spawn(function()
+		local info = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		-- brazos abajo al frente
+		pcall(function()
+			TweenService:Create(rs, info,
+				{C0 = rs0 * CFrame.Angles(0, 0, math.rad(-62))}):Play()
+			if ls then
+				TweenService:Create(ls, info,
+					{C0 = ls0 * CFrame.Angles(0, 0, math.rad(62))}):Play()
+			end
+			-- se inclina hacia la mesa
+			if root then
+				TweenService:Create(root, info,
+					{C0 = root0 * CFrame.Angles(math.rad(16), 0, 0)}):Play()
+			end
+		end)
+
+		task.wait(0.55)
+
+		pcall(function()
+			local back = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			TweenService:Create(rs, back, {C0 = rs0}):Play()
+			if ls then TweenService:Create(ls, back, {C0 = ls0}):Play() end
+			if root then TweenService:Create(root, back, {C0 = root0}):Play() end
+		end)
+
+		task.wait(0.45)
+		if npc and npc.Parent then npc:SetAttribute("Busy", false) end
+	end)
+end
+
 -- ===== PRODUCCION MIENTRAS NO ESTABAS =====
 -- Tus empleados siguen trabajando aunque cierres el juego. Al volver se
 -- calcula cuanto habrian producido, con tope de OfflineMaxHours para que
@@ -1037,6 +1087,13 @@ task.spawn(function()
 				local got = 0
 				local now = os.clock()
 
+				-- para poder animar al que le toca esa mesa
+				local byPlot = {}
+				for _, m in ipairs(workerModels[player] or {}) do
+					local pi = m and m.Parent and m:GetAttribute("PlotIndex")
+					if pi then byPlot[pi] = m end
+				end
+
 				for idx = 1, n do
 					-- juntar las plantas maduras de ESTA mesa
 					local ripe = {}
@@ -1048,6 +1105,9 @@ task.spawn(function()
 					end)
 
 					local take = math.min(#ripe, HC.PerCycle)
+					if take > 0 and byPlot[idx] then
+						playHarvestGesture(byPlot[idx])
+					end
 					for k = 1, take do
 						-- tus empleados guardan en la caja, no en tu mochila
 						local added = addLeavesToVault(player, G.LeavesPerPlant)
@@ -1125,33 +1185,86 @@ local function makeWeapon(): Tool
 	tool.RequiresHandle = true
 	tool.CanBeDropped = false
 	tool.ToolTip = "Clic para disparar"
+	tool.GripPos = Vector3.new(0, -0.3, 0.4)
 
+	-- El Handle es la CACHA (lo que agarra la mano). Todo lo demas se le
+	-- suelda encima. OJO: hay que colocar cada pieza ANTES de soldarla;
+	-- el WeldConstraint congela el offset en el momento de crearse.
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
-	handle.Size = Vector3.new(0.4, 1.0, 1.9)
-	handle.Color = Color3.fromRGB(38, 38, 44)
+	handle.Size = Vector3.new(0.34, 1.15, 0.62)
+	handle.Color = Color3.fromRGB(28, 28, 32)
 	handle.Material = Enum.Material.Metal
 	handle.CanCollide = false
+	handle.TopSurface = Enum.SurfaceType.Smooth
+	handle.BottomSurface = Enum.SurfaceType.Smooth
 	handle.Parent = tool
 
-	local barrel = Instance.new("Part")
-	barrel.Name = "Barrel"
-	barrel.Size = Vector3.new(0.25, 0.25, 1.1)
-	barrel.Color = Color3.fromRGB(24, 24, 28)
-	barrel.Material = Enum.Material.Metal
-	barrel.CanCollide = false
-	barrel.Massless = true
-	barrel.Parent = tool
-	local bw = Instance.new("WeldConstraint")
-	bw.Part0 = handle
-	bw.Part1 = barrel
-	bw.Parent = handle
-	barrel.CFrame = handle.CFrame * CFrame.new(0, 0.25, -1.2)
+	local function piece(name, size, offset, color, mat, shape)
+		local pp = Instance.new("Part")
+		pp.Name = name
+		pp.Size = size
+		pp.Color = color
+		pp.Material = mat or Enum.Material.Metal
+		if shape then pp.Shape = shape end
+		pp.CanCollide = false
+		pp.Massless = true
+		pp.TopSurface = Enum.SurfaceType.Smooth
+		pp.BottomSurface = Enum.SurfaceType.Smooth
+		pp.CFrame = handle.CFrame * CFrame.new(offset)
+		pp.Parent = tool
+		local wc = Instance.new("WeldConstraint")
+		wc.Part0 = handle
+		wc.Part1 = pp
+		wc.Parent = pp
+		return pp
+	end
+
+	local steel = Color3.fromRGB(58, 60, 66)
+	local dark  = Color3.fromRGB(26, 26, 30)
+
+	-- corredera y cañon
+	piece("Slide",     Vector3.new(0.36, 0.42, 1.65), Vector3.new(0, 0.78, -0.30), steel)
+	piece("SlideTop",  Vector3.new(0.30, 0.14, 1.55), Vector3.new(0, 1.03, -0.30), Color3.fromRGB(72, 74, 80))
+	piece("Barrel",    Vector3.new(0.17, 0.17, 0.40), Vector3.new(0, 0.78, -1.28), dark,
+		Enum.Material.Metal, Enum.PartType.Cylinder)
+	-- el cilindro trae el eje en X: hay que acostarlo sobre Z
+	local bar = tool:FindFirstChild("Barrel")
+	if bar then
+		bar.CFrame = handle.CFrame * CFrame.new(0, 0.78, -1.28) * CFrame.Angles(0, math.rad(90), 0)
+	end
+
+	-- armazon, guardamonte y gatillo
+	piece("Frame",        Vector3.new(0.32, 0.30, 1.10), Vector3.new(0, 0.50, -0.10), dark)
+	piece("TriggerGuard", Vector3.new(0.22, 0.34, 0.12), Vector3.new(0, 0.22, -0.52), dark)
+	piece("GuardBar",     Vector3.new(0.22, 0.10, 0.50), Vector3.new(0, 0.07, -0.30), dark)
+	piece("Trigger",      Vector3.new(0.10, 0.26, 0.09), Vector3.new(0, 0.28, -0.30),
+		Color3.fromRGB(96, 98, 104))
+
+	-- miras
+	piece("SightRear",  Vector3.new(0.22, 0.10, 0.08), Vector3.new(0, 1.15, 0.38), Color3.fromRGB(180, 180, 190))
+	piece("SightFront", Vector3.new(0.07, 0.11, 0.07), Vector3.new(0, 1.15, -1.02), Color3.fromRGB(180, 180, 190))
+
+	-- cachas texturizadas y base del cargador
+	piece("GripL", Vector3.new(0.06, 0.85, 0.50), Vector3.new(-0.19, -0.05, 0.03),
+		Color3.fromRGB(62, 48, 40), Enum.Material.Wood)
+	piece("GripR", Vector3.new(0.06, 0.85, 0.50), Vector3.new(0.19, -0.05, 0.03),
+		Color3.fromRGB(62, 48, 40), Enum.Material.Wood)
+	piece("MagBase", Vector3.new(0.38, 0.09, 0.66), Vector3.new(0, -0.60, 0.02),
+		Color3.fromRGB(44, 44, 50))
 
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
-	muzzle.Position = Vector3.new(0, 0.25, -1.8)
+	muzzle.Position = Vector3.new(0, 0.78, -1.5)
 	muzzle.Parent = handle
+
+	-- fogonazo, apagado hasta que disparas
+	local flash = Instance.new("PointLight")
+	flash.Name = "Flash"
+	flash.Color = Color3.fromRGB(255, 200, 120)
+	flash.Brightness = 0
+	flash.Range = 12
+	flash.Parent = handle
 
 	return tool
 end
@@ -1217,6 +1330,17 @@ RE_Shoot.OnServerEvent:Connect(function(player: Player, dir: Vector3)
 		sd.Parent = hrp
 		sd:Play()
 		task.delay(2, function() sd:Destroy() end)
+	end
+
+	-- fogonazo en la boca del cañon
+	local tool = char:FindFirstChild(W.Name)
+	local th = tool and tool:FindFirstChild("Handle")
+	local fl = th and th:FindFirstChild("Flash")
+	if fl then
+		fl.Brightness = 4
+		task.delay(0.05, function()
+			if fl and fl.Parent then fl.Brightness = 0 end
+		end)
 	end
 
 	local hit = Workspace:Raycast(from, d * W.Range, rp)
