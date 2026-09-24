@@ -36,6 +36,8 @@ local function defaultProfile()
 		TotalEarned = 0,
 		CrewId = nil,
 		LastPayout = os.time(),
+		-- para calcular lo que produjeron tus empleados mientras no estabas
+		LastSeen = os.time(),
 	}
 end
 
@@ -77,6 +79,9 @@ end
 function DataService.Save(player: Player)
 	local profile = profiles[player]
 	if not profile then return end
+	-- sello de tiempo: al volver, Main calcula lo que produjeron tus
+	-- empleados durante tu ausencia a partir de este valor
+	profile.LastSeen = os.time()
 	if RunService:IsStudio() then
 		-- en Studio el DataStore suele estar apagado; no truenes
 		local ok = pcall(function()

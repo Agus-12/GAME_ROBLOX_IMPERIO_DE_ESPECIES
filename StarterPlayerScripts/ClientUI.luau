@@ -666,18 +666,31 @@ renderTab = function(tab: string)
 			State.PressLevel >= Config.Press.MaxLevel)
 
 	elseif tab == "empleados" then
+		-- los cosechadores van uno por mesa, asi que su tope es tus mesas
+		local mesas = (Config.WarehouseTiers[State.WarehouseTier or 1] or {}).Plots or 0
+		label(content, {Size = UDim2.new(1, -8, 0, 22), TextSize = 13, TextWrapped = true,
+			Text = "Tus empleados trabajan solos, y siguen produciendo aunque cierres el juego.",
+			TextColor3 = Color3.fromRGB(150, 200, 160)})
+
 		for _, role in ipairs({"Harvester", "Presser", "Guard"}) do
 			local info = Config.Employees[role]
 			local owned = State.Employees[role] or 0
 			local cost = Config.CostCurve(info.BaseCost, info.Growth, owned)
-			local desc
+			local desc, maxed
 			if role == "Guard" then
-				desc = string.format("%d/%d - cada uno baja %d%% el riesgo de asalto", owned, info.Max, info.RaidReduction * 100)
+				desc = string.format("%d/%d - cada uno baja %d%% el riesgo de asalto",
+					owned, info.Max, info.RaidReduction * 100)
+				maxed = owned >= info.Max
+			elseif role == "Harvester" then
+				desc = string.format("%d/%d mesas - uno por mesa, corta lo maduro cada %ds",
+					owned, mesas, info.Interval)
+				maxed = owned >= mesas
 			else
-				desc = string.format("%d/%d - produce solo cada %ds", owned, info.Max, info.Interval)
+				desc = string.format("%d/%d - prensa solo cada %ds", owned, info.Max, info.Interval)
+				maxed = owned >= info.Max
 			end
-			row(info.Name, desc, "$" .. Config.Abbrev(cost),
-				function() act("hire", role) end, owned >= info.Max)
+			row(info.Name, desc, maxed and "MAX" or ("$" .. Config.Abbrev(cost)),
+				function() act("hire", role) end, maxed)
 		end
 
 	elseif tab == "autos" then

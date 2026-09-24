@@ -623,6 +623,14 @@ local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: V
 			pants = Color3.fromRGB(20, 22, 28),
 			hair  = Color3.fromRGB(18, 18, 20),
 		}
+	elseif style == "worker" then
+		-- tus empleados: overol de trabajo y chaleco reflejante
+		look = {
+			skin  = NPC_LOOKS[rng:NextInteger(1, #NPC_LOOKS)].skin,
+			shirt = Color3.fromRGB(238, 186, 48),
+			pants = Color3.fromRGB(54, 62, 86),
+			hair  = Color3.fromRGB(38, 28, 22),
+		}
 	end
 
 	local npc = Instance.new("Model")
@@ -2281,6 +2289,13 @@ end
 -- ====================================================================
 -- AGENTE DE ADUANAS: personaje con Humanoid real para poder perseguir
 -- ====================================================================
+-- Crea un empleado tuyo parado en un punto. Lo usa Main para poner un
+-- cosechador en cada mesa y prensadores junto a la maquina.
+function CityGenerator.MakeWorker(parent: Instance, pos: Vector3, facing: Vector3?, tag: string?): Model
+	local info = {Id = tag or "Worker", Name = tag or "Trabajador"}
+	return makeBuyerNPC(parent, pos, info, facing, "worker")
+end
+
 function CityGenerator.BuildAgent(): Model
 	local A = Config.Agents
 

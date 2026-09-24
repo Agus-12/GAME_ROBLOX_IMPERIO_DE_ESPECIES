@@ -75,9 +75,11 @@ local warehouseSlots: {[number]: Player?} = {}
 local WAREHOUSE_ORIGIN = Vector3.new(0, 0, -(Config.City.GridZ * (Config.City.BlockSize + Config.City.RoadWidth)) * 0.5 - 200)
 local WAREHOUSE_SPACING = 140
 
--- definidas mas abajo (sistema de plantas / porton)
+-- definidas mas abajo (sistema de plantas / porton / empleados)
 local initPlants
 local setupGate
+local syncWorkers
+local applyOfflineProduction
 
 -- estado de encargos y llamadas (se declara aqui arriba porque
 -- PlayerRemoving lo limpia antes de que se definan las funciones)
@@ -143,6 +145,12 @@ end
 -- ESTADO / SYNC
 ----------------------------------------------------------------------
 local crews: {[string]: {Name: string, Owner: number, Members: {number}}} = {}
+
+-- Un bloque ocupa 3 de espacio (esta comprimido pero pesa).
+-- Se usa en TODOS lados: no cambiar en un solo lugar.
+local function vaultUsed(profile): number
+	return (profile.Leaves or 0) + (profile.Blocks or 0) * 3
+end
 
 local function storageCap(profile): number
 	local cap = Config.BaseStorage
@@ -230,7 +238,7 @@ local function updateVaultScreen(player: Player, profile)
 	local txt = gui and gui:FindFirstChild("VaultText")
 	if not txt then return end
 
-	local used = (profile.Leaves or 0) + (profile.Blocks or 0)
+	local used = vaultUsed(profile)
 	txt.Text = string.format("CAJA FUERTE\n%d hojas  |  %d bloques\n%d / %d",
 		profile.Leaves or 0, profile.Blocks or 0, used, storageCap(profile))
 end
@@ -325,6 +333,11 @@ local function setupPlayer(player: Player)
 	local profile = DataService.Load(player)
 	setupLeaderstats(player, profile)
 	local wh = assignWarehouse(player)
+	if syncWorkers then pcall(syncWorkers, player) end
+	task.spawn(function()
+		task.wait(1.5)   -- dejar que cargue todo antes de avisarle
+		pcall(applyOfflineProduction, player)
+	end)
 
 	local function placeInWarehouse(char: Model)
 		task.wait(0.4)
@@ -378,7 +391,7 @@ local function addLeaves(player: Player, amount: number): number
 	local profile = DataService.Get(player)
 	if not profile then return 0 end
 	local cap = storageCap(profile)
-	local used = profile.Leaves + profile.Blocks * 3
+	local used = vaultUsed(profile)
 	local space = math.max(0, cap - used)
 	local added = math.min(amount, space)
 	profile.Leaves += added
@@ -822,30 +835,184 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
--- EMPLEADOS AUTOMATICOS
+-- EMPLEADOS FISICOS
 ----------------------------------------------------------------------
+-- Antes los empleados eran puros numeros: contratabas y aparecian hojas
+-- de la nada. Ahora existen de verdad: cada cosechador se para en SU mesa
+-- y corta unicamente las plantas maduras de esa mesa. Si la mesa no tiene
+-- nada listo, ese cosechador no produce.
+
+local workerModels: {[Player]: {any}} = {}
+
+-- cuantas mesas tiene tu bodega en este nivel
+local function tableCount(profile): number
+	local T = Config.WarehouseTiers[profile.WarehouseTier or 1]
+	return T and T.Plots or 0
+end
+
+-- posicion de la mesa numero idx dentro de la bodega
+local function plotPart(wh: Model, idx: number): BasePart?
+	local plots = wh and wh:FindFirstChild("Plots")
+	if not plots then return nil end
+	local p = plots:FindFirstChild("Plot" .. idx)
+	return (p and p:IsA("BasePart")) and p or nil
+end
+
+-- Borra y vuelve a poner los NPCs para que coincidan con lo contratado.
+function syncWorkers(player: Player)
+	local profile = DataService.Get(player)
+	local wh = warehouses[player]
+	if not (profile and wh and wh.Parent) then return end
+
+	-- limpiar los de antes
+	for _, m in ipairs(workerModels[player] or {}) do
+		if m and m.Parent then m:Destroy() end
+	end
+	workerModels[player] = {}
+
+	local nH = math.min(profile.Employees.Harvester or 0, tableCount(profile))
+	for i = 1, nH do
+		local plot = plotPart(wh, i)
+		if plot then
+			-- parado al costado de su mesa, viendo hacia ella
+			local pos = plot.Position + Vector3.new(0, -0.7, 6.2)
+			local ok, npc = pcall(function()
+				return CityGenerator.MakeWorker(wh, pos, Vector3.new(0, 0, -1), "Cosechador")
+			end)
+			if ok and npc then
+				npc:SetAttribute("PlotIndex", i)
+				table.insert(workerModels[player], npc)
+			end
+		end
+	end
+
+	local nP = profile.Employees.Presser or 0
+	if nP > 0 then
+		local press = wh:FindFirstChild("PressBase", true)
+		if press then
+			for i = 1, math.min(nP, 4) do
+				local off = Vector3.new(-6 + (i - 1) * 4, 0, 7)
+				local ok, npc = pcall(function()
+					return CityGenerator.MakeWorker(wh, press.Position + off,
+						Vector3.new(0, 0, -1), "Prensador")
+				end)
+				if ok and npc then table.insert(workerModels[player], npc) end
+			end
+		end
+	end
+end
+
+Players.PlayerRemoving:Connect(function(pl)
+	for _, m in ipairs(workerModels[pl] or {}) do
+		if m and m.Parent then m:Destroy() end
+	end
+	workerModels[pl] = nil
+end)
+
+-- ===== PRODUCCION MIENTRAS NO ESTABAS =====
+-- Tus empleados siguen trabajando aunque cierres el juego. Al volver se
+-- calcula cuanto habrian producido, con tope de OfflineMaxHours para que
+-- no se rompa la economia si te desapareces una semana.
+function applyOfflineProduction(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return end
+
+	local last = profile.LastSeen or os.time()
+	local elapsed = math.max(0, os.time() - last)
+	local capSecs = (Config.Employees.OfflineMaxHours or 8) * 3600
+	elapsed = math.min(elapsed, capSecs)
+	if elapsed < 60 then return end   -- no vale la pena por menos de un minuto
+
+	local HC = Config.Employees.Harvester
+	local PC = Config.Employees.Presser
+
+	-- cosechadores (uno por mesa, igual que en vivo)
+	local nH = math.min(profile.Employees.Harvester or 0, tableCount(profile))
+	local leaves = 0
+	if nH > 0 then
+		local cycles = math.floor(elapsed / HC.Interval)
+		leaves = cycles * nH * HC.PerCycle * G.LeavesPerPlant
+	end
+
+	local gotL = 0
+	if leaves > 0 then gotL = addLeaves(player, leaves) end
+
+	-- prensadores
+	local blocks = 0
+	local nP = profile.Employees.Presser or 0
+	if nP > 0 then
+		local cycles = math.floor(elapsed / PC.Interval)
+		local want = cycles * nP * PC.PerCycle
+		local cost = Config.Products.Block.PressCost
+		local canAfford = math.floor((profile.Leaves or 0) / cost)
+		blocks = math.min(want, canAfford)
+		if blocks > 0 then
+			profile.Leaves -= blocks * cost
+			profile.Blocks += blocks
+		end
+	end
+
+	if gotL > 0 or blocks > 0 then
+		push(player)
+		local mins = math.floor(elapsed / 60)
+		alert(player, "Tu gente trabajo sin ti",
+			string.format("En %d min tus empleados metieron %d hojas y %d bloques a la caja.",
+				mins, gotL, blocks), "good")
+	end
+end
+
+-- ===== COSECHADORES =====
+-- Cada uno revisa SOLO su mesa y corta lo que este maduro ahi.
 task.spawn(function()
 	while true do
 		task.wait(Config.Employees.Harvester.Interval)
+		local HC = Config.Employees.Harvester
 		for _, player in ipairs(Players:GetPlayers()) do
 			local profile = DataService.Get(player)
-			if profile and profile.Employees.Harvester > 0 then
-				addLeaves(player, profile.Employees.Harvester * Config.Employees.Harvester.Amount)
-				push(player)
+			local wh = warehouses[player]
+			if profile and wh and wh.Parent and (profile.Employees.Harvester or 0) > 0 then
+				local n = math.min(profile.Employees.Harvester, tableCount(profile))
+				local got = 0
+				local now = os.clock()
+
+				for idx = 1, n do
+					-- juntar las plantas maduras de ESTA mesa
+					local ripe = {}
+					eachPlant(wh, function(plant)
+						if plant:GetAttribute("PlotIndex") == idx
+							and plant:GetAttribute("Ripe") then
+							table.insert(ripe, plant)
+						end
+					end)
+
+					local take = math.min(#ripe, HC.PerCycle)
+					for k = 1, take do
+						local added = addLeaves(player, G.LeavesPerPlant)
+						if added <= 0 then break end     -- caja llena
+						ripe[k]:SetAttribute("PlantedAt", now)
+						ripe[k]:SetAttribute("Ripe", false)
+						got += added
+					end
+				end
+
+				if got > 0 then push(player) end
 			end
 		end
 	end
 end)
 
+-- ===== PRENSADORES =====
 task.spawn(function()
 	while true do
 		task.wait(Config.Employees.Presser.Interval)
+		local PC = Config.Employees.Presser
 		for _, player in ipairs(Players:GetPlayers()) do
 			local profile = DataService.Get(player)
-			if profile and profile.Employees.Presser > 0 then
-				local n = profile.Employees.Presser * Config.Employees.Presser.Amount
+			if profile and (profile.Employees.Presser or 0) > 0 then
+				local n = profile.Employees.Presser * PC.PerCycle
 				local needed = n * Config.Products.Block.PressCost
-				if profile.Leaves >= needed then
+				-- trabajan sobre la caja fuerte, igual que tu
+				if (profile.Leaves or 0) >= needed then
 					profile.Leaves -= needed
 					profile.Blocks += n
 					push(player)
@@ -1480,12 +1647,24 @@ local function hire(player: Player, role: string)
 	local owned = profile.Employees[role] or 0
 	if owned >= info.Max then return false, "Maximo de " .. info.Name end
 
+	-- Los cosechadores son UNO POR MESA: no puedes tener mas que mesas.
+	if role == "Harvester" then
+		local T = Config.WarehouseTiers[profile.WarehouseTier or 1]
+		local mesas = T and T.Plots or 0
+		if owned >= mesas then
+			return false, string.format(
+				"Ya tienes un cosechador por mesa (%d/%d). Mejora la bodega para tener mas mesas",
+				owned, mesas)
+		end
+	end
+
 	local cost = Config.CostCurve(info.BaseCost, info.Growth, owned)
 	if profile.Cash < cost then return false, "Te faltan $" .. Config.Abbrev(cost - profile.Cash) end
 
 	profile.Cash -= cost
 	profile.Employees[role] = owned + 1
 	push(player); syncLeaderstats(player)
+	if syncWorkers then pcall(syncWorkers, player) end
 	return true, "Contrataste un " .. info.Name
 end
 
@@ -1512,6 +1691,8 @@ local function upgradeWarehouse(player: Player)
 	if cf and newWh then
 		newWh:PivotTo(cf)
 	end
+	-- la bodega es nueva: hay que volver a parar a los empleados en sus mesas
+	if syncWorkers then pcall(syncWorkers, player) end
 
 	-- reubicar al jugador dentro
 	local char = player.Character
@@ -1869,7 +2050,7 @@ local function vaultDeposit(player: Player, kind: string, amount: number)
 	local have = profile[carryField] or 0
 	if have <= 0 then return false, "No traes " .. nice .. " encima" end
 
-	local space = storageCap(profile) - ((profile.Leaves or 0) + (profile.Blocks or 0))
+	local space = storageCap(profile) - vaultUsed(profile)
 	if space <= 0 then return false, "Tu caja esta llena. Mejora la bodega" end
 
 	local put = math.min(amount, have, space)

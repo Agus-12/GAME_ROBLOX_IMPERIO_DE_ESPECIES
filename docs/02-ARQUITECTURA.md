@@ -148,6 +148,26 @@ Mejoras G · **Caja C**
 **Controles de teclado:** E cosechar · R prensar · F vender · G mejoras · B tienda ·
 T teléfono · H bodega · **C caja fuerte** · **M minimizar HUD** (único sin botón en el dock)
 
+## Empleados físicos (v19)
+
+- `CityGenerator.MakeWorker(parent, pos, facing, tag)` crea el NPC (estilo `"worker"`:
+  chaleco amarillo + overol azul)
+- `workerModels[player]` guarda los Models vivos
+- `syncWorkers(player)` **borra y repone** todos los NPCs para que cuadren con
+  `profile.Employees`. Se llama al entrar, al contratar y al mejorar la bodega
+  (la bodega se reconstruye, así que hay que reponerlos)
+- **Un cosechador por mesa.** El cosechador `i` se para junto a `Plot<i>` y solo corta
+  plantas cuyo `PlotIndex == i`. El tope de contratación es `WarehouseTiers[tier].Plots`
+- `applyOfflineProduction(player)` acredita al entrar lo que produjeron mientras no
+  estabas, usando `profile.LastSeen` (lo sella `DataService.Save`), con tope
+  `Config.Employees.OfflineMaxHours`
+- ⚠️ `syncWorkers` y `applyOfflineProduction` están **forward-declared** arriba del
+  archivo porque `setupPlayer` y `hire` las usan antes de que existan
+
+> ⚠️ `vaultUsed(profile)` = `Leaves + Blocks * 3`. **Un bloque ocupa 3 de espacio.**
+> Úsalo siempre; no recalcules el espacio a mano (en la v18 quedó inconsistente y se
+> arregló en la v19).
+
 ## Economía de dos bolsas (v18)
 
 | Dónde | Campo del perfil | ¿Aduanas lo puede quitar? |

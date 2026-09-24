@@ -138,21 +138,25 @@ GameConfig.StarterBike = {
 
 -- ========== EMPLEADOS ==========
 GameConfig.Employees = {
+	-- OJO: los cosechadores son UNO POR MESA. El maximo real no es este
+	-- numero, es cuantas mesas tenga tu bodega (Max aqui es solo el tope
+	-- absoluto del ultimo nivel). Cada uno se para en SU mesa y corta
+	-- unicamente las plantas maduras de esa mesa.
 	Harvester = {
 		Name = "Cosechador",
 		BaseCost = 1500,
 		Growth = 1.55,
-		Max = 8,
-		Interval = 6,   -- cada cuanto actua
-		Amount = 3,     -- hojas que cosecha automaticamente
+		Max = 12,       -- = mesas de la Mega Procesadora
+		Interval = 8,   -- cada cuanto revisa su mesa
+		PerCycle = 2,   -- cuantas plantas maduras corta por revision
 	},
 	Presser = {
 		Name = "Prensador",
 		BaseCost = 4000,
 		Growth = 1.65,
 		Max = 6,
-		Interval = 10,
-		Amount = 1,     -- bloques que prensa automaticamente
+		Interval = 12,
+		PerCycle = 1,   -- bloques que produce por ciclo
 	},
 	Guard = {
 		Name = "Guardia",
@@ -162,6 +166,11 @@ GameConfig.Employees = {
 		-- cada guardia reduce 12% la probabilidad de asalto a tu bodega
 		RaidReduction = 0.12,
 	},
+
+	-- Tus trabajadores siguen produciendo cuando no estas conectado,
+	-- pero solo se te acreditan hasta estas horas (para que no se rompa
+	-- la economia si te desapareces una semana).
+	OfflineMaxHours = 8,
 }
 
 -- ========== HEAT / POLICIA (Unidad de Aduanas) ==========

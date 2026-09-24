@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v18** · 23 sep 2026
+> Última actualización: **v19** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v18 |
+| **Versión actual** | v19 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -71,7 +71,7 @@ tools/                                Validadores. Corre bash tools/validate.sh
 | # | Bug | Estado |
 |---|---|---|
 | 1 | **Bici** — historial largo de fallas, ver `docs/03-NO-HAGAS-ESTO.md` §1 | v17 la ancló por completo. **SIN CONFIRMAR por el usuario** |
-| 2 | **Trabajadores invisibles** — contratas Cosechadores/Prensadores y son puros números, no existen físicamente | ⏳ **EN CURSO, es lo siguiente (v19)** |
+| 2 | ~~Trabajadores invisibles~~ | ✅ resuelto en v19. **SIN CONFIRMAR por el usuario** |
 
 ## 2.1 🔨 El rediseño de producción física (decisiones ya tomadas)
 
@@ -84,10 +84,10 @@ que volver a preguntarlo**:
 | Caja fuerte | Todo lo producido se guarda ahí, no en el inventario ✅ hecho en v18 |
 | Aduanas | Solo incauta lo que traes CARGANDO ✅ hecho en v18 |
 | Capacidad de carga | Empieza en 80, sube comprando **mochilas** ✅ hecho en v18 |
-| Cosechadores | **Uno por mesa.** 4 mesas = 4 cosechadores. Físicos, se paran en su mesa y cosechan solo las plantas maduras de ESA mesa | ⏳ v19 |
-| Producción offline | **Sí**, los trabajadores producen aunque estés desconectado. Hay que calcular al volver | ⏳ v19 |
+| Cosechadores | **Uno por mesa.** 4 mesas = 4 cosechadores. Físicos, se paran en su mesa y cosechan solo las plantas maduras de ESA mesa | ✅ v19 |
+| Producción offline | **Sí**, los trabajadores producen aunque estés desconectado. Hay que calcular al volver | ✅ v19 (tope 8 h) |
 | Cosecha manual | **Sí sigue existiendo**, además de los trabajadores | ✅ ya funciona |
-| Asaltos a la caja | **Sí pueden robar de la caja fuerte** — para eso sirven los guardias y la alerta del celular | ⏳ v19 |
+| Asaltos a la caja | **Sí pueden robar de la caja fuerte** — para eso sirven los guardias y la alerta del celular | ⏳ **pendiente, es lo siguiente** |
 
 ---
 
@@ -97,7 +97,7 @@ Por orden de valor sugerido:
 
 | Pendiente | Qué implica |
 |---|---|
-| **Trabajadores físicos + offline** | Ver 2.1. Es lo siguiente que toca |
+| **Asaltos que roben de la caja fuerte** | Ver 2.1. Es lo siguiente que toca |
 | **Territorios de crews** | Zonas capturables en la ciudad + guerra entre crews. Es el feature grande que falta del pedido original |
 | **Interiores de propiedades** | Las casas/departamentos que compras hoy son solo fachada. No se puede entrar |
 | **Garaje real** | Un lugar físico donde aparezcan los autos comprados |

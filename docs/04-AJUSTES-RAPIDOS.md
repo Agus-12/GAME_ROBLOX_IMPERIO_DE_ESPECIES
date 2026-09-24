@@ -22,6 +22,15 @@ Perillas para cambiar cosas sin rediseñar nada.
 | Mochilas más baratas | `GameConfig.Carry.Backpacks` | baja los `Cost` |
 | Prensar desde más lejos | `GameConfig.Press` | `UseRadius = 14` |
 
+## Empleados
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Que cosechen más rápido | `GameConfig.Employees.Harvester` | baja `Interval = 8` |
+| Que corten más por vez | idem | sube `PerCycle = 2` |
+| Más horas de producción offline | `GameConfig.Employees` | `OfflineMaxHours = 8` |
+| Quitar el tope de un cosechador por mesa | `Main.luau`, `hire()` | borra el bloque `if role == "Harvester"` |
+
 ## Visual
 
 | Quiero… | Dónde | Cómo |
