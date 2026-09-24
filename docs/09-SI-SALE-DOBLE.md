@@ -112,7 +112,7 @@ para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.m
 
 ---
 
-## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v39)
+## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v40)
 
 Todo lo de arriba se hace a mano en el Explorer. Si quieres que se haga solo:
 
@@ -133,20 +133,20 @@ Hace esto:
 * borra **todas** las carpetas `Remotes` (el juego crea la suya al dar Play);
 * te dice **que archivo hay que volver a pegar** si el que tienes es de otra ronda.
 
-**Y desde la v39 el cartel rojo ya no sale cuando el juego en realidad si
+**Y desde la v40 el cartel rojo ya no sale cuando el juego en realidad si
 funciona** (la carpeta buena es de esta ronda y tiene los 11 remotes): en ese caso
 sale un **avisito azul chiquito** abajo durante 14 segundos y puedes jugar normal.
 El cartel rojo queda solo para cuando de verdad hay que arreglar algo.
 
 ---
 
-## 🧾 El juego te dice DONDE esta la copia (v39)
+## 🧾 El juego te dice DONDE esta la copia (v40)
 
 Al arrancar, el servidor imprime en el **Output** un inventario completo con la **ruta** de
 cada archivo del juego y marca las copias:
 
 ```
-[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v39, al arrancar) ====
+[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v40, al arrancar) ====
 [SpiceEmpire]  OK     ServerScriptService > Main
 [SpiceEmpire]  OK     StarterPlayer > StarterPlayerScripts > ClientUI
 [SpiceEmpire]  COPIA  StarterGui > ClientUI   <- borra esta (clic derecho > Delete)
@@ -161,7 +161,7 @@ Busca en el Output la palabra **INVENTARIO**. Ahi sale exactamente que borrar y 
 Cada copia deja un "latido" con su version. La que sobra **se apaga sola** y avisa:
 
 ```
-[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v39) *** esta copia (v39) se apaga sola...
+[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v40) *** esta copia (v40) se apaga sola...
 ```
 
 **Ojo importante:** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`.
@@ -172,7 +172,7 @@ viejo te confunda (paso de verdad: un cartel de la ronda v32 culpando al `Main` 
 
 ---
 
-## 🆕 v37/v39: "no cambio nada" aunque pegues todo
+## 🆕 v37/v40: "no cambio nada" aunque pegues todo
 
 Hay **dos** formas de que el juego se vea igual aunque pegues los archivos nuevos.
 Las dos ya estan arregladas, pero conviene saberlas:
@@ -184,12 +184,12 @@ lo mete en la pantalla **al arrancar**, sin que corra ningun script. Se ve como 
 tablero anterior", y como no lo dibuja nadie, **no cambia nunca**.
 
 * Esa basura se borra: Explorer > `StarterGui` > clic derecho en el `ScreenGui` > `Delete`.
-* La v39 la **borra sola** al arrancar (avisa en el Output con la marca `BASURA`).
+* La v40 la **borra sola** al arrancar (avisa en el Output con la marca `BASURA`).
 
 ### 2. La ClientUI que no corre
 
 Un `Script` **normal** puesto en `StarterPlayerScripts` **no corre**: no dibuja nada y
-no avisa. Igual con `Enabled = false`. La v39 lo revisa y lo grita en el Output:
+no avisa. Igual con `Enabled = false`. La v40 lo revisa y lo grita en el Output:
 
 ```
 MAL    StarterPlayer > StarterPlayerScripts > ClientUI (es Script)
@@ -198,15 +198,15 @@ APAGAD StarterPlayer > StarterPlayerScripts > ClientUI (Disabled)
 
 ### Como saber, en 10 segundos, que ronda esta corriendo
 
-* **Placa verde** arriba al centro (cliente): `RONDA v39 ...`.
-* **Letrero** flotando arriba del spawn (servidor): `SERVIDOR v39`.
-* **Letrerito chiquito** `v39` (se queda siempre, arriba al centro).
+* **Placa verde** arriba al centro (cliente): `RONDA v40 ...`.
+* **Letrero** flotando arriba del spawn (servidor): `SERVIDOR v40`.
+* **Letrerito chiquito** `v40` (se queda siempre, arriba al centro).
 * **INVENTARIO** en el Output con la ronda de **cada** archivo.
 
 
 ---
 
-## 🆕 v39: el tablero viejo que "no se iba" aunque pegaras todo
+## 🆕 v40: el tablero viejo que "no se iba" aunque pegaras todo
 
 Reporte del usuario **con la placa nueva ya en pantalla**: seguia viendo la barra ancha.
 Eso significa: la ClientUI nueva **si corria**, pero **otra interfaz vieja seguia
@@ -217,7 +217,7 @@ dibujada encima**. Hay dos formas de que eso pase:
 2. **Esta dentro de una carpeta** (`PlayerGui > Cosas > Pantalla`): solo se revisaba el
    primer nivel.
 
-**Arreglado en v39**: el tablero se reconoce **por lo que dice**:
+**Arreglado en v40**: el tablero se reconoce **por lo que dice**:
 
 * textos **"Hojas"**, **"HEAT"**, **"Espacio"** -> es el tablero del juego, se llame como
   se llame y este donde este;
@@ -235,3 +235,30 @@ DIBUJA StarterPlayer > StarterCharacterScripts > OldHud (LocalScript)  <- borral
 **Borrar a mano** (siempre funciona): Explorer > busca el objeto por la ruta que dice el
 Output > clic derecho > `Delete`. Para interfaces guardadas: revisa **dentro de las
 carpetas** de `StarterGui`, no solo el primer nivel.
+
+
+---
+
+## 🆕 v40: "Encontre carpetas Remotes de mas" (la leyenda azul)
+
+Esa leyenda significa: **hay una carpeta `Remotes` vieja** en tu lugar, creada por una
+**version anterior del juego** que sigue corriendo ahi (un `Main` de mas). Se distingue
+porque **no trae el sello**:
+
+```
+'Remotes' (sello v40, 11 remotes)   <- la buena, la que crea el servidor de esta ronda
+'Remotes' (SIN sello = vieja, 9 remotes)  <- de una version vieja (tenia 9 remotes)
+```
+
+**No es un error y no rompe nada**: el juego usa siempre la que trae sello. La v40 hace
+ademas que se **borre al instante** si aparece en cualquier momento de la partida, y el
+aviso **se quita solo** cuando ya esta limpio.
+
+### Como quitarla para siempre (1 minuto)
+
+* **Facil**: pega el **LIMPIADOR** (pestana 0 del HTML) en la **Command Bar** (pestana
+  `View` de adentro de Studio, sin dar Play) y dale **Enter**. Borra las carpetas
+  `Remotes` viejas, las copias de los 5 archivos, y te dice que falta pegar.
+* **A mano**: Explorer > `ReplicatedStorage` > clic derecho en **cada** carpeta
+  `Remotes` > `Delete` (el juego crea la suya al dar Play). Y en `ServerScriptService`
+  deja **UN** `Main`: el que al abrirlo diga `RONDA: v40`.

@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v39 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v40 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v39"
+local MI_VERSION = "v40"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -481,11 +481,27 @@ local function veredicto(momento: string)
 		yaAviso = true
 		pcall(dibujarCartel)
 	elseif copiasLeves and definitivo and not yaAviso then
-		-- hay carpetas de mas pero TODO funciona: avisito, no cartel rojo
+		-- Hay carpetas de mas pero TODO funciona: avisito, no cartel rojo.
+		-- v40: mensaje corto y con el ARREGLO exacto (antes era un rollo largo que
+		-- no decia que hacer). Ademas el aviso se QUITA SOLO si el problema se
+		-- resuelve (el servidor borra la carpeta vieja al instante): el usuario veia
+		-- el aviso aunque ya estuviera todo bien, y parecia que seguia roto.
 		yaAviso = true
-		pcall(avisoChiquito, "Encontre carpetas 'Remotes' de mas en Studio (" ..
-			table.concat(PROBLEMAS, "; ") .. "). El servidor borra las viejas solo: puedes" ..
-			" jugar normal. Si quieres limpiarlas a mano: Explorer > clic derecho > Delete.")
+		pcall(avisoChiquito, "Puedes jugar normal: el servidor ya borro la carpeta 'Remotes'" ..
+			" vieja (la creo una version ANTERIOR del juego que sigue corriendo). Para que no" ..
+			" vuelva: deja UN solo 'Main' en ServerScriptService (el que diga RONDA: " ..
+			MI_VERSION .. ") y corre el LIMPIADOR de la pestana 0. Ruta exacta de lo que" ..
+			" sobra: mira el Output.")
+		task.delay(4, function()
+			if #carpetasRemotes() <= 1 then
+				local pg = player:FindFirstChild("PlayerGui")
+				local a = pg and pg:FindFirstChild("SpiceEmpire_Avisito")
+				if a then
+					pcall(function() a:Destroy() end)
+					print("[SpiceEmpire] el aviso de carpetas de mas se quito solo: ya hay 1 Remotes.")
+				end
+			end
+		end)
 	elseif definitivo and #PROBLEMAS > 0 then
 		warn("[SpiceEmpire] siguen habiendo " .. #PROBLEMAS .. " carpetas Remotes de mas, pero" ..
 			" el juego esta funcionando con la buena. Borra las que no tienen sello (docs/09)")

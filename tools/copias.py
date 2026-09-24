@@ -603,6 +603,131 @@ else:
     if not todo:
         fallas += 1
 
+# ---------- 13) EL VIGILANTE DEL SERVIDOR (v40)
+# CASO REAL: quedo un 'Main' viejo de mas corriendo y ese crea SU carpeta Remotes
+# (sin sello, con 9 remotes) a media partida. Antes solo se revisaba 3 veces (0, 5 y
+# 15 s) y la carpeta sobrevivia: el cliente la veia y salia el aviso de "carpetas de
+# mas" aunque el juego funcionara. Ahora se borra AL INSTANTE.
+print()
+print("=== 13. aparece una carpeta Remotes a media partida: se borra al instante ===")
+
+
+def corre_vigilante():
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local _city,_data
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+local sss=game:GetService("ServerScriptService")
+sss.WaitForChild=function(s,n)
+  if n=="CityGenerator" then return "__CITY__" end
+  if n=="DataService" then return "__DATA__" end end
+require=function(x)
+  if x=="__CFG__" then return _cfg end
+  if x=="__CITY__" then return _city end
+  if x=="__DATA__" then return _data end
+  return {} end
+_city=(function()
+'''
+    guion += L("ServerScriptService/CityGenerator.luau")
+    guion += '''
+end)()
+_data=(function()
+'''
+    guion += L("ServerScriptService/DataService.luau")
+    guion += '''
+end)()
+local ok, err = pcall(function()
+'''
+    guion += L("ServerScriptService/Main.luau")
+    guion += '''
+end)
+task.__sched.advance(6)
+-- a media partida, el "Main viejo" crea SU carpeta con 9 remotes
+local vieja = Instance.new("Folder") ; vieja.Name = "Remotes" ; vieja.Parent = rs
+for i=1,9 do local e = Instance.new("RemoteEvent") ; e.Name = "Viejo"..i ; e.Parent = vieja end
+task.__sched.advance(task.__sched.vtime + 3)
+local cuantas, viva = 0, false
+for _, c in ipairs(rs:GetChildren()) do
+  if string.sub(c.Name,1,7) == "Remotes" then cuantas = cuantas + 1 end
+  if c == vieja then viva = true end
+end
+print("__RESULTADO__ " .. cuantas .. "||" .. tostring(viva) .. "||" .. tostring(ok))
+'''
+    return lua(guion)
+
+
+sal = corre_vigilante()
+m = re.search(r"__RESULTADO__ (\d+)\|\|(.*?)\|\|(.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-8:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    cuantas, viva, ok = int(m.group(1)), m.group(2) == "true", m.group(3) == "true"
+    aviso = "OTRA COPIA DEL JUEGO ESTA CORRIENDO" in sal
+    todo = cuantas == 1 and not viva and ok and aviso
+    print("  %s  quedan %d carpeta(s) Remotes | la vieja sigue viva: %s | aviso del Main viejo: %s"
+          % ("OK   " if todo else "FALLA", cuantas, "si" if viva else "NO",
+             "si" if aviso else "NO"))
+    if not todo:
+        fallas += 1
+
+# ---------- 14) EL AVISO DEL CLIENTE SE QUITA SOLO (v40)
+# El usuario veia el aviso de "carpetas Remotes de mas" y parecia que seguia roto
+# aunque el servidor ya hubiera limpiado. Ahora, si el problema desaparece, el aviso
+# se quita solo: no se queda pegado en la pantalla.
+print()
+print("=== 14. el aviso de carpetas de mas se quita solo cuando ya hay 1 ===")
+
+
+def corre_aviso():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += '''
+-- mockclient ya crea la carpeta BUENA (con sello). Se agrega SOLO la vieja.
+local rs = game:GetService("ReplicatedStorage")
+local vieja = Instance.new("Folder") ; vieja.Name = "Remotes" ; vieja.Parent = rs
+for i=1,9 do local e = Instance.new("RemoteEvent") ; e.Name = "Viejo"..i ; e.Parent = vieja end
+'''
+    guion += "local __cli = function()\n" + CLIENTE + "\nend\n__cli()\n"
+    guion += '''
+local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+task.__sched.advance(5)
+local a = pg:FindFirstChild("SpiceEmpire_Avisito")
+local texto = ""
+if a then
+  for _, d in ipairs(a:GetDescendants()) do
+    if d.Text and #d.Text > 30 then texto = d.Text break end
+  end
+end
+-- el vigilante del servidor borra la vieja y el aviso debe irse solo
+vieja:Destroy()
+task.__sched.advance(task.__sched.vtime + 6)
+print("__RESULTADO__ " .. tostring(a ~= nil) .. "||" .. tostring(pg:FindFirstChild("SpiceEmpire_Avisito") ~= nil) ..
+  "||" .. texto:sub(1, 60))
+'''
+    return lua(guion, env=ENTORNO)
+
+
+sal = corre_aviso()
+m = re.search(r"__RESULTADO__ (.*?)\|\|(.*?)\|\|(.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-8:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    salio, sigue, texto = m.group(1) == "true", m.group(2) == "true", m.group(3)
+    ok = salio and not sigue and "puedes jugar normal" in texto.lower()
+    print("  %s  el aviso salio: %s | sigue pegado al final: %s | dice: %s"
+          % ("OK   " if ok else "FALLA", "si" if salio else "NO",
+             "si" if sigue else "NO", texto[:60]))
+    if not ok:
+        print("         (debe salir, decir que puedes jugar normal, y quitarse solo)")
+        fallas += 1
+
 print()
 if fallas:
     print("FALLA")

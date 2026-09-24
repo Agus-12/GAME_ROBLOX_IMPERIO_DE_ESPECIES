@@ -1,4 +1,22 @@
-local function newSignal() return {Connect=function() return {Disconnect=function() end} end} end
+-- SENALES DE VERDAD (v40). Antes: Connect devolvia un Disconnect falso y NO habia
+-- Fire, o sea que nada conectado a un evento corria NUNCA en el simulador (falso
+-- verde: no se podia probar "aparece una carpeta a media partida").
+local function newSignal()
+  local s = {_fns = {}}
+  function s:Connect(fn)
+    local i = #self._fns + 1
+    self._fns[i] = fn
+    return { Disconnect = function() self._fns[i] = nil end,
+             disconnect = function() self._fns[i] = nil end }
+  end
+  function s:ConnectParallel(fn) return self:Connect(fn) end
+  function s:Once(fn) return self:Connect(fn) end
+  function s:Wait() return nil end
+  function s:Fire(...)
+    for _, fn in ipairs(self._fns) do pcall(fn, ...) end
+  end
+  return s
+end
 Enum=setmetatable({},{__index=function(t,k)
   local e=setmetatable({},{__index=function(_,k2) return {Name=k2,Value=0} end})
   rawset(t,k,e); return e end})
@@ -138,6 +156,11 @@ function Instance_.new(cls,parent)
         if ch then
           table.insert(ch,proxy)
           o._parentChildren = ch      -- para que Destroy pueda desparentar
+          -- Roblox dispara ChildAdded al poner Parent (el mock no lo hacia)
+          pcall(function()
+            local sig = v.ChildAdded
+            if sig and sig.Fire then sig:Fire(proxy) end
+          end)
         end
       end
       if k ~= "_parentChildren" and __ON_SET then pcall(__ON_SET, o, k, v) end

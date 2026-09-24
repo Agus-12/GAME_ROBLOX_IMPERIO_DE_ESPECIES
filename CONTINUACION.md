@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v39** · 24 sep 2026
+> Última actualización: **v40** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v39 |
+| **Versión actual** | v40 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -176,13 +176,40 @@ El usuario mando captura nueva: **sigue saliendo el cartel**, pero al leerlo bie
 reportaba ningun `Main` duplicado**: solo **2 carpetas `Remotes`**. O sea que el duplicado
 de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres problemas:
 
-| Problema | Arreglo v39 |
+| Problema | Arreglo v40 |
 |---|---|
 | Habia que cazar copias a mano en el Explorer | **`tools/limpiar.luau`**: se pega en la **Command Bar** (View > Command Bar, sin dar Play) y borra las copias solo, dice que borro y **que archivo volver a pegar**. Va como **PASO 0** del HTML |
 | El cartel rojo salia aunque el juego SI funcionara (2 carpetas pero con la buena completa) | **avisito azul chiquito** 14 s en vez de cartel; el cartel rojo queda solo si de verdad hay que arreglar algo |
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🔕 Qué se cerró en la v40 (la leyenda de las carpetas Remotes)
+
+El usuario mando captura de la leyenda *"Encontre carpetas 'Remotes' de mas en Studio"*
+(definitivo: 2 carpetas `Remotes`: una **con sello v39** de 11 remotes + otra **SIN
+sello** de 9 remotes). Lectura correcta: **quedo un `Main` VIEJO de mas corriendo**, y
+ese crea su propia carpeta `Remotes` (sin sello; 9 = epoca pre-Shoot). No rompe nada (el
+juego usa la que trae sello), pero el aviso se quedaba pegado y parecia que seguia roto.
+
+* **Vigilante permanente** en Main: `ReplicatedStorage.ChildAdded` -> cualquier carpeta
+  `Remotes*` que aparezca **en cualquier momento** se borra al instante (antes: 3
+  revisiones a 0/5/15 s; una copia que arrancaba tarde se salvaba). Aviso **una sola vez**.
+* **El aviso del cliente se quita solo**: si a los 4 s ya hay 1 sola carpeta, se destruye
+  el `SpiceEmpire_Avisito`. Mensaje reescrito corto y accionable (deja UN `Main`, corre el
+  LIMPIADOR).
+* **Mock**: `newSignal` ahora es de verdad (`Connect`/`Fire`) y poner `Parent` dispara
+  `ChildAdded` como en Roblox. Antes las senales eran de mentiritas: no se podia probar
+  nada que ocurriera "despues" (aparece una carpeta a media partida). **OJO**: `advance()`
+  del mock toma tiempo **ABSOLUTO** (no delta): `advance(T.vtime + n)`.
+* Pruebas **13** (carpeta a media partida) y **14** (el aviso se quita solo), probadas
+  revirtiendo el arreglo -> **FALLAN**.
+* `docs/09` (que significa la leyenda y como quitar la carpeta para siempre), `docs/11`
+  (paso nuevo), `docs/07` (escenarios 13/14), `docs/03` leccion 21 (avisos pegados +
+  revisiones por tiempo), `docs/12` (pedido 15).
+
+**Regla dura nueva (v40):** un aviso tiene que **desaparecer cuando el problema
+desaparece**, y lo que no debe existir se **vigila siempre** (`ChildAdded`), no tres veces.
 
 ### 🎯 Qué se cerró en la v39 (el tablero viejo se caza por CONTENIDO)
 
@@ -205,7 +232,7 @@ podia llamarse distinto o estar **dentro de una carpeta**.
 * `docs/12-LO-QUE-PEDISTE.md`: la lista completa de los pedidos del usuario con la ronda en
   que se hizo cada uno (para responderle "que te habia pedido").
 
-**Regla dura nueva (v39):** a la basura se le reconoce por **contenido y recursivo**, nunca
+**Regla dura nueva (v40):** a la basura se le reconoce por **contenido y recursivo**, nunca
 solo por nombre ni solo el primer nivel; y la limpieza deja **rastro visible** (placa en
 pantalla + ruta exacta en el Output).
 
@@ -217,9 +244,9 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v39 (arrancando...)` -> `RONDA v39  OK`; se encoge a un letrerito `v39` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v39` |
-| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v39]`, `VIEJO [v32]`...) |
+| **Placa verde** arriba al centro | el cliente | `RONDA v40 (arrancando...)` -> `RONDA v40  OK`; se encoge a un letrerito `v40` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v40` |
+| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v40]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);
 **placa atorada en "arrancando..."** = corre pero truena; **letrero viejo con placa nueva**
@@ -233,7 +260,7 @@ Ademas:
   rompiendo el codigo a proposito (si se quita el testigo, **FALLAN**);
 * **docs/11-QUE-HAGO-SI-NO-CAMBIA.md**: guia de rescate paso a paso (es la que se le manda al usuario).
 
-**Regla dura nueva (v39):** todo lo que el usuario tenga que verificar se pone **visible en
+**Regla dura nueva (v40):** todo lo que el usuario tenga que verificar se pone **visible en
 pantalla** (una captura basta) y el testigo distingue los TRES casos: corre completo / corre y
 truena / no corre. Los testigos se buscan por **nombre de objeto**, no por variables de arriba
 (el archivo anda en 183 de 200 locales).
@@ -251,7 +278,7 @@ que se tapaban entre si:
 Ademas: el barrido de interfaces ahora caza los nombres **renombrados** por Roblox
 (`SpiceEmpireUI2`, comparando por PREFIJO) y corre tambien con `PlayerGui.ChildAdded`
 (al instante, no importa cuando arranque la copia vieja); la **ronda se ve junto al
-reloj** (`14:32 SOL v39`) para saber desde una captura que codigo esta dibujando; y el
+reloj** (`14:32 SOL v40`) para saber desde una captura que codigo esta dibujando; y el
 INVENTARIO del servidor reporta **interfaces guardadas en `StarterGui`**.
 
 **Tres defectos mas del simulador** que escondian justo estos bugs: `IsA("GuiObject")`
@@ -261,7 +288,7 @@ Roblox, y el **escenario 8** de `tools/copias.py` reproduce el caso del usuario
 (interfaz vieja guardada + nombre renombrado): exige llegar al final, 1 sola interfaz y
 contenido visible. Probado devolviendo el `return` viejo: **falla**.
 
-**Regla dura nueva (v39):** un chequeo NUNCA debe apagar la copia nueva por algo que
+**Regla dura nueva (v40):** un chequeo NUNCA debe apagar la copia nueva por algo que
 puede ser basura guardada en el lugar; la version manda (latido), y la basura se borra.
 
 ### 🖥️ Qué se cerró en la v36 (tablero viejo, bici, portones y luz quemada)
@@ -270,7 +297,7 @@ Capturas del usuario: *"se me aparece el dashboard anterior"*, *"la bici con las
 reves"*, *"el garage sin puertas"*, *"cuando entro a la bici no puedo subirme"*, *"la
 iluminacion super saturada dentro del garage y la bodega"*.
 
-| Reporte | Que era | Arreglo v39 |
+| Reporte | Que era | Arreglo v40 |
 |---|---|---|
 | Sale el **dashboard anterior** | Habia **OTRA `ClientUI` corriendo** (copia vieja) y ella dibujaba su barra ancha encima. No era "retroceder de version" | Al arrancar, esta copia **borra las interfaces del juego que no son suyas** (se repite a los 1.5 s y 4 s) |
 | **Llantas de la bici "al reves"** | La **orientacion estaba bien** (el cilindro ya trae el eje a los lados). Lo feo era el **aro**: un disco blanco grandote tipo plato | Rueda nueva: goma oscura + aro gris chico + maza + **6 rayos** que sobresalen |
@@ -280,7 +307,7 @@ iluminacion super saturada dentro del garage y la bodega"*.
 | (nuevo) | **185 de 200 locales** en `ClientUI`: agregar un bloque dejaba el script **sin compilar** ("too many local variables") | bloques nuevos dentro de `do ... end`; `check.py` **avisa a partir de 170 y falla a partir de 190** |
 | (simulador) | `GetDescendants()` de las piezas devolvia **solo hijos directos** | ahora baja de verdad |
 
-**Regla dura nueva (v39):** los bloques nuevos en `ClientUI.luau` van dentro de
+**Regla dura nueva (v40):** los bloques nuevos en `ClientUI.luau` van dentro de
 `do ... end` (el archivo anda cerca del tope de variables locales de Luau).
 
 ### 🎯 Qué se cerró en la v35 (el juego dice DONDE esta la copia)
@@ -291,14 +318,14 @@ razon: solo hay uno) y **el que se quejaba era una `ClientUI` VIEJA (v32)** que 
 corriendo en el lugar (en `StarterGui` o como `ClientUI2`). Y con la logica vieja, ese
 cartel viejo decia cosas falsas ("hay 2 Scripts Main pegados").
 
-| Cosa | Antes | Ahora (v39) |
+| Cosa | Antes | Ahora (v40) |
 |---|---|---|
 | Saber DONDE esta una copia | "hay copias pegadas" y a buscar | **INVENTARIO DE ARCHIVOS** en el Output: ruta completa de cada archivo y cada copia marcada con `<- borra esta` |
 | Dos `ClientUI` corriendo | dos HUD, dos carteles, uno de una ronda vieja confundiendo todo | cada copia deja un **latido** con su version: la copia que sobra **se apaga sola** y lo avisa en la consola |
 | Cartel cuando el atrasado es ESTE archivo | lista neutra de diferencias | **"*** ESTA ClientUI ES LA VIEJA: el servidor ya es vNN y esta copia dice vMM ***"** + que hay mas de una ClientUI pegada |
 | Simulador | no tenia `game:GetDescendants()` -> el inventario salia vacio (**falso verde**) | lo tiene, y `tools/copias.py` escenario 7 prueba las dos `ClientUI` |
 
-### 🐛 La pestaña en blanco (misma ronda v39, reportada por el usuario)
+### 🐛 La pestaña en blanco (misma ronda v40, reportada por el usuario)
 
 *"el ClientUI, el 5 en el archivo, le pico y no sale nada"*. Era **la pagina de copiar**,
 no el juego: el cambio de pestaña tenia el numero de paneles escrito a mano (`k<5`) y con la
@@ -312,7 +339,7 @@ en cada pestaña**; con la pagina vieja **falla** y con la nueva pasa.
 **Regla dura nueva:** lo que se puede **contar** no se escribe a mano, y las herramientas
 del usuario (la pagina de copiar) tambien se prueban.
 
-**Regla dura nueva (v39):** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`
+**Regla dura nueva (v40):** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`
 y debe haber **una sola**. Si hay otra (aunque sea en `StarterGui`), corre y confunde.
 
 ### 🚨 Qué se cerró en la v34 (remotes muertos + el cartel que asustaba de mas)
@@ -320,17 +347,17 @@ y debe haber **una sola**. Si hay otra (aunque sea en `StarterGui`), corre y con
 El usuario mando captura nueva: **el cartel seguia saliendo** y ademas pregunto donde
 esta la Command Bar (no la encontraba). Investigandolo salieron dos cosas:
 
-| Problema | Arreglo v39 |
+| Problema | Arreglo v40 |
 |---|---|
 | **Remotes MUERTOS**: el cliente arranca ANTES de que el servidor limpie. Si hay una carpeta `Remotes` vieja guardada en el lugar, el cliente se enganchaba a ESA; el servidor la borraba ~0.3 s despues y el jugador quedaba con remotes que ya no existen: **botones que no hacen nada y CERO errores en consola** | **cambio en caliente**: el cliente guarda un **intermediario** (`crearProxy`) en vez del objeto. A los **1.5 s** y **4.5 s** revisa y, en cuanto ve la carpeta del servidor (sello `Build`), se **muda solo y reconecta las señales**. Los `FireServer`/`InvokeServer` se resuelven al momento de la llamada |
 | El cartel rojo salia por carpetas viejas que el servidor limpia solo (tu caso) | el diagnostico se da **a los 4.5 s**, no al instante: si las viejas ya se limpiaron, **no sale nada** (ni cartel ni avisito) |
 | La Command Bar no se encontraba | NO esta en el menu `View` de la barra de arriba de la pantalla: esta en la **pestana `View`** de adentro de Studio (Home, Model, ..., View, Plugins). Y de todos modos no hace falta: a mano, clic derecho en la carpeta `Remotes` del Explorer > Delete (se pueden borrar todas) |
 
-**Regla dura nueva (v39):** nunca guardes el **objeto** de un remote para toda la partida;
+**Regla dura nueva (v40):** nunca guardes el **objeto** de un remote para toda la partida;
 usa un intermediario re-apuntable. Y no juzgues el estado del servidor **en el instante
 cero**: el cliente arranca antes y ve un mundo a medias.
 
-### 🐛 Dos bugs silenciosos que cazaron las herramientas (v39)
+### 🐛 Dos bugs silenciosos que cazaron las herramientas (v40)
 
 1. **El simulador mentia**: `strip_luau` (en `tools/check.py`) limpiaba tipos de Luau con
    regex y de paso le borraba pedazos a los **textos con dos puntos**:
@@ -342,7 +369,7 @@ cero**: el cliente arranca antes y ve un mundo a medias.
    siempre falsa, avisito que nunca salia y **cero errores en consola**. Lo cazo
    `tools/globals.py` (etapa 4).
 
-**Regla dura nueva (v39):** lo que usan las funciones de arriba se **declara arriba**
+**Regla dura nueva (v40):** lo que usan las funciones de arriba se **declara arriba**
 (`globals.py` lo revisa), y no se confia en el simulador hasta comprobar que corre el
 codigo tal cual se entrega.
 

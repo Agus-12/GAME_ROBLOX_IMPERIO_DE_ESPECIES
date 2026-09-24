@@ -15,7 +15,7 @@ Si en Studio tienes un `Main.luau` viejo, ese `Main` crea menos canales que los 
 cliente nuevo pide → el cliente avisa cuáles faltan.
 
 > **Ejemplo real:** `Main.luau` de la **v20** (que creaba 9 canales) + `ClientUI.luau`
-> de la **v39** (que pide 11) → faltaban **`Shoot`** (del arma, v21) y
+> de la **v40** (que pide 11) → faltaban **`Shoot`** (del arma, v21) y
 > **`TerritoryUpdate`** (de los territorios, v24). El cartel decía *"FALTAN 2"*.
 
 Cada ronda se **suma** al final: nadie borra canales viejos, así que esto **solo** puede
@@ -50,7 +50,7 @@ significar una cosa: **quedó un archivo viejo pegado**.
 **a) La ventana Output** (menú **View › Output**) debe decir:
 
 ```
-========== IMPERIO DE ESPECIAS v39 ==========
+========== IMPERIO DE ESPECIAS v40 ==========
   remotes creados: 11
 ```
 
@@ -71,19 +71,19 @@ Si el cartel te dice que falta un remote, con esta tabla sabes qué archivo qued
 | `OpenVault` | v18 | el `Main.luau` es de la v17 o antes |
 | `Shoot` | v21 | el `Main.luau` es de la v20 o antes |
 | `TerritoryUpdate` | v24 | el `Main.luau` es de la v23 o antes |
-| `IncomingCall` | v39 | el `Main.luau` es de la v27 o antes |
+| `IncomingCall` | v40 | el `Main.luau` es de la v27 o antes |
 
-Y desde la **v39** el cartel ya te lo dice él solito, sin tabla:
+Y desde la **v40** el cartel ya te lo dice él solito, sin tabla:
 
 ```
-ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es v39
- - Main.luau del servidor dice NADA (es viejo, ni siquiera dice version); esta ronda es v39
- - GameConfig dice 'v20'; esta ronda es v39
+ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es v40
+ - Main.luau del servidor dice NADA (es viejo, ni siquiera dice version); esta ronda es v40
+ - GameConfig dice 'v20'; esta ronda es v40
  - el servidor NO creo: Remotes.Shoot (existe desde v21) , Remotes.TerritoryUpdate (existe desde v24)
 Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.
 ```
 
-O sea: en la **v39** el servidor **estampa su versión** en la carpeta `Remotes`, y el
+O sea: en la **v40** el servidor **estampa su versión** en la carpeta `Remotes`, y el
 cliente compara esa versión contra la suya y contra la de `GameConfig`. Si una de las
 tres no cuadra, te dice **cuál archivo** quedó viejo.
 
@@ -94,10 +94,10 @@ tres no cuadra, te dice **cuál archivo** quedó viejo.
 En el **Explorer** de Studio, mira la carpeta `ReplicatedStorage › Remotes`:
 
 - Si **no existe** → el servidor es viejísimo o no está corriendo. Pega `Main.luau`.
-- Si existe y adentro hay **11 cosas** (10 RemoteEvent + 1 RemoteFunction `Action`) → estás en v39. ✅
+- Si existe y adentro hay **11 cosas** (10 RemoteEvent + 1 RemoteFunction `Action`) → estás en v40. ✅
 - Si hay menos → falta pegar el `Main.luau` de esta ronda.
 
-Y esta es la lista completa de la v39 (los 11):
+Y esta es la lista completa de la v40 (los 11):
 
 ```
 RemoteEvent:    StateUpdate  PhoneAlert  Toast  MissionUpdate  OpenUpgrades

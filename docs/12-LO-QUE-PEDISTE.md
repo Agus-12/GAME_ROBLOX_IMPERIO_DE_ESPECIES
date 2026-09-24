@@ -13,12 +13,12 @@ para revisar que nada se pierda.
 | 6 | **Bici**: que se pueda **subir a manejarla** y que las **llantas se vean bien** (no un "plato" blanco) | hecho | v36 |
 | 7 | **Carros con boton "Conducir"** (y la bici "Manejar") | hecho | v36 |
 | 8 | **Luces de noche** con ciclo dia/noche, que **se apaguen de dia** y **no quemen** los interiores | hecho (v36 suaviza garage y bodega) | v29 / v36 |
-| 9 | **Que no salga el dashboard viejo** (la barra ancha) | **v39** (la copia vieja se caza por CONTENIDO, aunque se llame distinto o este en una carpeta) | v36 / v37 / v38 / v39 |
+| 9 | **Que no salga el dashboard viejo** (la barra ancha) | **v40** (la copia vieja se caza por CONTENIDO, aunque se llame distinto o este en una carpeta) | v36 / v37 / v38 / v40 |
 | 10 | **Entrega copiar-y-pegar**: los archivos "ahi al picarle" (nada de links) | HTML autocontenido con boton de copiar | v28+ |
 | 11 | **Siempre** el paso "borra las copias primero" | en el HTML, el limpiador y los docs | v28+ |
 | 12 | La intro **no** se queda en "Cargando la ciudad...": el boton `ENTRAR AL BARRIO` sale ya | hecho | v31 |
 | 13 | **Revisar exhaustivamente y reparar todos los danos** | cada ronda: `tools/validate.sh` (13 etapas) + las pruebas de `tools/copias.py` | v28+ |
-| 14 | **Poder saber que archivo esta viejo** sin adivinar | **testigos**: placa `RONDA vNN` en pantalla, letrero `SERVIDOR vNN` en el spawn, INVENTARIO en el Output | v38 / v39 |
+| 14 | **Poder saber que archivo esta viejo** sin adivinar | **testigos**: placa `RONDA vNN` en pantalla, letrero `SERVIDOR vNN` en el spawn, INVENTARIO en el Output | v38 / v40 |
 
 ## Lo que todavia NO esta hecho (y que nunca pediste, pero anoto)
 
@@ -32,5 +32,5 @@ para revisar que nada se pierda.
 2. **v37**: la columna del HUD **nunca se hacia visible** (nacia oculta y nadie la
    encendia): la barra ancha se escondia y en su lugar no aparecia nada.
 3. **v38**: habia que **poder ver** que ronda corre -> placa + letrero + inventario.
-4. **v39**: el tablero viejo se caza **por contenido** (dice "Hojas"/"HEAT"/"Espacio"),
+4. **v40**: el tablero viejo se caza **por contenido** (dice "Hojas"/"HEAT"/"Espacio"),
    aunque su nombre no sea el esperado o este dentro de una carpeta.

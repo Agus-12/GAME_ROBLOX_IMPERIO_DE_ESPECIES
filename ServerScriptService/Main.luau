@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v39 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v40 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -212,6 +212,39 @@ local function revisarRemotes(momento: string)
 	print("[SpiceEmpire] carpetas Remotes en ReplicatedStorage: " .. cuantas .. " (debe ser 1)")
 end
 revisarRemotes("al arrancar")
+
+-- c) VIGILANTE PERMANENTE (v40). CASO REAL: el usuario vio el aviso "encontre
+--    carpetas Remotes de mas" aunque el juego funcionaba. La causa: quedo un
+--    'Main' VIEJO de mas corriendo, y ese crea SU carpeta Remotes (sin sello, con
+--    9 remotes) un poco despues de arrancar. Las 3 revisiones (0 s, 5 s y 15 s) no
+--    siempre lo alcanzaban: si la copia vieja arrancaba mas tarde, su carpeta se
+--    quedaba viva y el cliente la veia.
+--    Ahora se borra AL INSTANTE, en cualquier momento de la partida, y se avisa
+--    UNA sola vez (sin llenar el Output de lo mismo).
+do
+	local yaAvise = false
+	ReplicatedStorage.ChildAdded:Connect(function(o)
+		local ok, nombre = pcall(function() return o.Name end)
+		if not ok or type(nombre) ~= "string" then return end
+		if string.sub(nombre, 1, 7) ~= "Remotes" then return end
+		if o == Remotes then return end
+		task.defer(function()
+			if o == Remotes then return end
+			local ok2, vivo = pcall(function() return o.Parent ~= nil end)
+			if ok2 and not vivo then return end
+			pcall(function() o:Destroy() end)
+			print("[SpiceEmpire] aparecio otra carpeta '" .. nombre .. "' y la borre al instante" ..
+				" (la creo una copia vieja del juego).")
+			if not yaAvise then
+				yaAvise = true
+				warn("[SpiceEmpire] *** OTRA COPIA DEL JUEGO ESTA CORRIENDO: aparecio una carpeta" ..
+					" 'Remotes' a media partida. Queda un 'Main' VIEJO de mas en" ..
+					" ServerScriptService: deja UNO solo (el que diga RONDA: " ..
+					tostring(Config.Build) .. "). Corre el LIMPIADOR (pestana 0) y listo.")
+			end
+		end)
+	end)
+end
 
 ----------------------------------------------------------------------
 -- INVENTARIO DE ARCHIVOS (v35)
