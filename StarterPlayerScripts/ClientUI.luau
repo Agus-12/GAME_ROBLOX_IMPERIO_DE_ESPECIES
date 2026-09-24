@@ -346,55 +346,40 @@ miniLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 miniLayout.Padding = UDim.new(0, 6)
 miniLayout.Parent = miniRow
 
--- chip = icono dibujado + numero, semitransparente
-local function chip(iconColor: Color3, shape: string)
+-- Chip = icono + numero. Se usan emojis porque se ven igual en todos los
+-- dispositivos y no hay que subir imagenes a Roblox.
+local function chip(icon: string, tint: Color3)
 	local holder = frame(miniRow, {
-		Size = UDim2.new(0, 74, 0, 26),
+		Size = UDim2.new(0, 86, 0, 28),
 		BackgroundColor3 = Color3.fromRGB(10, 10, 14),
-		BackgroundTransparency = 0.45,
+		BackgroundTransparency = 0.4,
 	})
-	corner(holder, 13)
+	corner(holder, 14)
 
-	local ic = frame(holder, {
-		Size = UDim2.new(0, 14, 0, 14),
-		Position = UDim2.new(0, 7, 0.5, -7),
-		BackgroundColor3 = iconColor,
-		BackgroundTransparency = 0.15,
+	label(holder, {
+		Size = UDim2.new(0, 22, 1, 0),
+		Position = UDim2.new(0, 8, 0, 0),
+		TextSize = 15,
+		Text = icon,
 	})
-	if shape == "leaf" then
-		corner(ic, 7)                       -- redondo = hoja
-	elseif shape == "block" then
-		corner(ic, 3)                       -- cuadrado = bloque
-	else
-		corner(ic, 4)                       -- mochila
-		local flap = frame(ic, {
-			Size = UDim2.new(0.6, 0, 0.3, 0),
-			Position = UDim2.new(0.2, 0, -0.18, 0),
-			BackgroundColor3 = iconColor,
-			BackgroundTransparency = 0.15,
-		})
-		corner(flap, 3)
-	end
 
 	local txt = label(holder, {
-		Size = UDim2.new(1, -28, 1, 0),
-		Position = UDim2.new(0, 26, 0, 0),
+		Size = UDim2.new(1, -36, 1, 0),
+		Position = UDim2.new(0, 32, 0, 0),
 		TextSize = 13,
-		TextColor3 = Color3.fromRGB(235, 235, 245),
-		TextTransparency = 0.1,
+		TextColor3 = tint,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = "0",
 	})
 	return txt
 end
 
--- Los dos primeros son lo que hay EN LA CAJA FUERTE (el "almacen"),
--- el tercero el espacio de la caja y el ultimo lo que traes CARGANDO.
--- Antes solo se veia lo cargado y por eso parecia que tenias 0 aunque
--- la caja estuviera a reventar.
-local chipLeaf  = chip(Color3.fromRGB(110, 205, 95),  "leaf")
-local chipBlock = chip(Color3.fromRGB(226, 208, 168), "block")
-local chipVault = chip(Color3.fromRGB(120, 235, 180), "block")
-local chipBag   = chip(Color3.fromRGB(150, 175, 220), "bag")
+-- 🌿 hojas que traes  |  🧱 bloques que traes
+-- 🎒 espacio de mochila  |  🔒 lo que hay en la caja fuerte
+local chipLeaf  = chip("🌿", Color3.fromRGB(150, 235, 140))
+local chipBlock = chip("🧱", Color3.fromRGB(238, 216, 160))
+local chipBag   = chip("🎒", Color3.fromRGB(170, 195, 235))
+local chipVault = chip("🔒", Color3.fromRGB(130, 245, 190))
 
 ----------------------------------------------------------------------
 -- BOTON MINIMIZAR
@@ -435,6 +420,13 @@ end
 
 toggleBtn.MouseButton1Click:Connect(function() setHud(false) end)
 miniToggle.MouseButton1Click:Connect(function() setHud(true) end)
+
+-- El usuario pidio dejarlo SIEMPRE compacto, con iconos. La barra grande
+-- y sus botones de +/- se quedan en el codigo por si se quieren revivir,
+-- pero arrancan apagados.
+setHud(false)
+toggleBtn.Visible = false
+miniToggle.Visible = false
 
 local wantedLbl = label(gui, {
 	Size = UDim2.new(0, 400, 0, 34),
@@ -511,17 +503,31 @@ else
 	dockLayout.Parent = dock
 end
 
--- en celular no tiene caso mostrar "[E]": no hay teclado
-local function dockBtn(name: string, key: string, cb: () -> ())
+-- Botones del dock. Ahora son CONTEXTUALES: los que tienen un "ctx" solo
+-- aparecen cuando estas junto a la maquina que les toca. Antes estaban
+-- los ocho siempre encendidos y tapaban media pantalla.
+local ctxButtons: {[string]: {GuiObject}} = {}
+
+local function dockBtn(name: string, key: string, cb: () -> (), ctx: string?)
 	local text = IS_MOBILE and name or (name .. " [" .. key .. "]")
 	local b = button(dock, text, {Size = UDim2.new(0, BTN_W, 0, BTN_H)})
 	if IS_MOBILE then b.TextSize = 13 end
 	b.MouseButton1Click:Connect(cb)
+	if ctx then
+		b.Visible = false
+		ctxButtons[ctx] = ctxButtons[ctx] or {}
+		table.insert(ctxButtons[ctx], b)
+	end
 	return b
 end
 
-dockBtn("Cosechar", "E", function() act("harvest") end)
-dockBtn("Prensar", "R", function() act("press") end)
+-- prende/apaga los botones de un contexto
+local function setCtx(ctx: string, on: boolean)
+	for _, b in ipairs(ctxButtons[ctx] or {}) do b.Visible = on end
+end
+
+dockBtn("Cosechar", "E", function() act("harvest") end, "harvest")
+dockBtn("Prensar", "R", function() act("press") end, "press")
 dockBtn("Vender", "F", function()
 	-- vende en el comprador mas cercano
 	local char = player.Character
@@ -535,7 +541,7 @@ dockBtn("Vender", "F", function()
 		if d < bestD then best, bestD = pad, d end
 	end
 	if best then act("sell", best.Name) end
-end)
+end, "sell")
 
 local shopBtn = dockBtn("Tienda", "B", function() end)
 local phoneBtn = dockBtn("Telefono", "T", function() end)
@@ -787,7 +793,7 @@ end)
 dockBtn("Mejoras", "G", function()
 	shop.Visible = true
 	renderTab("bodega")
-end)
+end, "computer")
 
 ----------------------------------------------------------------------
 -- PANEL DE LA CAJA FUERTE
@@ -901,7 +907,7 @@ end)
 dockBtn("Caja", "C", function()
 	vault.Visible = not vault.Visible
 	if vault.Visible then refreshVault() end
-end)
+end, "vault")
 
 -- El servidor avisa cuando te paras en el tapete del escritorio:
 -- la computadora abre sola el panel de mejoras.
@@ -1057,12 +1063,17 @@ RE_State.OnClientEvent:Connect(function(data)
 
 	refreshVault()
 
-	chipLeaf.Text = Config.Abbrev(data.Leaves)
-	chipBlock.Text = Config.Abbrev(data.Blocks)
-	chipVault.Text = string.format("%d/%d", used, data.Storage)
-	chipVault.TextColor3 = (used >= data.Storage)
-		and Color3.fromRGB(255, 120, 120) or Color3.fromRGB(235, 235, 245)
+	-- lo que TRAES ENCIMA (lo unico que te puede quitar Aduanas)
+	chipLeaf.Text = Config.Abbrev(cl)
+	chipBlock.Text = Config.Abbrev(cb)
+
 	chipBag.Text = string.format("%d/%d", carrying, data.CarryCap or 0)
+	chipBag.TextColor3 = (carrying >= (data.CarryCap or 0))
+		and Color3.fromRGB(255, 130, 130) or Color3.fromRGB(170, 195, 235)
+
+	-- lo GUARDADO en la caja fuerte, con su tope por producto
+	chipVault.Text = string.format("%d/%d  %d/%d",
+		data.Leaves, data.VaultLeafCap or 0, data.Blocks, data.VaultBlockCap or 0)
 
 	local ratio = data.Heat / Config.Heat.Max
 	heatTxt.Text = string.format("HEAT %d%%", math.floor(ratio * 100))
@@ -1741,4 +1752,123 @@ do
 			if nbp then watch(nbp) end
 		end)
 	end
+end
+
+----------------------------------------------------------------------
+-- CERCANIA A LAS MAQUINAS DE TU BODEGA
+----------------------------------------------------------------------
+-- Los botones de Cosechar / Prensar / Mejoras / Caja solo salen cuando
+-- estas junto a la maquina que les toca, y los menus se cierran solos al
+-- alejarte. Antes el dock traia los ocho botones encendidos siempre.
+do
+	local function sound(key: string)
+		local def = Config.Sounds and Config.Sounds[key]
+		if not (def and Config.Sounds.Enabled) then return end
+		local sd = Instance.new("Sound")
+		sd.SoundId = def.Id
+		sd.Volume = def.Volume or 0.4
+		sd.PlaybackSpeed = def.Pitch or 1
+		sd.Parent = gui
+		sd:Play()
+		task.delay(3, function() sd:Destroy() end)
+	end
+
+	local R_PRESS, R_COMPUTER, R_VAULT, R_TABLE, R_BUYER = 16, 13, 16, 12, 30
+
+	local function myWarehouse(): Model?
+		local w = Workspace:FindFirstChild("Warehouse_" .. player.UserId)
+		return (w and w:IsA("Model")) and w or nil
+	end
+
+	local near = {}          -- estado anterior, para detectar el cruce
+
+	local function update()
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if not hrp then
+			for _, c in ipairs({"harvest", "press", "computer", "vault", "sell"}) do
+				setCtx(c, false)
+			end
+			return
+		end
+		local pos = hrp.Position
+		local wh = myWarehouse()
+
+		local function dist(name: string): number
+			if not wh then return math.huge end
+			local part = wh:FindFirstChild(name, true)
+			if not (part and part:IsA("BasePart")) then return math.huge end
+			return (part.Position - pos).Magnitude
+		end
+
+		-- ¿hay alguna mesa cerca?
+		local tableNear = false
+		if wh then
+			local plots = wh:FindFirstChild("Plots")
+			if plots then
+				for _, d in ipairs(plots:GetChildren()) do
+					if d:IsA("BasePart") and string.sub(d.Name, 1, 4) == "Plot" then
+						if (d.Position - pos).Magnitude <= R_TABLE then
+							tableNear = true
+							break
+						end
+					end
+				end
+			end
+		end
+
+		-- ¿hay un comprador cerca?
+		local buyerNear = false
+		local city = Workspace:FindFirstChild("City")
+		local buyers = city and city:FindFirstChild("Buyers")
+		if buyers then
+			for _, pad in ipairs(buyers:GetChildren()) do
+				if pad:IsA("BasePart") and (pad.Position - pos).Magnitude <= R_BUYER then
+					buyerNear = true
+					break
+				end
+			end
+		end
+
+		local st = {
+			harvest  = tableNear,
+			press    = dist("PressBase") <= R_PRESS,
+			computer = dist("UpgradeScreen") <= R_COMPUTER,
+			vault    = dist("VaultBody") <= R_VAULT,
+			sell     = buyerNear,
+		}
+
+		for k, v in pairs(st) do
+			setCtx(k, v)
+
+			if v ~= near[k] then
+				near[k] = v
+				-- al ENTRAR a la computadora o a la caja: sonido + abrir
+				if k == "computer" then
+					if v then
+						sound("Computer")
+						shop.Visible = true
+						renderTab("bodega")
+					else
+						shop.Visible = false
+					end
+				elseif k == "vault" then
+					if v then
+						sound("VaultOpen")
+						vault.Visible = true
+						refreshVault()
+					else
+						vault.Visible = false
+					end
+				end
+			end
+		end
+	end
+
+	task.spawn(function()
+		while true do
+			task.wait(0.3)
+			pcall(update)
+		end
+	end)
 end

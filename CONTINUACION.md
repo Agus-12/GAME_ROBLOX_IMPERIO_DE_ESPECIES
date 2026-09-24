@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v21** · 23 sep 2026
+> Última actualización: **v22** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v21 |
+| **Versión actual** | v22 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -72,7 +72,21 @@ tools/                                Validadores. Corre bash tools/validate.sh
 |---|---|---|
 | 1 | **Bici** — historial largo de fallas, ver `docs/03-NO-HAGAS-ESTO.md` §1 | v17 la ancló por completo. **SIN CONFIRMAR por el usuario** |
 | 2 | ~~Trabajadores invisibles~~ | ✅ v19 · v20 les quitó el diálogo de comprador y la flotación |
-| 3 | ~~Prensa pegada / HUD mentía / mercado apilado~~ | ✅ resuelto en v20. **SIN CONFIRMAR** |
+| 3 | ~~Prensa pegada / HUD mentía / mercado apilado~~ | ✅ v20 |
+| 4 | ~~Raiders flotando / cosechadores duplicados~~ | ✅ v22 |
+
+## 2.2 🎨 PASE VISUAL PENDIENTE (v23) — pedido explícito del usuario
+
+El usuario mandó 8 puntos en una sola tanda. La v22 hizo los estructurales.
+**Estos cinco siguen pendientes y ya están acordados:**
+
+| # | Qué pidió | Dónde tocar |
+|---|---|---|
+| 1 | **Arma realista** — el modelo actual es una caja, se ve falsa. El sonido ya quedó | `Main.luau`, `makeWeapon()` |
+| 2 | **Zona segura horrible** — quitar el cuadro azul neón del piso (`SafePad`), y el sillón no parece sillón (`Couch`) | `CityGenerator`, sección ZONA SEGURA |
+| 4 | **Animación de cosechar** — los empleados están parados sin hacer nada | `Main.luau`, loop de cosechadores |
+| 5 | **Computadora despegada de la pared** y la silla flota sin soporte | `CityGenerator`, sección del escritorio (`deskX/deskZ`) |
+| 6 | **Estantes de almacenamiento** con cajas realistas y pegados a la pared | `CityGenerator` |
 
 ## 2.1 🔨 El rediseño de producción física (decisiones ya tomadas)
 
@@ -99,6 +113,7 @@ Por orden de valor sugerido:
 | Pendiente | Qué implica |
 |---|---|
 
+| **PASE VISUAL v23** | Ver 2.2. Es lo siguiente que toca |
 | **Territorios de crews** | Zonas capturables en la ciudad + guerra entre crews. Es el feature grande que falta del pedido original |
 | **Interiores de propiedades** | Las casas/departamentos que compras hoy son solo fachada. No se puede entrar |
 | **Garaje real** | Un lugar físico donde aparezcan los autos comprados |

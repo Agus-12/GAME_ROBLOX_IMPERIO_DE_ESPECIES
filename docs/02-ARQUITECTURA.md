@@ -145,8 +145,25 @@ Helpers: `frame` / `label` / `button` / `corner` / `stroke`.
   (evita el joystick abajo-izquierda y el salto abajo-derecha). Botones 106×46, sin `[tecla]`
 - Desktop: barra horizontal 660×56 abajo-centro, botones 100×38, con `[tecla]`
 
-**8 botones:** Cosechar E · Prensar R · Vender F · Tienda B · Teléfono T · Bodega H ·
-Mejoras G · **Caja C**
+**Dock contextual (v22).** `dockBtn(name, key, cb, ctx?)`: si lleva `ctx`, el botón
+arranca oculto y lo prende/apaga `setCtx(ctx, on)`. Un loop cliente cada 0.3 s mide
+distancias contra la bodega del jugador (`Workspace.Warehouse_<UserId>`):
+
+| ctx | Referencia | Radio |
+|---|---|---|
+| `harvest` | cualquier `Plot*` | 12 |
+| `press` | `PressBase` | 16 |
+| `computer` | `UpgradeScreen` | 13 |
+| `vault` | `VaultBody` | 16 |
+| `sell` | pads de `City.Buyers` | 30 |
+
+Sin `ctx` (siempre visibles): Tienda B · Teléfono T · Bodega H.
+Al **entrar** al radio de `computer` o `vault` se abre el panel con sonido; al **salir**
+se cierra solo.
+
+**HUD (v22):** siempre compacto, 4 chips con emoji — 🌿 hojas que cargas, 🧱 bloques que
+cargas, 🎒 espacio de mochila, 🔒 contenido de la caja. La barra grande y los botones
+`+`/`-` siguen en el código pero arrancan con `Visible = false`.
 
 **Paneles:** `shop` 620×460 · `phone` 300×440 · `missionPanel` 300×86 · `dialog` 520×92
 · `callGui` 290×330 + `callShadow`
@@ -200,7 +217,22 @@ meter pathing y repetir los problemas de la bici.
 > Úsalo siempre; no recalcules el espacio a mano (en la v18 quedó inconsistente y se
 > arregló en la v19).
 
-## Economía de dos bolsas (v18)
+## Economía de dos bolsas (v22 — reescrita)
+
+| Dónde | Campo | Quién la llena | Tope | ¿Aduanas? |
+|---|---|---|---|---|
+| 🎒 Mochila | `CarryLeaves` / `CarryBlocks` | **Tú**, al cosechar y prensar | `carryCap()` compartido | ✅ te la quita |
+| 🔒 Caja fuerte | `Leaves` / `Blocks` | Tus depósitos y **tus empleados** | `vaultLeafCap()` y `vaultBlockCap()`, **separados** | ❌ a salvo |
+
+- `addLeaves(player, n)` → **mochila** (lo que cosechas tú)
+- `addLeavesToVault(player, n)` → **caja** (lo que cosechan tus empleados y lo offline)
+- `doPress` consume `CarryLeaves` y produce `CarryBlocks`
+- `doSell` consume la mochila
+- Los topes de la caja salen de `WarehouseTiers[t].VaultLeaves` / `.VaultBlocks`
+- `storageCap()` quedó solo como suma informativa para textos
+- ⚠️ Ya **no** existe la regla "un bloque ocupa 3" — cada producto tiene su propio cajón
+
+## Economía de dos bolsas (v18 — histórico)
 
 | Dónde | Campo del perfil | ¿Aduanas lo puede quitar? |
 |---|---|---|

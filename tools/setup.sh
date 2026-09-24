@@ -5,6 +5,9 @@
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
+# El bit de ejecucion se pierde al restaurar snapshots del workspace,
+# asi que lo reponemos siempre antes de decidir si hay que reinstalar.
+chmod +x lua/usr/bin/* 2>/dev/null || true
 if [ -x "lua/usr/bin/luac5.4" ]; then echo "Lua ya esta instalado."; exit 0; fi
 echo "Descargando lua5.4..."
 apt-get download lua5.4 >/dev/null 2>&1

@@ -91,7 +91,8 @@ GameConfig.WarehouseTiers = {
 		Cost = 0,
 		Size = Vector3.new(70, 20, 56),
 		Plots = 4,            -- parcelas visibles en este nivel
-		StorageBonus = 0,
+		VaultLeaves = 100,   -- tope de HOJAS en la caja
+		VaultBlocks = 50,    -- tope de BLOQUES en la caja
 		WallColor = Color3.fromRGB(120, 112, 100),
 		FloorColor = Color3.fromRGB(88, 86, 84),
 		Desc = "Un garage rentado. Huele a humedad.",
@@ -101,7 +102,8 @@ GameConfig.WarehouseTiers = {
 		Cost = 15000,
 		Size = Vector3.new(100, 26, 78),
 		Plots = 8,
-		StorageBonus = 150,
+		VaultLeaves = 250,   -- tope de HOJAS en la caja
+		VaultBlocks = 120,    -- tope de BLOQUES en la caja
 		WallColor = Color3.fromRGB(134, 126, 112),
 		FloorColor = Color3.fromRGB(96, 94, 92),
 		Desc = "Ya cabe maquinaria. Vas bien.",
@@ -111,7 +113,8 @@ GameConfig.WarehouseTiers = {
 		Cost = 120000,
 		Size = Vector3.new(140, 34, 104),
 		Plots = 12,
-		StorageBonus = 500,
+		VaultLeaves = 600,   -- tope de HOJAS en la caja
+		VaultBlocks = 300,    -- tope de BLOQUES en la caja
 		WallColor = Color3.fromRGB(108, 116, 124),
 		FloorColor = Color3.fromRGB(78, 82, 88),
 		Desc = "Techo alto, montacargas, turnos de noche.",
@@ -121,7 +124,8 @@ GameConfig.WarehouseTiers = {
 		Cost = 600000,
 		Size = Vector3.new(190, 46, 140),
 		Plots = 12,
-		StorageBonus = 1500,
+		VaultLeaves = 1500,   -- tope de HOJAS en la caja
+		VaultBlocks = 800,    -- tope de BLOQUES en la caja
 		WallColor = Color3.fromRGB(70, 82, 96),
 		FloorColor = Color3.fromRGB(58, 62, 70),
 		Desc = "Ya no es un negocio. Es un imperio.",
@@ -393,7 +397,9 @@ GameConfig.Properties = {
 }
 GameConfig.PropertyPayoutInterval = 60
 
-GameConfig.BaseStorage = 200
+-- La caja fuerte tiene un tope POR PRODUCTO (ver VaultLeaves/VaultBlocks
+-- en cada nivel de bodega). Esto es solo el piso minimo por si falta el dato.
+GameConfig.BaseStorage = 100
 
 -- ========== HELPERS ==========
 function GameConfig.CostCurve(base: number, growth: number, owned: number): number
@@ -432,6 +438,12 @@ GameConfig.Sounds = {
 	Upgrade = { Id = "rbxassetid://9113704038", Volume = 0.70, Pitch = 1.00 },
 	-- no se pudo: el mismo clic pero grave
 	Error   = { Id = "rbxassetid://12221967",   Volume = 0.45, Pitch = 0.55 },
+	-- al acercarte a la computadora del escritorio
+	Computer  = { Id = "rbxassetid://12221967",   Volume = 0.45, Pitch = 1.40 },
+	-- al acercarte a la caja fuerte (mecanismo metalico)
+	VaultOpen = { Id = "rbxassetid://9116321214", Volume = 0.55, Pitch = 0.90 },
+	-- el disparo de la Escuadra
+	Shot      = { Id = "rbxassetid://9125672726", Volume = 0.28, Pitch = 1.85 },
 	-- voz de los NPC: un blip corto que suena por letra mientras escriben.
 	-- Con el tono aleatorio suena a "guiri guiri guiri" sin decir nada.
 	Talk    = { Id = "rbxassetid://16480579431", Volume = 0.28, Pitch = 1.00 },

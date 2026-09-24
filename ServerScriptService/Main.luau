@@ -148,24 +148,37 @@ end
 ----------------------------------------------------------------------
 local crews: {[string]: {Name: string, Owner: number, Members: {number}}} = {}
 
--- Un bloque ocupa 3 de espacio (esta comprimido pero pesa).
--- Se usa en TODOS lados: no cambiar en un solo lugar.
-local function vaultUsed(profile): number
-	return (profile.Leaves or 0) + (profile.Blocks or 0) * 3
-end
+-- ===== DOS ALMACENES DISTINTOS =====
+-- MOCHILA: lo que traes encima. Aqui cae lo que cosechas y prensas TU,
+--          y es lo unico que te puede quitar Aduanas. Tope compartido.
+-- CAJA FUERTE: el banco de la bodega. Tope SEPARADO por producto.
+--          Solo se llena depositando tu, o con tus empleados.
 
-local function storageCap(profile): number
-	local cap = Config.BaseStorage
-
-	local tier = Config.WarehouseTiers[profile.WarehouseTier or 1]
-	if tier then cap += tier.StorageBonus end
-
+local function vaultLeafCap(profile): number
+	local T = Config.WarehouseTiers[profile.WarehouseTier or 1]
+	local cap = (T and T.VaultLeaves) or Config.BaseStorage
 	for id in pairs(profile.Properties) do
 		for _, p in ipairs(Config.Properties) do
 			if p.Id == id then cap += p.Storage end
 		end
 	end
 	return cap
+end
+
+local function vaultBlockCap(profile): number
+	local T = Config.WarehouseTiers[profile.WarehouseTier or 1]
+	local cap = (T and T.VaultBlocks) or math.floor(Config.BaseStorage / 2)
+	for id in pairs(profile.Properties) do
+		for _, p in ipairs(Config.Properties) do
+			if p.Id == id then cap += math.floor(p.Storage / 2) end
+		end
+	end
+	return cap
+end
+
+local function storageCap(profile): number
+	-- total informativo (hojas + bloques), solo para textos
+	return vaultLeafCap(profile) + vaultBlockCap(profile)
 end
 
 -- ===== LA COMPUTADORA DEL ESCRITORIO =====
@@ -240,9 +253,9 @@ local function updateVaultScreen(player: Player, profile)
 	local txt = gui and gui:FindFirstChild("VaultText")
 	if not txt then return end
 
-	local used = vaultUsed(profile)
-	txt.Text = string.format("CAJA FUERTE\n%d hojas  |  %d bloques\n%d / %d",
-		profile.Leaves or 0, profile.Blocks or 0, used, storageCap(profile))
+	txt.Text = string.format("CAJA FUERTE\nHojas  %d / %d\nBloques  %d / %d",
+		profile.Leaves or 0, vaultLeafCap(profile),
+		profile.Blocks or 0, vaultBlockCap(profile))
 end
 
 local function push(player: Player)
@@ -268,6 +281,8 @@ local function push(player: Player)
 		CarryLeaves = profile.CarryLeaves or 0,
 		CarryBlocks = profile.CarryBlocks or 0,
 		CarryCap = carryCap(profile),
+		VaultLeafCap = vaultLeafCap(profile),
+		VaultBlockCap = vaultBlockCap(profile),
 		Backpack = profile.Backpack or "",
 		BackpackName = backpackName(profile),
 		CrewName = crewName,
@@ -399,14 +414,23 @@ end)
 ----------------------------------------------------------------------
 -- PRODUCCION
 ----------------------------------------------------------------------
+-- Lo que cosechas TU cae en tu mochila, no en la caja.
 local function addLeaves(player: Player, amount: number): number
 	local profile = DataService.Get(player)
 	if not profile then return 0 end
-	local cap = storageCap(profile)
-	local used = vaultUsed(profile)
-	local space = math.max(0, cap - used)
+	local space = math.max(0, carryCap(profile) - carried(profile))
 	local added = math.min(amount, space)
-	profile.Leaves += added
+	profile.CarryLeaves = (profile.CarryLeaves or 0) + added
+	return added
+end
+
+-- Lo que cosechan tus EMPLEADOS va directo a la caja fuerte.
+local function addLeavesToVault(player: Player, amount: number): number
+	local profile = DataService.Get(player)
+	if not profile then return 0 end
+	local space = math.max(0, vaultLeafCap(profile) - (profile.Leaves or 0))
+	local added = math.min(amount, space)
+	profile.Leaves = (profile.Leaves or 0) + added
 	return added
 end
 
@@ -604,7 +628,7 @@ local function doHarvest(player: Player)
 	local total = #ripeNear * G.LeavesPerPlant
 	local added = addLeaves(player, total)
 	if added == 0 then
-		return false, "Tu caja fuerte esta llena. Prensa las hojas en bloques o mejora la bodega"
+		return false, "Tu mochila va llena. Guarda en la caja fuerte o compra una mochila mas grande"
 	end
 
 	local harvested = math.min(#ripeNear, math.max(1, math.ceil(added / G.LeavesPerPlant)))
@@ -664,12 +688,14 @@ local function doPress(player: Player)
 	local output = Config.Press.OutputPerLevel * profile.PressLevel
 	local needed = cost * output
 
-	if profile.Leaves < needed then
-		return false, string.format("Necesitas %d hojas (tienes %d)", needed, profile.Leaves)
+	-- Prensas lo que traes ENCIMA, no lo de la caja. La caja es el banco.
+	local have = profile.CarryLeaves or 0
+	if have < needed then
+		return false, string.format("Necesitas %d hojas encima (traes %d)", needed, have)
 	end
 
-	profile.Leaves -= needed
-	profile.Blocks += output
+	profile.CarryLeaves = have - needed
+	profile.CarryBlocks = (profile.CarryBlocks or 0) + output
 
 	-- animar el piston de la prensa
 	local wh = warehouses[player]
@@ -886,7 +912,14 @@ function syncWorkers(player: Player)
 	local wh = warehouses[player]
 	if not (profile and wh and wh.Parent) then return end
 
-	-- limpiar los de antes
+	-- Limpiar los de antes. OJO: se barre la bodega buscando por atributo
+	-- en vez de confiar en la lista. syncWorkers se llama desde tres lados
+	-- (entrar, contratar, mejorar bodega) y si dos corrian casi al mismo
+	-- tiempo la lista se perdia a medias y quedaban empleados duplicados
+	-- encimados en la misma mesa.
+	for _, d in ipairs(wh:GetDescendants()) do
+		if d:IsA("Model") and d:GetAttribute("Worker") then d:Destroy() end
+	end
 	for _, m in ipairs(workerModels[player] or {}) do
 		if m and m.Parent then m:Destroy() end
 	end
@@ -963,7 +996,7 @@ function applyOfflineProduction(player: Player)
 	end
 
 	local gotL = 0
-	if leaves > 0 then gotL = addLeaves(player, leaves) end
+	if leaves > 0 then gotL = addLeavesToVault(player, leaves) end
 
 	-- prensadores
 	local blocks = 0
@@ -973,7 +1006,8 @@ function applyOfflineProduction(player: Player)
 		local want = cycles * nP * PC.PerCycle
 		local cost = Config.Products.Block.PressCost
 		local canAfford = math.floor((profile.Leaves or 0) / cost)
-		blocks = math.min(want, canAfford)
+		local room = vaultBlockCap(profile) - (profile.Blocks or 0)
+		blocks = math.min(want, canAfford, math.max(0, room))
 		if blocks > 0 then
 			profile.Leaves -= blocks * cost
 			profile.Blocks += blocks
@@ -1015,7 +1049,8 @@ task.spawn(function()
 
 					local take = math.min(#ripe, HC.PerCycle)
 					for k = 1, take do
-						local added = addLeaves(player, G.LeavesPerPlant)
+						-- tus empleados guardan en la caja, no en tu mochila
+						local added = addLeavesToVault(player, G.LeavesPerPlant)
 						if added <= 0 then break end     -- caja llena
 						ripe[k]:SetAttribute("PlantedAt", now)
 						ripe[k]:SetAttribute("Ripe", false)
@@ -1038,9 +1073,11 @@ task.spawn(function()
 			local profile = DataService.Get(player)
 			if profile and (profile.Employees.Presser or 0) > 0 then
 				local n = profile.Employees.Presser * PC.PerCycle
+				-- no produzcas mas bloques de los que caben
+				local room = vaultBlockCap(profile) - (profile.Blocks or 0)
+				n = math.min(n, math.max(0, room))
 				local needed = n * Config.Products.Block.PressCost
-				-- trabajan sobre la caja fuerte, igual que tu
-				if (profile.Leaves or 0) >= needed then
+				if n > 0 and (profile.Leaves or 0) >= needed then
 					profile.Leaves -= needed
 					profile.Blocks += n
 					push(player)
@@ -1168,6 +1205,20 @@ RE_Shoot.OnServerEvent:Connect(function(player: Player, dir: Vector3)
 	rp.FilterDescendantsInstances = {char}
 
 	local from = hrp.Position + Vector3.new(0, 1, 0)
+
+	-- estampido, discreto y posicional (lo oyen los de alrededor)
+	local sdef = Config.Sounds and Config.Sounds.Shot
+	if sdef and Config.Sounds.Enabled then
+		local sd = Instance.new("Sound")
+		sd.SoundId = sdef.Id
+		sd.Volume = sdef.Volume or 0.3
+		sd.PlaybackSpeed = (sdef.Pitch or 1) * (0.95 + math.random() * 0.1)
+		sd.RollOffMaxDistance = 140
+		sd.Parent = hrp
+		sd:Play()
+		task.delay(2, function() sd:Destroy() end)
+	end
+
 	local hit = Workspace:Raycast(from, d * W.Range, rp)
 	local to = hit and hit.Position or (from + d * W.Range)
 	tracer(from, to)
@@ -1251,10 +1302,18 @@ local function runRaid(player: Player)
 			task.delay(3, function() clearRaid(player) end)
 		end
 
+		-- El piso de la bodega, para que no aparezcan flotando: el GateSensor
+		-- tiene su centro a 8 studs de alto, si se usa de referencia salen
+		-- por los aires.
+		local floorPart = wh:FindFirstChild("Floor")
+		local groundY = floorPart and (floorPart.Position.Y + floorPart.Size.Y / 2) or 2
+
 		for i = 1, n do
 			local ang = (i / n) * math.pi * 2
-			local spawnPos = gate.Position
-				+ Vector3.new(math.cos(ang) * 14, 1, math.sin(ang) * 14 + 26)
+			local spawnPos = Vector3.new(
+				gate.Position.X + math.cos(ang) * 14,
+				groundY,
+				gate.Position.Z + math.sin(ang) * 14 + 26)
 
 			local ok, mob = pcall(function()
 				return CityGenerator.MakeRaider(Workspace, spawnPos)
@@ -1316,7 +1375,8 @@ local function runRaid(player: Player)
 		-- ===== TUS GUARDIAS CONTRATADOS =====
 		local nG = p.Employees.Guard or 0
 		for i = 1, nG do
-			local gpos = vault.Position + Vector3.new(-6 + (i - 1) * 4, -5.3, 10)
+			local gpos = Vector3.new(vault.Position.X - 6 + (i - 1) * 4, groundY,
+				vault.Position.Z + 10)
 			local ok, g = pcall(function()
 				return CityGenerator.MakeGuard(wh, gpos, Vector3.new(0, 0, 1))
 			end)
@@ -2320,8 +2380,11 @@ local function vaultDeposit(player: Player, kind: string, amount: number)
 	local have = profile[carryField] or 0
 	if have <= 0 then return false, "No traes " .. nice .. " encima" end
 
-	local space = storageCap(profile) - vaultUsed(profile)
-	if space <= 0 then return false, "Tu caja esta llena. Mejora la bodega" end
+	local cap = (kind == "blocks") and vaultBlockCap(profile) or vaultLeafCap(profile)
+	local space = cap - (profile[field] or 0)
+	if space <= 0 then
+		return false, string.format("Tu caja no admite mas %s (%d/%d)", nice, cap, cap)
+	end
 
 	local put = math.min(amount, have, space)
 	profile[carryField] = have - put
