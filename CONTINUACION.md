@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v19** · 23 sep 2026
+> Última actualización: **v20** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v19 |
+| **Versión actual** | v20 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -71,7 +71,11 @@ tools/                                Validadores. Corre bash tools/validate.sh
 | # | Bug | Estado |
 |---|---|---|
 | 1 | **Bici** — historial largo de fallas, ver `docs/03-NO-HAGAS-ESTO.md` §1 | v17 la ancló por completo. **SIN CONFIRMAR por el usuario** |
-| 2 | ~~Trabajadores invisibles~~ | ✅ resuelto en v19. **SIN CONFIRMAR por el usuario** |
+| 2 | ~~Trabajadores invisibles~~ | ✅ v19 |
+| 3 | ~~Pistón de la prensa se atoraba~~ | ✅ v20 |
+| 4 | ~~Mercado con etiquetas apiladas~~ | ✅ v20 |
+| 5 | ~~Trabajadores flotando y hablando como vendedores~~ | ✅ v20 |
+| 6 | ~~HUD mostraba 0 con la caja llena~~ | ✅ v20 |
 
 ## 2.1 🔨 El rediseño de producción física (decisiones ya tomadas)
 

@@ -604,8 +604,12 @@ end
 
 renderTab = function(tab: string)
 	currentTab = tab
+	-- OJO: antes solo borraba Frames. Los TextLabel sueltos (los titulos de
+	-- seccion) se quedaban pegados y se iban apilando cada vez que abrias
+	-- el mercado, encimados sobre el contenido. Hay que borrar TODO lo que
+	-- sea GuiObject y dejar solo el layout.
 	for _, c in ipairs(content:GetChildren()) do
-		if c:IsA("Frame") then c:Destroy() end
+		if c:IsA("GuiObject") then c:Destroy() end
 	end
 
 	if tab == "bodega" then
@@ -1044,8 +1048,11 @@ RE_State.OnClientEvent:Connect(function(data)
 
 	refreshVault()
 
-	chipLeaf.Text = Config.Abbrev(cl)
-	chipBlock.Text = Config.Abbrev(cb)
+	-- Los chips muestran lo que TIENES (la caja). El de la mochila muestra
+	-- lo que traes encima. Antes los tres mostraban la carga, asi que con la
+	-- caja llena seguias viendo 0 y parecia que no tenias nada.
+	chipLeaf.Text = Config.Abbrev(data.Leaves)
+	chipBlock.Text = Config.Abbrev(data.Blocks)
 	chipBag.Text = string.format("%d/%d", carrying, data.CarryCap or 0)
 
 	local ratio = data.Heat / Config.Heat.Max
@@ -1496,14 +1503,36 @@ local dlgHint = label(dialog, {
 
 -- efecto maquina de escribir
 local typeToken = 0
+-- Blip que suena mientras el NPC "habla". Un pitido corto por cada par de
+-- letras, con el tono variando: da el efecto de que balbucea sin decir nada.
+local blipSound: Sound? = nil
+do
+	local def = Config.Sounds and Config.Sounds.Blip
+	if def and Config.Sounds.Enabled then
+		local sd = Instance.new("Sound")
+		sd.Name = "NpcBlip"
+		sd.SoundId = def.Id
+		sd.Volume = def.Volume or 0.2
+		sd.Parent = gui
+		blipSound = sd
+	end
+end
+
 local function typeOut(txt: string)
 	typeToken += 1
 	local myToken = typeToken
 	dlgText.Text = ""
+	local base = (Config.Sounds and Config.Sounds.Blip and Config.Sounds.Blip.Pitch) or 1.4
 	for i = 1, #txt do
 		if typeToken ~= myToken then return end
 		dlgText.Text = string.sub(txt, 1, i)
-		task.wait(0.018)
+		local ch = string.sub(txt, i, i)
+		-- no sonar en espacios ni en signos, para que suene a silabas
+		if blipSound and ch ~= " " and i % 2 == 0 then
+			blipSound.PlaybackSpeed = base * (0.88 + math.random() * 0.3)
+			blipSound:Play()
+		end
+		task.wait(0.028)
 	end
 end
 

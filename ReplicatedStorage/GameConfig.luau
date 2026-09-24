@@ -366,7 +366,7 @@ GameConfig.Properties = {
 }
 GameConfig.PropertyPayoutInterval = 60
 
-GameConfig.BaseStorage = 200
+GameConfig.BaseStorage = 450
 
 -- ========== HELPERS ==========
 function GameConfig.CostCurve(base: number, growth: number, owned: number): number
@@ -407,6 +407,8 @@ GameConfig.Sounds = {
 	Error   = { Id = "rbxassetid://12221967",   Volume = 0.45, Pitch = 0.55 },
 	-- te agarro Aduanas: esposas
 	Arrest  = { Id = "rbxassetid://9114764731", Volume = 0.80, Pitch = 1.00 },
+	-- blip que suena letra por letra cuando un NPC te habla ("guiri guiri")
+	Blip    = { Id = "rbxassetid://16480580213", Volume = 0.22, Pitch = 1.40 },
 }
 
 return GameConfig

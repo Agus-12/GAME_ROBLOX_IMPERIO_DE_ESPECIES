@@ -106,6 +106,28 @@ Usa la posición calculada + `pcall`.
 
 `rbxassetid://180435571`. **No la cargues** en NPCs con pose custom (el vigilante).
 
+### Animaciones por tween: guarda la posición de reposo en un atributo
+
+El pistón de la prensa leía `piston.Position` como punto de reposo **al empezar cada
+animación**. Si prensabas dos veces seguidas, la segunda lectura agarraba la posición
+de ABAJO y bajaba otros 3 studs desde ahí: el pistón se hundía y se quedaba atorado.
+
+**Patrón correcto:** guarda la posición de reposo en un atributo al construir
+(`piston:SetAttribute("HomeY", 9.2)`), úsala siempre, y pon una bandera `Busy` para que
+dos animaciones no se encimen.
+
+### Los rigs R6 se posicionan por los PIES
+
+`makeBuyerNPC(parent, pos, ...)` coloca las piernas con offset `y = 1` y tamaño 2, o sea
+que **`pos.Y` es el nivel del suelo**, no el centro del cuerpo. El piso de la bodega está
+en `Y = 2`. Si usas la Y de una mesa (que está elevada) los NPCs quedan flotando.
+
+### Los NPCs creados con `makeBuyerNPC` traen el tag `BuyerNPC`
+
+Eso los vuelve comerciantes: sale el diálogo "¿tienes mercancía?" y el "presiona F para
+vender". Si el NPC no es un comprador (el vigilante, los empleados), hay que quitarle el
+tag con `CollectionService:RemoveTag(npc, "BuyerNPC")`.
+
 ### Los cilindros ya traen el eje en X
 
 Las caras redondas de un `Enum.PartType.Cylinder` apuntan a ±X. Para una llanta de bici
@@ -162,6 +184,21 @@ Patrón usado: `local nombre` arriba, `function nombre(...)` abajo.
 declarada antes de su primer uso.
 
 ---
+
+## 4.5 🖼️ Trampas de la UI del cliente
+
+### `renderTab` tiene que borrar GuiObject, no solo Frame
+
+El limpiador del mercado hacía `if c:IsA("Frame") then c:Destroy() end`. Cualquier
+`TextLabel` suelto que agregues a `content` **NO se borra** y se va apilando cada vez
+que abres la tienda. Pasó en la v19 con los títulos de MOCHILAS. Ya está corregido a
+`IsA("GuiObject")`.
+
+### Los chips del HUD deben mostrar lo que el jugador TIENE
+
+En la v18 se cambiaron para mostrar la carga. Como la carga arranca en 0, el jugador
+veía `0 / 0 / 0/80` con la caja llena y creía que no tenía nada. Los chips muestran la
+**caja**; la mochila va en el chip del morral.
 
 ## 5. 📄 Formato de los changelogs
 
