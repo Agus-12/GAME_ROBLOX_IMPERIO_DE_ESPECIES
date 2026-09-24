@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre **nueve etapas**. Tienen que salir todas OK.
+Corre **diez etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -28,6 +28,7 @@ Corre **nueve etapas**. Tienen que salir todas OK.
 | `walk.py` | Flood fill con el cuerpo del jugador: ¿se puede *caminar* a cada máquina? |
 | `api.py` | Valida enums, clases y props contra el API-Dump de Roblox |
 | `remotes.py` | El cliente pide los mismos remotes que el servidor crea, y las versiones cuadran |
+| `intro.py` | **Mide en segundos** cuánto tarda en salir el botón "ENTRAR AL BARRIO" |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -231,3 +232,50 @@ Probado a propósito:
 runclient EXIT=1   FALLA  el cliente trono en 3 de 3 tamanos
 runmain   EXIT=1   FALLA  el servidor trono en runtime (ver arriba)
 ```
+
+## Etapa 10 — la portada abre rápido (`tools/intro.py`)
+
+```bash
+python3 tools/intro.py
+```
+
+Mide, **en segundos**, cuánto tarda en aparecer el botón **ENTRAR AL BARRIO** en tres
+escenarios: servidor listo, personaje que tarda 0.8 s, y servidor lento. Topes: 0.6 s,
+1.4 s y 3.2 s.
+
+Nació de un bug real: la portada esperaba una respuesta del servidor con un respaldo de
+**30 intentos × 0.4 s = 12 segundos**. El usuario se quedaba atorado en
+*"Cargando la ciudad..."*.
+
+> ⚠️ **Regla que costó una ronda aprender:** para que esto se pueda medir, el tope de
+> tiempo NO puede usar `os.clock()` (reloj real). Va por **revoluciones** de un bucle
+> (`for _ = 1, 30 do ... task.wait(0.1) end` = 3 s). Un tope con reloj real es
+> **imposible de probar** y por lo tanto vuelve mentiroso al validador.
+
+## 🕰️ El mock tiene RELOJ VIRTUAL (`__SCHED`)
+
+`tools/mock.lua` implementa `task.spawn` / `task.wait` / `task.delay` de verdad, con
+**corrutinas y tiempo virtual**:
+
+```lua
+task.__sched.advance(5)   -- corre todo lo que toque dentro de 5 s virtuales
+```
+
+Antes `task.spawn` **no corría nada** y `task.wait` **no esperaba nada**, así que:
+
+- los bucles de fondo del cliente y del servidor **nunca se probaban**,
+- cualquier lógica de "espera N segundos" terminaba al instante,
+- y un bug de 12 segundos en pantalla **daba verde**.
+
+`runclient.py` y `runmain.py` ahora **avanzan el reloj** después de cargar los scripts
+(5 s y 3 s), así que esos bucles se ejecutan de verdad y sus errores se ven.
+
+**Lo que esto ya cazó al encenderlo (código que nunca se probaba):**
+
+| Faltaba en el mock | Efecto |
+|---|---|
+| `Lighting.ClockTime` | El reloj del HUD (`16:47 SOL`) reventaba con `math.floor(nil)` |
+| `InputBegan` (y otras señales de GuiObject) | El "toca la pantalla para entrar" no existía en pruebas |
+
+**Regla:** cuando algo no se pueda probar, **hazlo probable**. Si una decisión de diseño
+(usar `os.clock()`) impide verificar el comportamiento, **cambia el diseño**, no la prueba.

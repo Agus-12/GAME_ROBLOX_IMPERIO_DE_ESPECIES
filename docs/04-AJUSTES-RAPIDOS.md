@@ -39,6 +39,13 @@ Todo lo que se siembra en el mundo usa estos números; si los tocas, corre
 > El suelo de la ciudad se **estira solo** para cubrir los lotes (`buildGround` lee los
 > mismos números). No hay que tocar el tamaño del pasto a mano.
 
+## Pantalla de entrada (v30)
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Tope distinto para el botón de entrar | `ClientUI.luau`, bloque "CUANDO SE ABRE EL BOTON" | el `for _ = 1, 30 do ... task.wait(0.1)` = 3 s |
+| Que la portada se quite sola | `ClientUI.luau` | llama `closeSplash()` al abrir (`abrirPortada`) |
+
 ## Garaje, carros y ambientación (v29)
 
 | Quiero… | Dónde | Cómo |

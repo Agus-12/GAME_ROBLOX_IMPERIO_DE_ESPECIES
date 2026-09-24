@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v29** · 24 sep 2026
+> Última actualización: **v30** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v29 |
+| **Versión actual** | v30 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -106,6 +106,24 @@ pidio copiar y pegar sin salir de ahí.
 - **Regenerarlo en cada ronda** que toque alguno de los 5 archivos, y entregar el archivo
   al usuario en el workspace (no se commitea: duplicaria el codigo dentro del repo).
 
+### ✅ Qué se cerró en la v30 (la portada)
+
+| Bug | Causa real | Estado |
+|---|---|---|
+| La portada se quedaba en *"Cargando la ciudad..."* y el boton ENTRAR AL BARRIO tardaba | El cliente esperaba una respuesta del SERVIDOR (`State.Cash > 0`) con respaldo de **30 intentos x 0.4 s = 12 s**. El servidor estaba bien: la ciudad se arma en **0.2 s** y una bodega en 0.016 s (medido) | OK v30 (la portada se abre con datos LOCALES: ciudad + personaje; 0.0 s normal, tope 3 s, y tocar la pantalla entra) |
+| El simulador daba verde con ese bug | `task.spawn = function() end` y `task.wait = function() end` en el mock: todo lo que corre en hilos **nunca se probaba** y las esperas pasaban al instante | OK v30 (mock con **corrutinas y reloj virtual**: `task.__sched.advance(n)`; runclient/runmain avanzan 5 s y 3 s) |
+
+**Nueva etapa 10 del validador**: `tools/intro.py` mide en segundos cuando sale el boton
+(topes 0.6 / 1.4 / 3.2 s en tres escenarios).
+
+**Reglas nuevas:**
+
+1. **Una pantalla de entrada se abre con datos LOCALES**, nunca con un viaje al servidor.
+2. **Los topes de tiempo van por revoluciones**, no con `os.clock()`: un tope con reloj
+   real no se puede medir y vuelve mentiroso al validador.
+3. Al encender los hilos en el mock aparecieron 2 huecos que escondian codigo roto
+   (`Lighting.ClockTime` y `InputBegan`): **si el mock no ejecuta el codigo, no lo prueba.**
+
 ### ⚠️ Reglas que NO puedes romper
 
 0. **🔴 SUBE TODO AL REPO, SIEMPRE, EN CADA RONDA.**
@@ -168,8 +186,15 @@ StarterPlayerScripts/ClientUI.luau    LocalScript · toda la interfaz
 CAMBIOS-v2.md … CAMBIOS-v17.md        Changelog de cada ronda
 LEEME.md                              Instrucciones de instalación (para el usuario)
 docs/                                 Documentación técnica (para ti)
-tools/                                Validadores. Corre bash tools/validate.sh
-tools/mock.lua                        Simulador de la API de Roblox. Su Destroy()
+tools/                                Validadores (10 etapas). Corre bash tools/validate.sh
+tools/mock.lua                        Simulador de la API de Roblox. Destroy() borra
+                                      de verdad y trae RELOJ VIRTUAL (task.spawn y
+                                      task.wait con corrutinas; task.__sched.advance(n)).
+                                      Antes no corria nada: media mitad del juego
+                                      nunca se probaba.
+tools/intro.py                        Mide en segundos cuando sale el boton ENTRAR
+                                      AL BARRIO (etapa 10). Nacio de la portada que
+                                      se trababa 12 s esperando al servidor.
                                       AHORA borra de verdad; antes era una funcion
                                       vacia y no se podia detectar si el juego
                                       limpiaba lo que ya no sirve (bug "todo doble")

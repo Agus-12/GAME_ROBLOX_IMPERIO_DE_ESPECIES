@@ -34,3 +34,55 @@ rs.WaitForChild=function(s,n)
   if n=="GameConfig" then return "__CFG__" end
   return s:FindFirstChild(n) end
 require=function(x) if x=="__CFG__" then return cfgSrc end return {} end
+
+-- ===== LO QUE MIDE tools/intro.py =====
+-- 1) reloj virtual: cuando se abre el boton "ENTRAR AL BARRIO"
+__ON_SET = function(o, k, v)
+  if k == "Visible" and v == true and o.Text
+     and string.find(tostring(o.Text), "ENTRAR") and not __INTRO_AT then
+    __INTRO_AT = task.__sched.vtime
+  end
+end
+
+-- 2) escenarios: MOCK_CITY=1 pone la ciudad, MOCK_CHAR=1 pone tu personaje
+if os.getenv("MOCK_CITY") == "1" then
+  local city = Instance.new("Folder") ; city.Name = "City" ; city.Parent = workspace
+end
+-- el personaje puede aparecer DESPUES (como en el juego real): util para
+-- comprobar que la portada espera al personaje y no se queda colgada
+local function ponPersonaje()
+  if plr.Character then return end
+  local char = Instance.new("Model") ; char.Name = "Tester"
+  local hrp = Instance.new("Part") ; hrp.Name = "HumanoidRootPart"
+  hrp.Position = Vector3.new(0, 3, 0) ; hrp.Parent = char
+  char.Parent = workspace
+  plr.Character = char
+  plr.FindFirstChild = function(self, n)
+    if n == "Character" then return char end
+    if n == "PlayerGui" then return pg end
+    for _, c in ipairs(self:GetChildren()) do
+      if c.Name == n then return c end
+    end
+  end
+end
+
+local delay = tonumber(os.getenv("MOCK_CHAR_DELAY") or "0")
+if delay > 0 then
+  task.spawn(function() task.wait(delay) ; ponPersonaje() end)
+elseif os.getenv("MOCK_CHAR") == "1" then
+  ponPersonaje()
+end
+if false then
+  local char = Instance.new("Model") ; char.Name = "Tester"
+  local hrp = Instance.new("Part") ; hrp.Name = "HumanoidRootPart"
+  hrp.Position = Vector3.new(0, 3, 0) ; hrp.Parent = char
+  char.Parent = workspace
+  plr.Character = char
+  plr.FindFirstChild = function(self, n)
+    if n == "Character" then return char end
+    if n == "PlayerGui" then return pg end
+    for _, c in ipairs(self:GetChildren()) do
+      if c.Name == n then return c end
+    end
+  end
+end

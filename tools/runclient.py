@@ -18,7 +18,11 @@ open(os.path.join(HERE, "cfgload.lua"), "w").write("return (function()\n" + cfg 
 src = strip_luau(open(os.path.join(ROOT, "StarterPlayerScripts/ClientUI.luau")).read()) \
         .replace("goto cont", "_SKIP=true")
 body = ('dofile("%s/mockclient.lua")\nlocal ok,err=pcall(function()\n' % HERE) + src + \
-       '\nend)\nprint(ok and "  OK" or ("  !! "..tostring(err)))\n'
+       '\nend)\n' + \
+       '-- deja correr los hilos del cliente (reloj virtual): asi se ejecutan los\n' + \
+       '-- bucles de fondo (reloj, cercania, portada) y sus errores SE VEN\n' + \
+       'if task.__sched then task.__sched.advance(5) end\n' + \
+       'print(ok and "  OK" or ("  !! "..tostring(err)))\n'
 t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False); t.write(body); t.close()
 
 CASES = {"ESCRITORIO 1920x1080": (1920,1080,"0"),

@@ -11,7 +11,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v29"
+GameConfig.Build = "v30"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500

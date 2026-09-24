@@ -33,3 +33,5 @@ echo "=== 8. API DE ROBLOX (enums/clases) ==="
 python3 tools/api.py || true
 echo "=== 9. CONTRATO CLIENTE/SERVIDOR (remotes y versiones) ==="
 python3 tools/remotes.py
+echo "=== 10. LA PORTADA ABRE RAPIDO? (no trabarse en 'cargando la ciudad') ==="
+python3 tools/intro.py

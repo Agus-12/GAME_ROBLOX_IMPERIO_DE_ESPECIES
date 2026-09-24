@@ -116,7 +116,7 @@ local RF_Action  = need(Remotes, "Action")
 -- era "faltan 2 remotes", sin decir cual de los 5 archivos pegar ni por que.
 -- Ahora el servidor estampa su version en la carpeta Remotes, GameConfig trae
 -- la suya, y aqui se comparan las tres cosas.
-local MI_VERSION = "v29"
+local MI_VERSION = "v30"
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
 	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
@@ -1893,20 +1893,78 @@ RE_Toast.OnClientEvent:Connect(function(text: string, kind: string)
 	end
 end)
 
--- pide el estado al servidor hasta que llegue (arregla el $0 en Studio)
+-- ======================================================================
+-- CUANDO SE ABRE EL BOTON "ENTRAR AL BARRIO"
+-- ======================================================================
+-- ANTES: se esperaba una respuesta del SERVIDOR y el boton solo salia cuando
+-- State.Cash > 0, con un respaldo de 30 intentos x 0.4 s = 12 SEGUNDOS
+-- mirando "Cargando la ciudad...". Si el servidor tardaba (o el sync fallaba),
+-- el jugador se quedaba atorado en la portada. Eso fue justo lo que reporto
+-- el usuario.
+--
+-- AHORA: la portada NO depende del servidor. Se abre en cuanto el cliente
+-- puede ver lo suyo, que es instantaneo:
+--   1) ya hay ciudad y ya tienes personaje  -> abre AL INSTANTE
+--   2) si no, revisa cada 0.1 s (el personaje aparece en menos de 1 s)
+--   3) tope duro de 3 s: pase lo que pase, el boton sale
+--   4) y si tocas la pantalla, tambien entras
+-- El estado (dinero, hojas) se sigue pidiendo aparte, sin bloquear nada.
+local introAbierta = false
+
+local function abrirPortada(motivo: string?)
+	if introAbierta then return end
+	introAbierta = true
+	loadingLbl.Text = "Toca la pantalla o el boton para entrar"
+	playBtn.Visible = true
+end
+
+local function listoParaJugar(): boolean
+	local city = workspace:FindFirstChild("City")
+	if not city then return false end
+	local char = player.Character
+	if not (char and char:FindFirstChild("HumanoidRootPart")) then return false end
+	return true
+end
+
+-- si ya esta todo (pasa cuando el servidor arranco antes que el cliente)
+if listoParaJugar() then
+	abrirPortada("listo al instante")
+end
+
+-- si todavia no, revisa seguido: en cuanto se pueda jugar, abre.
+-- OJO: el tope se cuenta por REVOLUCIONES, no con os.clock(). Con reloj no se
+-- puede medir en el simulador (y las pruebas de la portada se volverian a
+-- mentir, que es justo el bug que estamos arreglando).
+-- 30 x 0.1 s = 3 segundos como maximo.
 task.spawn(function()
-	for i = 1, 30 do
+	for _ = 1, 30 do
+		if listoParaJugar() then
+			abrirPortada("ya se podia jugar")
+			return
+		end
+		task.wait(0.1)
+	end
+	abrirPortada("tope de 3 s")
+end)
+
+-- pedir el estado al servidor: esto SOLO refresca numeros, no bloquea la
+-- portada. Menos intentos y mas espaciados que antes (no hace falta mas).
+task.spawn(function()
+	for i = 1, 10 do
 		pcall(function() RF_Action:InvokeServer("sync") end)
-		task.wait(0.4)
-		if State and State.Cash and State.Cash > 0 then
-			loadingLbl.Text = "Listo"
-			playBtn.Visible = true
-			break
+		if State and State.Cash and State.Cash > 0 then break end
+		task.wait(0.5)
+	end
+end)
+
+-- tocar la pantalla tambien entra (en celular es lo natural)
+splash.InputBegan:Connect(function(input)
+	if introAbierta and splash.Visible then
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			task.spawn(closeSplash)
 		end
 	end
-	-- por si acaso, siempre deja entrar
-	loadingLbl.Text = ""
-	playBtn.Visible = true
 end)
 
 -- la portada SOLO se cierra con el boton (antes se cerraba sola a los 12s)

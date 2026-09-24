@@ -73,6 +73,11 @@ function Instance_.new(cls,parent)
   o.MouseButton1Click=newSignal() ; o.OnClientEvent=newSignal() ; o.Touched=newSignal()
   o.OnServerEvent=newSignal() ; o.Activated=newSignal() ; o.Equipped=newSignal()
   o.ChildAdded=newSignal() ; o.CharacterAdded=newSignal()
+  -- GuiObject: se usan para "toca la pantalla para entrar" y hover
+  o.InputBegan=newSignal() ; o.InputEnded=newSignal() ; o.InputChanged=newSignal()
+  o.MouseEnter=newSignal() ; o.MouseLeave=newSignal() ; o.SelectionGained=newSignal()
+  o.Activated=newSignal() ; o.ChildRemoved=newSignal() ; o.Changed=newSignal()
+  o.AttributeChanged=newSignal()
   o.FireClient=function() end
   local proxy
   proxy=setmetatable({},{
@@ -86,6 +91,7 @@ function Instance_.new(cls,parent)
           o._parentChildren = ch      -- para que Destroy pueda desparentar
         end
       end
+      if k ~= "_parentChildren" and __ON_SET then pcall(__ON_SET, o, k, v) end
       o[k]=v end})
   if parent then proxy.Parent=parent end
   return proxy
@@ -109,6 +115,16 @@ local function svc(n)
     s.GetPlayers=function() return {} end
     s.PlayerAdded=newSignal(); s.PlayerRemoving=newSignal(); s.Heartbeat=newSignal()
     s.IsStudio=function() return true end
+    -- Lighting: los scripts leen/escriben ClockTime, Brightness, etc.
+    if n == "Lighting" then
+      s.ClockTime = 14 ; s.Brightness = 2 ; s.GlobalShadows = true
+      s.Ambient = Color3.fromRGB(42,44,54)
+      s.OutdoorAmbient = Color3.fromRGB(70,70,80)
+      s.FogColor = Color3.fromRGB(120,120,130) ; s.FogEnd = 4000
+      s.EnvironmentDiffuseScale = 0 ; s.EnvironmentSpecularScale = 0
+      s.ExposureCompensation = 0 ; s.GeographicLatitude = 20
+      s.ClockTimeChanged = newSignal()
+    end
     s.GetDataStore=function() return {GetAsync=function() return nil end,SetAsync=function() end} end
     s.Create=function() return {Play=function() end,Completed=newSignal()} end
     s.CreatePath=function() return {ComputeAsync=function() end,Status=nil,GetWaypoints=function() return {} end} end
@@ -123,7 +139,83 @@ Random={new=function(seed) local r={}; math.randomseed(seed or 1)
   r.NextNumber=function(_,a,b) if not a then return math.random() end return a+math.random()*(b-a) end
   r.NextInteger=function(_,a,b) return math.random(a,b) end
   return r end}
-task={spawn=function() end, wait=function() end, delay=function() end, defer=function() end}
+--------------------------------------------------------------------
+-- PLANIFICADOR con RELOJ VIRTUAL
+--------------------------------------------------------------------
+-- Antes: task.spawn no hacia nada y task.wait no esperaba NADA. Eso hacia
+-- que el simulador mintiera: el bucle de la portada ("Cargando la ciudad...")
+-- recorria sus 30 intentos al instante, asi que un bug REAL de 12 segundos
+-- atrapado en la portada se veia perfecto en las pruebas. Justo lo que le
+-- paso al usuario.
+--
+-- Ahora: task.spawn crea corrutinas de verdad, task.wait suspende la corrutina
+-- y 'avanza' el tiempo virtual. __SCHED.advance(segundos) corre todo lo que
+-- toque. Asi se puede MEDIR cuanto tarda algo en pantalla (tools/intro.py).
+local SCHED = {threads = {}, vtime = 0}
+SCHED.__index = SCHED
+
+local function addThread(fn, ...)
+	if type(fn) ~= "function" then return end
+	local co = coroutine.create(fn)
+	table.insert(SCHED.threads, {co = co, wake = SCHED.vtime, args = {...}})
+	return co
+end
+
+task = task or {}
+task.spawn = function(fn, ...) return addThread(fn, ...) end
+task.defer = function(fn, ...) return addThread(fn, ...) end
+task.delay = function(t, fn, ...)
+	-- OJO: '...' no se ve dentro de la funcion de abajo (no es vararg), hay que
+	-- copiarlo a una tabla antes
+	local extras = {...}
+	return addThread(function()
+		task.wait(t or 0)
+		if type(fn) == "function" then fn(table.unpack(extras)) end
+	end)
+end
+task.wait = function(t)
+	if coroutine.isyieldable() then
+		coroutine.yield(SCHED.vtime + (t or 0))
+	end
+	return t or 0
+end
+
+-- corre los hilos pendientes hasta 'hasta' segundos virtuales
+function SCHED.advance(hasta)
+	hasta = hasta or (SCHED.vtime + 1)
+	local guard = 0
+	while true do
+		local listo = nil
+		for _, t in ipairs(SCHED.threads) do
+			if not t.dead and t.wake <= hasta and (listo == nil or t.wake < listo.wake) then
+				listo = t
+			end
+		end
+		if not listo then break end
+		SCHED.vtime = math.max(SCHED.vtime, listo.wake)
+		local ok, err = coroutine.resume(listo.co, table.unpack(listo.args or {}))
+		listo.args = nil
+		if not ok then
+			print("!! error en un task.spawn: " .. tostring(err))
+			listo.dead = true
+		elseif coroutine.status(listo.co) == "dead" then
+			listo.dead = true
+		else
+			-- se volvio a dormir: regresa el instante en que despierta
+			local wake = err
+			listo.wake = (type(wake) == "number") and wake or (SCHED.vtime + 0.1)
+		end
+		guard = guard + 1
+		if guard > 200000 then
+			print("!! el planificador se quedo dando vueltas (posible bucle sin task.wait)")
+			break
+		end
+	end
+	SCHED.vtime = math.max(SCHED.vtime, hasta)
+	return SCHED.vtime
+end
+
+task.__sched = SCHED
 function wait() end
 warn=function(...) print("WARN:",...) end
 math.clamp=function(v,lo,hi) if v<lo then return lo elseif v>hi then return hi end return v end

@@ -45,6 +45,12 @@ local o2,e2=pcall(function() _city.SetupLighting() end)
 print(o2 and "  SetupLighting OK" or ("  !! SetupLighting: "..tostring(e2)))
 local ok,err=pcall(function() {main} end)
 print(ok and ">>> Main.luau CORRIO COMPLETO <<<" or ("!! Main TRONO: "..tostring(err)))
+-- deja correr los hilos del servidor con el reloj virtual: asi se ejecutan los
+-- bucles de fondo (portones, plantas, redadas) y sus errores SE VEN
+if task.__sched then
+  task.__sched.advance(3)
+  print("  (hilos del servidor: 3 s virtuales corridos)")
+end
 '''
 t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False); t.write(h); t.close()
 r = subprocess.run([LUA, t.name], capture_output=True, text=True, timeout=180)

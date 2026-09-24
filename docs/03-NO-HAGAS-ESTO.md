@@ -334,3 +334,37 @@ problema.
 (`CityGenerator.BuildCar(info, cf, parked)`). Menos código, imposible que se
 desincronicen, y el día que quieras un carro nuevo lo agregas en un solo lugar
 (`CAR_SPEC`).
+
+---
+
+## 9. ⏳ Nada de "espera al servidor" en la pantalla de entrada (v30)
+
+La portada esperaba `State.Cash > 0` **del servidor**, con respaldo de
+**30 intentos × 0.4 s = 12 segundos**. El usuario se quedó atorado en *"Cargando la
+ciudad..."* — y el servidor estaba perfecto (la ciudad se arma en **0.2 s**).
+
+**Regla:** una pantalla de entrada se abre con **información LOCAL** (¿ya hay ciudad?
+¿ya tengo personaje?), nunca con un viaje de ida y vuelta al servidor. El estado
+(dinero, hojas) se pide **después y sin bloquear**, y siempre tiene que haber:
+
+1. un **tope corto** (≤3 s) que abra pase lo que pase,
+2. una salida manual (**tocar la pantalla**),
+3. y un tope contado por **revoluciones**, no con `os.clock()` (si usas reloj real,
+   la prueba no lo puede medir y el validador vuelve a mentir).
+
+---
+
+## 10. 🧪 Un mock que "no hace nada" también es un mock que miente (v30)
+
+`tools/mock.lua` tenía `task.spawn = function() end` y `task.wait = function() end`. O
+sea: **la mitad del juego (todo lo que corre en hilos) nunca se probaba**, y cualquier
+"espera de N segundos" pasaba al instante. Por eso el bug de los 12 segundos daba verde.
+
+Hoy el mock trae **corrutinas con reloj virtual** (`task.__sched.advance(n)`) y los tests
+**avanzan el reloj**, así que los bucles de fondo sí corren. Al encenderlo aparecieron de
+inmediato dos huecos (`Lighting.ClockTime` y `InputBegan`) que estaban escondiendo código
+roto.
+
+**Regla:** si una herramienta no ejecuta el código, no lo está probando. Y `function() end`
+en un stub es una **mentira silenciosa**: mejor que truene (así se descubre y se tapa) a
+que diga "todo bien".
