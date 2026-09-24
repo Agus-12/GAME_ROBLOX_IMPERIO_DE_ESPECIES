@@ -202,6 +202,32 @@ Las alturas dentro de la bodega, para no dejar NPCs flotando:
 
 Los NPC se posicionan con el pie en el piso: usa **Y = 2** local.
 
+## 4.3 🔁 Crear rigs CEDE EL HILO
+
+`makeBuyerNPC` (y por tanto `MakeWorker`) **yield**: construir el rig deja correr otras
+tareas. Cualquier función que borre-y-recree NPCs tiene que ser **no reentrante**, o dos
+llamadas se intercalan y dejan duplicados huérfanos.
+
+`syncWorkers` se llama desde tres lados (entrar, contratar, mejorar bodega). Lleva un
+candado `syncingWorkers[player]`; **no lo quites**. Barrer por atributo *antes* de crear
+no alcanza — eso ya se intentó en v22 y siguió duplicando.
+
+## 4.4 🌱 Distancias: mide al MUEBLE, no a la pieza
+
+La cosecha medía maceta por maceta con radio 9, pero la mesa mide 12 de ancho: las
+macetas del fondo quedaban fuera estando pegado a la mesa. Ahora se busca el `Plot<i>`
+más cercano y se cosechan todas las plantas con ese `PlotIndex`.
+
+> Regla general: para interactuar con un mueble, mide al **centro del mueble** y opera
+> sobre todo lo que le pertenece, no pieza por pieza.
+
+## 4.5 ✂️ Cuidado al reemplazar secciones grandes de CityGenerator
+
+Al reescribir la sección "ZONA SEGURA" en v25 se borró sin querer **toda la caja fuerte**,
+que en v18 se había insertado entre esa sección y las lámparas de techo. Después de un
+reemplazo por rangos, **verifica con grep que siguen existiendo las partes clave**
+(`VaultBody`, `PressBase`, `UpgradeScreen`, `Plot1`…).
+
 ## 5. 📄 Formato de los changelogs
 
 **NO pegues el código completo de los scripts dentro de los `CAMBIOS-*.md`.**

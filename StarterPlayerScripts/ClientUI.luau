@@ -322,7 +322,8 @@ corner(heatFill, 4)
 -- HUD COMPACTO (iconos semitransparentes)
 ----------------------------------------------------------------------
 local mini = frame(gui, {
-	Size = UDim2.new(0, 250, 0, 62),
+	-- ancho suficiente para los 4 chips; el de la caja trae dos topes
+	Size = UDim2.new(0, 470, 0, 62),
 	Position = UDim2.new(0, 16, 0, 96),
 	BackgroundTransparency = 1,
 	Visible = false,
@@ -350,9 +351,9 @@ miniLayout.Parent = miniRow
 
 -- Chip = icono + numero. Se usan emojis porque se ven igual en todos los
 -- dispositivos y no hay que subir imagenes a Roblox.
-local function chip(icon: string, tint: Color3)
+local function chip(icon: string, tint: Color3, wide: number?)
 	local holder = frame(miniRow, {
-		Size = UDim2.new(0, 86, 0, 28),
+		Size = UDim2.new(0, wide or 86, 0, 28),
 		BackgroundColor3 = Color3.fromRGB(10, 10, 14),
 		BackgroundTransparency = 0.4,
 	})
@@ -381,7 +382,8 @@ end
 local chipLeaf  = chip("🌿", Color3.fromRGB(150, 235, 140))
 local chipBlock = chip("🧱", Color3.fromRGB(238, 216, 160))
 local chipBag   = chip("🎒", Color3.fromRGB(170, 195, 235))
-local chipVault = chip("🔒", Color3.fromRGB(130, 245, 190))
+-- este va mas ancho: trae los dos topes de la caja y se cortaba
+local chipVault = chip("🔒", Color3.fromRGB(130, 245, 190), 150)
 
 ----------------------------------------------------------------------
 -- BOTON MINIMIZAR
@@ -1097,7 +1099,7 @@ RE_State.OnClientEvent:Connect(function(data)
 		and Color3.fromRGB(255, 130, 130) or Color3.fromRGB(170, 195, 235)
 
 	-- lo GUARDADO en la caja fuerte, con su tope por producto
-	chipVault.Text = string.format("%d/%d  %d/%d",
+	chipVault.Text = string.format("%d/%d 🌿  %d/%d 🧱",
 		data.Leaves, data.VaultLeafCap or 0, data.Blocks, data.VaultBlockCap or 0)
 
 	local ratio = data.Heat / Config.Heat.Max

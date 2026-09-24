@@ -81,6 +81,7 @@ local WAREHOUSE_SPACING = 140
 local initPlants
 local setupGate
 local syncWorkers
+local syncWorkersInner
 local applyOfflineProduction
 local giveWeapon
 local territoryBonus
@@ -606,25 +607,34 @@ local function doHarvest(player: Player)
 	local wh = warehouses[player]
 	if not wh then return false, "sin bodega" end
 
-	-- solo las plantas MADURAS que tengas CERCA
+	-- Se cosecha POR MESA. Antes se medía la distancia maceta por maceta y
+	-- las del fondo de la mesa quedaban fuera del radio, asi que parado
+	-- justo enfrente te decia "acercate a una mesa con plantas listas".
+	local plots = wh:FindFirstChild("Plots")
+	local bestPlot, bestD = nil, math.huge
+	if plots then
+		for _, d in ipairs(plots:GetChildren()) do
+			if d:IsA("BasePart") and string.sub(d.Name, 1, 4) == "Plot" then
+				local dist = (d.Position - hrp.Position).Magnitude
+				if dist < bestD then bestPlot, bestD = d, dist end
+			end
+		end
+	end
+
+	if not bestPlot or bestD > G.HarvestRadius then
+		return false, "Acercate a una mesa de cultivo"
+	end
+
+	local myIdx = bestPlot:GetAttribute("PlotIndex")
 	local ripeNear = {}
-	local anyRipeFar = false
 	eachPlant(wh, function(plant)
-		if not plant:GetAttribute("Ripe") then return end
-		local pp = plant.PrimaryPart
-		if not pp then return end
-		if (pp.Position - hrp.Position).Magnitude <= G.HarvestRadius then
+		if plant:GetAttribute("Ripe") and plant:GetAttribute("PlotIndex") == myIdx then
 			table.insert(ripeNear, plant)
-		else
-			anyRipeFar = true
 		end
 	end)
 
 	if #ripeNear == 0 then
-		if anyRipeFar then
-			return false, "Acercate a una mesa con plantas listas"
-		end
-		return false, "Ninguna planta esta lista todavia"
+		return false, "Esta mesa no tiene nada listo todavia"
 	end
 
 	local total = #ripeNear * G.LeavesPerPlant
@@ -647,7 +657,7 @@ local function doHarvest(player: Player)
 				local flash = Instance.new("PointLight")
 				flash.Color = Color3.fromRGB(150, 255, 170)
 				flash.Brightness = 4
-				flash.Range = 12
+				flash.Range = 9
 				flash.Parent = pp
 				task.delay(0.35, function() flash:Destroy() end)
 			end
@@ -915,7 +925,23 @@ local function plotPart(wh: Model, idx: number): BasePart?
 end
 
 -- Borra y vuelve a poner los NPCs para que coincidan con lo contratado.
+-- Candado: crear un rig cede el hilo, asi que dos llamadas casi
+-- simultaneas (entrar + contratar, por ejemplo) se intercalaban y la
+-- segunda no veia a los que la primera iba creando. De ahi los
+-- cosechadores duplicados encimados.
+local syncingWorkers: {[Player]: boolean} = {}
+
 function syncWorkers(player: Player)
+	if syncingWorkers[player] then return end
+	syncingWorkers[player] = true
+	local ok, err = pcall(function()
+		syncWorkersInner(player)
+	end)
+	syncingWorkers[player] = false
+	if not ok then warn("[SpiceEmpire] syncWorkers:", err) end
+end
+
+function syncWorkersInner(player: Player)
 	local profile = DataService.Get(player)
 	local wh = warehouses[player]
 	if not (profile and wh and wh.Parent) then return end
@@ -926,7 +952,10 @@ function syncWorkers(player: Player)
 	-- tiempo la lista se perdia a medias y quedaban empleados duplicados
 	-- encimados en la misma mesa.
 	for _, d in ipairs(wh:GetDescendants()) do
-		if d:IsA("Model") and d:GetAttribute("Worker") then d:Destroy() end
+		if d:IsA("Model") and (d:GetAttribute("Worker")
+			or string.sub(d.Name, 1, 7) == "Worker_") then
+			d:Destroy()
+		end
 	end
 	for _, m in ipairs(workerModels[player] or {}) do
 		if m and m.Parent then m:Destroy() end
@@ -1113,7 +1142,10 @@ task.spawn(function()
 					end)
 
 					local take = math.min(#ripe, HC.PerCycle)
-					if take > 0 and byPlot[idx] then
+					-- solo anima si la caja tiene sitio; si no, el empleado
+					-- se quedaria haciendo la mimica sin producir nada
+					local room = vaultLeafCap(profile) - (profile.Leaves or 0)
+					if take > 0 and room > 0 and byPlot[idx] then
 						playHarvestGesture(byPlot[idx])
 					end
 					for k = 1, take do
@@ -1193,14 +1225,16 @@ local function makeWeapon(): Tool
 	tool.RequiresHandle = true
 	tool.CanBeDropped = false
 	tool.ToolTip = "Clic para disparar"
-	tool.GripPos = Vector3.new(0, -0.3, 0.4)
+	-- La pistola se veia enorme junto al personaje; todo el modelo se
+	-- redujo al 62% y el agarre se reacomodo.
+	tool.GripPos = Vector3.new(0, -0.15, 0.25)
 
 	-- El Handle es la CACHA (lo que agarra la mano). Todo lo demas se le
 	-- suelda encima. OJO: hay que colocar cada pieza ANTES de soldarla;
 	-- el WeldConstraint congela el offset en el momento de crearse.
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
-	handle.Size = Vector3.new(0.34, 1.15, 0.62)
+	handle.Size = Vector3.new(0.211, 0.713, 0.384)
 	handle.Color = Color3.fromRGB(28, 28, 32)
 	handle.Material = Enum.Material.Metal
 	handle.CanCollide = false
@@ -1232,9 +1266,9 @@ local function makeWeapon(): Tool
 	local dark  = Color3.fromRGB(26, 26, 30)
 
 	-- corredera y cañon
-	piece("Slide",     Vector3.new(0.36, 0.42, 1.65), Vector3.new(0, 0.78, -0.30), steel)
-	piece("SlideTop",  Vector3.new(0.30, 0.14, 1.55), Vector3.new(0, 1.03, -0.30), Color3.fromRGB(72, 74, 80))
-	piece("Barrel",    Vector3.new(0.17, 0.17, 0.40), Vector3.new(0, 0.78, -1.28), dark,
+	piece("Slide",     Vector3.new(0.223, 0.26, 1.023), Vector3.new(0.0, 0.484, -0.186), steel)
+	piece("SlideTop",  Vector3.new(0.186, 0.087, 0.961), Vector3.new(0.0, 0.639, -0.186), Color3.fromRGB(72, 74, 80))
+	piece("Barrel",    Vector3.new(0.105, 0.105, 0.248), Vector3.new(0.0, 0.484, -0.794), dark,
 		Enum.Material.Metal, Enum.PartType.Cylinder)
 	-- el cilindro trae el eje en X: hay que acostarlo sobre Z
 	local bar = tool:FindFirstChild("Barrel")
@@ -1243,27 +1277,27 @@ local function makeWeapon(): Tool
 	end
 
 	-- armazon, guardamonte y gatillo
-	piece("Frame",        Vector3.new(0.32, 0.30, 1.10), Vector3.new(0, 0.50, -0.10), dark)
-	piece("TriggerGuard", Vector3.new(0.22, 0.34, 0.12), Vector3.new(0, 0.22, -0.52), dark)
-	piece("GuardBar",     Vector3.new(0.22, 0.10, 0.50), Vector3.new(0, 0.07, -0.30), dark)
-	piece("Trigger",      Vector3.new(0.10, 0.26, 0.09), Vector3.new(0, 0.28, -0.30),
+	piece("Frame",        Vector3.new(0.198, 0.186, 0.682), Vector3.new(0.0, 0.31, -0.062), dark)
+	piece("TriggerGuard", Vector3.new(0.136, 0.211, 0.074), Vector3.new(0.0, 0.136, -0.322), dark)
+	piece("GuardBar",     Vector3.new(0.136, 0.062, 0.31), Vector3.new(0.0, 0.043, -0.186), dark)
+	piece("Trigger",      Vector3.new(0.062, 0.161, 0.056), Vector3.new(0.0, 0.174, -0.186),
 		Color3.fromRGB(96, 98, 104))
 
 	-- miras
-	piece("SightRear",  Vector3.new(0.22, 0.10, 0.08), Vector3.new(0, 1.15, 0.38), Color3.fromRGB(180, 180, 190))
-	piece("SightFront", Vector3.new(0.07, 0.11, 0.07), Vector3.new(0, 1.15, -1.02), Color3.fromRGB(180, 180, 190))
+	piece("SightRear",  Vector3.new(0.136, 0.062, 0.05), Vector3.new(0.0, 0.713, 0.236), Color3.fromRGB(180, 180, 190))
+	piece("SightFront", Vector3.new(0.043, 0.068, 0.043), Vector3.new(0.0, 0.713, -0.632), Color3.fromRGB(180, 180, 190))
 
 	-- cachas texturizadas y base del cargador
-	piece("GripL", Vector3.new(0.06, 0.85, 0.50), Vector3.new(-0.19, -0.05, 0.03),
+	piece("GripL", Vector3.new(0.037, 0.527, 0.31), Vector3.new(-0.118, -0.031, 0.019),
 		Color3.fromRGB(62, 48, 40), Enum.Material.Wood)
-	piece("GripR", Vector3.new(0.06, 0.85, 0.50), Vector3.new(0.19, -0.05, 0.03),
+	piece("GripR", Vector3.new(0.037, 0.527, 0.31), Vector3.new(0.118, -0.031, 0.019),
 		Color3.fromRGB(62, 48, 40), Enum.Material.Wood)
-	piece("MagBase", Vector3.new(0.38, 0.09, 0.66), Vector3.new(0, -0.60, 0.02),
+	piece("MagBase", Vector3.new(0.236, 0.056, 0.409), Vector3.new(0.0, -0.372, 0.012),
 		Color3.fromRGB(44, 44, 50))
 
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
-	muzzle.Position = Vector3.new(0, 0.78, -1.5)
+	muzzle.Position = Vector3.new(0, 0.48, -0.93)
 	muzzle.Parent = handle
 
 	-- fogonazo, apagado hasta que disparas

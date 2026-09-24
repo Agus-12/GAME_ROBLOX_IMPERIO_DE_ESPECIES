@@ -42,7 +42,7 @@ GameConfig.Growth = {
 	-- que tan cerca tienes que estar de la mesa para cosecharla con E.
 	-- OJO: las mesas estan a 18 studs una de otra, asi que esto tiene que
 	-- ser MENOR a 18 o cosechas varias mesas de un solo golpe.
-	HarvestRadius = 9,
+	HarvestRadius = 14,
 	-- hojas que da cada planta madura (6 macetas por mesa = 6 hojas)
 	LeavesPerPlant = 1,
 	-- colores por etapa (brote -> madura)
