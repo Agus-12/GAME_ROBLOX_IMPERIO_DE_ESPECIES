@@ -16,3 +16,12 @@ echo "=== 2. SERVIDOR EN RUNTIME ==="
 python3 tools/runmain.py
 echo "=== 3. CLIENTE EN RUNTIME ==="
 python3 tools/runclient.py
+echo "=== 4. GLOBALES SOSPECHOSOS ==="
+python3 tools/globals.py \
+  ReplicatedStorage/GameConfig.luau \
+  ServerScriptService/CityGenerator.luau \
+  ServerScriptService/DataService.luau \
+  ServerScriptService/Main.luau \
+  StarterPlayerScripts/ClientUI.luau || true
+echo "=== 5. PARTES DE LA BODEGA ==="
+python3 tools/parts.py

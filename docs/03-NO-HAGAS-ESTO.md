@@ -228,6 +228,19 @@ que en v18 se había insertado entre esa sección y las lámparas de techo. Desp
 reemplazo por rangos, **verifica con grep que siguen existiendo las partes clave**
 (`VaultBody`, `PressBase`, `UpgradeScreen`, `Plot1`…).
 
+## 4.6 🔴 `Workspace` NO EXISTE en Roblox
+
+El global es **`workspace`** en minúscula (o `game.Workspace`). Escribir `Workspace` da
+`nil`, y `nil:FindFirstChild(...)` truena.
+
+Esto rompió el sistema contextual completo durante 4 versiones (v22–v26) **sin dar la
+cara**: el código estaba dentro de un `pcall`, así que fallaba en silencio cada 0.3 s y el
+síntoma era "no aparece ningún botón y no se abren los paneles".
+
+> Corre `python3 tools/globals.py` (va incluido en `tools/validate.sh`) para cazar esto.
+> Mismo caso con constantes mal escritas: `BG1` no existía (era `BG`), y como Lua descarta
+> las claves con valor `nil`, ni siquiera daba error — solo salía el color equivocado.
+
 ## 5. 📄 Formato de los changelogs
 
 **NO pegues el código completo de los scripts dentro de los `CAMBIOS-*.md`.**

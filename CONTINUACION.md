@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v26** · 23 sep 2026
+> Última actualización: **v27** · 23 sep 2026
 
 ---
 
@@ -13,10 +13,32 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v26 |
+| **Versión actual** | v27 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
+
+0. **🔴 SUBE TODO AL REPO, SIEMPRE, EN CADA RONDA.**
+   Este repo es el workspace en la nube del usuario y es una instrucción explícita suya.
+   No termines un turno sin haber hecho commit y push de:
+   los `.luau`, el `CAMBIOS-vN.md`, `CONTINUACION.md` y los `docs/` que cambien.
+
+   ```bash
+   cd /home/user/SpiceEmpire
+   git config user.email "dev@spiceempire.local"   # .git/config NO persiste entre sesiones
+   git config user.name  "Spice Empire Dev"
+   bash tools/validate.sh                          # que salga todo verde ANTES del commit
+   git add -A && git commit -m "vN — ..."
+   git remote set-url origin "https://<TOKEN>@github.com/Agus-12/GAME_ROBLOX_IMPERIO_DE_ESPECIES.git"
+   git push origin main
+   git remote set-url origin "https://github.com/Agus-12/GAME_ROBLOX_IMPERIO_DE_ESPECIES.git"
+   ```
+
+   - El **token lo tiene que dar el usuario** en cada sesión: no se guarda (y `.git/config`
+     se borra entre turnos). Pídeselo si no lo tienes.
+   - **Nunca** dejes el token dentro de un archivo ni en el config al terminar.
+   - Escribe mensajes de commit que expliquen **la causa** del bug, no solo el arreglo.
+     Los de v20–v27 son el ejemplo a seguir.
 
 1. **El usuario no conoce Roblox Studio a fondo.** No sabe qué es el Toolbox ni Rojo.
    → Siempre entrega **archivos separados** con instrucciones "copia esto, pégalo aquí".
@@ -140,11 +162,20 @@ No hay forma de correr Roblox Studio aquí. Se armó un simulador. **Úsalo siem
 bash tools/validate.sh
 ```
 
-Eso hace tres cosas:
+Eso hace **cinco** cosas:
 1. **Sintaxis** — traduce Luau a Lua 5.4 y lo compila con `luac`
 2. **Servidor en runtime** — corre GameConfig → CityGenerator → DataService → Main
    bajo un mock de la API de Roblox, y construye los 4 niveles de bodega
 3. **Cliente en runtime** — carga ClientUI en 3 tamaños (escritorio, celular, tablet)
+4. **Globales sospechosos** (`tools/globals.py`) — caza typos como `Workspace` (que en
+   Roblox **no existe**, el global es `workspace`) o constantes mal escritas
+5. **Partes de la bodega** (`tools/parts.py`) — construye los 4 niveles y verifica que
+   sigan existiendo todas las partes que Main y ClientUI buscan por nombre
+
+> ⚠️ Las etapas 4 y 5 nacieron de bugs reales: `Workspace` nil rompía **todo** el sistema
+> contextual en silencio (v22–v26), y en la v25 se borró la caja fuerte sin que ninguna
+> validación lo notara. **Si agregas una parte nueva que el código busque por nombre,
+> métela a la lista `REQUIRED` de `tools/parts.py`.**
 
 Tiene que salir todo OK. Detalles en `docs/07-VALIDACION.md`.
 

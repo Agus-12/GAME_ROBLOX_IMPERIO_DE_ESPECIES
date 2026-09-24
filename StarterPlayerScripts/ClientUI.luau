@@ -832,7 +832,7 @@ local vault = frame(gui, {
 	Size = UDim2.fromOffset(VAULT_W, VAULT_H),
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	BackgroundColor3 = BG1,
+	BackgroundColor3 = BG,
 	Visible = false,
 })
 corner(vault, 12)
@@ -1812,7 +1812,7 @@ do
 		local R_GARAGE = 26
 
 	local function myWarehouse(): Model?
-		local w = Workspace:FindFirstChild("Warehouse_" .. player.UserId)
+		local w = workspace:FindFirstChild("Warehouse_" .. player.UserId)
 		return (w and w:IsA("Model")) and w or nil
 	end
 
@@ -1855,7 +1855,7 @@ do
 
 		-- ¿hay un comprador cerca?
 		local buyerNear = false
-		local city = Workspace:FindFirstChild("City")
+		local city = workspace:FindFirstChild("City")
 		local buyers = city and city:FindFirstChild("Buyers")
 		if buyers then
 			for _, pad in ipairs(buyers:GetChildren()) do
@@ -1919,7 +1919,7 @@ local capBar = frame(gui, {
 	Size = UDim2.fromOffset(320, 46),
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 96),
-	BackgroundColor3 = BG1,
+	BackgroundColor3 = BG,
 	Visible = false,
 })
 corner(capBar, 10)

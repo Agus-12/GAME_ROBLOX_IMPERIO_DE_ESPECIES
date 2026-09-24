@@ -5,7 +5,7 @@ Juego de Roblox: **mundo abierto estilo GTA + tycoon empresarial**.
 Produces hojas de especia, las prensas en bloques, las vendes por la ciudad, evitas a la
 Unidad de Aduanas, defiendes tu bodega de asaltos y armas crew con tus amigos.
 
-> **Versión actual: v26**
+> **Versión actual: v27**
 
 ---
 
@@ -65,10 +65,12 @@ scripts contra un mock de la API de Roblox.
 bash tools/validate.sh
 ```
 
-Hace tres cosas:
+Hace cinco cosas:
 1. **Sintaxis** — traduce Luau → Lua 5.4 y compila con `luac` de verdad
 2. **Servidor** — corre la cadena completa y construye los 4 niveles de bodega
 3. **Cliente** — carga la UI en escritorio, celular y tablet
+4. **Globales sospechosos** — caza typos como `Workspace` (en Roblox es `workspace`)
+5. **Partes de la bodega** — verifica que existan todas las que el código busca por nombre
 
 Detalles en [`docs/07-VALIDACION.md`](docs/07-VALIDACION.md).
 

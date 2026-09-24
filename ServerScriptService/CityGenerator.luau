@@ -1261,16 +1261,20 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	model:SetAttribute("Tier", T.Level)
 
 	-- ===== LA OFICINA (zona segura) =====
-	-- Cuarto cerrado en la esquina trasera derecha, con su puerta. Antes la
-	-- "zona segura" era un cuadro de neon tirado en medio de la nave.
-	local OFF_X0 = W * 0.5 - 28          -- pared interior
-	local OFF_X1 = W * 0.5               -- pared de la nave
-	local OFF_Z0 = -D * 0.5 + 14
-	local OFF_Z1 = -D * 0.5 + 34
+	-- Va AFUERA, como anexo pegado a la pared derecha, y se entra por una
+	-- puerta que atraviesa esa pared. Antes estaba metida dentro de la nave
+	-- y se comia el espacio de trabajo.
+	local OFF_X0 = W * 0.5               -- pared compartida con la nave
+	local OFF_X1 = W * 0.5 + 34
+	local OFF_Z0 = -D * 0.5 + 12
+	local OFF_Z1 = -D * 0.5 + 38
 	local OFF_CX = (OFF_X0 + OFF_X1) / 2
 	local OFF_CZ = (OFF_Z0 + OFF_Z1) / 2
-	local function insideOffice(x: number, z: number): boolean
-		return x > OFF_X0 - 3 and x < OFF_X1 and z > OFF_Z0 - 3 and z < OFF_Z1 + 3
+	local OFF_DOOR = 8                   -- ancho del hueco en la pared
+
+	-- lo que estorbaria el paso hacia la oficina
+	local function blocksOfficeDoor(x: number, z: number): boolean
+		return x > 0 and math.abs(z - OFF_CZ) < 13
 	end
 
 	-- ===== PISO =====
@@ -1300,7 +1304,6 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	local walls = {
 		{Vector3.new(W, H, wallT), Vector3.new(0, H * 0.5 + 2, -D * 0.5)},
 		{Vector3.new(wallT, H, D), Vector3.new(-W * 0.5, H * 0.5 + 2, 0)},
-		{Vector3.new(wallT, H, D), Vector3.new(W * 0.5, H * 0.5 + 2, 0)},
 	}
 	for i, w in ipairs(walls) do
 		local pw = part({
@@ -1310,6 +1313,66 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			Material = Enum.Material.Brick,
 		})
 		pw.Parent = model
+	end
+
+	-- La pared DERECHA va en tramos, para dejar el hueco por donde se pasa
+	-- a la oficina. Si se hiciera de una pieza no habria manera de entrar.
+	do
+		local zFront = D * 0.5
+		local zBack = -D * 0.5
+		local dz0 = OFF_CZ - OFF_DOOR / 2
+		local dz1 = OFF_CZ + OFF_DOOR / 2
+		local doorH = 11
+
+		local segs = {
+			{zBack, dz0},     -- del fondo hasta el hueco
+			{dz1, zFront},    -- del hueco al frente
+		}
+		for i, sg in ipairs(segs) do
+			local len = sg[2] - sg[1]
+			if len > 0.1 then
+				local pw = part({
+					Name = "Wall3",
+					Size = Vector3.new(wallT, H, len),
+					Position = Vector3.new(W * 0.5, H * 0.5 + 2, (sg[1] + sg[2]) / 2),
+					Color = T.WallColor,
+					Material = Enum.Material.Brick,
+				})
+				pw.Parent = model
+			end
+		end
+
+		-- dintel sobre la puerta
+		local lint = part({
+			Name = "Wall3",
+			Size = Vector3.new(wallT, H - doorH, OFF_DOOR),
+			Position = Vector3.new(W * 0.5, 2 + doorH + (H - doorH) / 2, OFF_CZ),
+			Color = T.WallColor,
+			Material = Enum.Material.Brick,
+		})
+		lint.Parent = model
+
+		-- marco de la puerta
+		for _, dz in ipairs({dz0, dz1}) do
+			local jamb = part({
+				Name = "OfficeDoorJamb",
+				Size = Vector3.new(wallT + 1, doorH, 1.2),
+				Position = Vector3.new(W * 0.5, 2 + doorH / 2, dz),
+				Color = Color3.fromRGB(72, 58, 46),
+				Material = Enum.Material.Wood,
+			})
+			jamb.Parent = model
+		end
+		local head = part({
+			Name = "OfficeDoorHead",
+			Size = Vector3.new(wallT + 1, 1, OFF_DOOR + 2.4),
+			Position = Vector3.new(W * 0.5, 2 + doorH + 0.5, OFF_CZ),
+			Color = Color3.fromRGB(72, 58, 46),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+		})
+		head.Parent = model
+		makeBillboard(head, "OFICINA", Color3.fromRGB(150, 230, 255), 2)
 	end
 
 	-- ===== FACHADA DEL FRENTE con hueco de porton =====
@@ -1496,8 +1559,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		for _, sx in ipairs({-1, 1}) do
 			local rackD = 5.0                      -- fondo del rack
 			local rackX = sx * (W * 0.5 - rackD / 2 - 0.4)   -- casi tocando el muro
-			-- los racks que caerian dentro de la oficina se saltan
-			if not insideOffice(rackX, sz) then
+			-- el rack que taparia la puerta de la oficina se salta
+			if not blocksOfficeDoor(rackX, sz) then
 			local rackW = 11
 
 			-- postes verticales
@@ -1738,14 +1801,17 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	pressLight.Range = 16
 	pressLight.Parent = press
 
-	-- ===== ZONA SEGURA: LA OFICINA =====
-	-- Cuarto de verdad con paredes y puerta, pegado a la esquina trasera
-	-- derecha. Adentro: cama, buro, sillon, mesita y el tapete.
+	-- ===== ZONA SEGURA: LA OFICINA (anexo exterior) =====
+	-- Cuarto propio pegado por fuera a la pared derecha. Se entra por la
+	-- puerta que se abrio en esa pared, asi que no le quita espacio a la
+	-- nave. Adentro: cama, buro, sillon, mesita y tapete.
 	local safeX = OFF_CX
+	local offW = OFF_X1 - OFF_X0
+	local offD = OFF_Z1 - OFF_Z0
 	local wallH = 13
-	local officeCol = Color3.fromRGB(108, 100, 92)
+	local officeCol = Color3.fromRGB(116, 106, 96)
 
-	local function officeWall(name, size, pos)
+	local function owall(name, size, pos)
 		local wpart = part({
 			Name = name, Size = size, Position = pos,
 			Color = officeCol, Material = Enum.Material.Brick,
@@ -1754,77 +1820,61 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		return wpart
 	end
 
-	-- pared del fondo del cuarto (lado -Z) y del frente (lado +Z)
-	officeWall("OfficeWall", Vector3.new(OFF_X1 - OFF_X0, wallH, 0.9),
+	-- piso del anexo
+	local offFloor = part({
+		Name = "OfficeSlab",
+		Size = Vector3.new(offW, 2, offD),
+		Position = Vector3.new(OFF_CX, 1, OFF_CZ),
+		Color = Color3.fromRGB(84, 82, 80),
+		Material = Enum.Material.Concrete,
+	})
+	offFloor.Parent = model
+
+	-- tres muros (el cuarto lado es la pared de la nave)
+	owall("OfficeWall", Vector3.new(offW, wallH, 1),
 		Vector3.new(OFF_CX, 2 + wallH / 2, OFF_Z0))
-	officeWall("OfficeWall", Vector3.new(OFF_X1 - OFF_X0, wallH, 0.9),
+	owall("OfficeWall", Vector3.new(offW, wallH, 1),
 		Vector3.new(OFF_CX, 2 + wallH / 2, OFF_Z1))
+	owall("OfficeWall", Vector3.new(1, wallH, offD),
+		Vector3.new(OFF_X1, 2 + wallH / 2, OFF_CZ))
 
-	-- pared interior con HUECO DE PUERTA
-	local doorW = 7
-	local innerLen = OFF_Z1 - OFF_Z0
-	local segLen = (innerLen - doorW) / 2
-	officeWall("OfficeWall", Vector3.new(0.9, wallH, segLen),
-		Vector3.new(OFF_X0, 2 + wallH / 2, OFF_Z0 + segLen / 2))
-	officeWall("OfficeWall", Vector3.new(0.9, wallH, segLen),
-		Vector3.new(OFF_X0, 2 + wallH / 2, OFF_Z1 - segLen / 2))
-	-- dintel sobre la puerta
-	officeWall("OfficeWall", Vector3.new(0.9, wallH - 9, doorW),
-		Vector3.new(OFF_X0, 2 + 9 + (wallH - 9) / 2, OFF_CZ))
-
-	-- marco de la puerta
-	for _, dz in ipairs({-doorW / 2, doorW / 2}) do
-		local jamb = part({
-			Name = "DoorJamb", Size = Vector3.new(1.2, 9, 0.6),
-			Position = Vector3.new(OFF_X0, 6.5, OFF_CZ + dz),
-			Color = Color3.fromRGB(72, 58, 46), Material = Enum.Material.Wood,
-		})
-		jamb.Parent = model
-	end
-	local lintel = part({
-		Name = "DoorLintel", Size = Vector3.new(1.2, 0.7, doorW + 1.2),
-		Position = Vector3.new(OFF_X0, 11.3, OFF_CZ),
-		Color = Color3.fromRGB(72, 58, 46), Material = Enum.Material.Wood,
-	})
-	lintel.Parent = model
-
-	-- letrero en la puerta
-	local plaque = part({
-		Name = "OfficeSign", Size = Vector3.new(0.3, 1.4, 5),
-		Position = Vector3.new(OFF_X0 - 0.8, 12.6, OFF_CZ),
-		Color = Color3.fromRGB(40, 44, 52), Material = Enum.Material.Metal,
-		CanCollide = false,
-	})
-	plaque.Parent = model
-	makeBillboard(plaque, "OFICINA - aqui baja tu HEAT",
-		Color3.fromRGB(150, 230, 255), 2)
-
-	-- techo del cuarto
 	local ceil = part({
 		Name = "OfficeCeiling",
-		Size = Vector3.new(OFF_X1 - OFF_X0, 0.8, innerLen),
+		Size = Vector3.new(offW + 1, 0.8, offD + 1),
 		Position = Vector3.new(OFF_CX, 2 + wallH, OFF_CZ),
-		Color = Color3.fromRGB(88, 84, 80), Material = Enum.Material.Concrete,
+		Color = Color3.fromRGB(90, 86, 82),
+		Material = Enum.Material.Concrete,
 	})
 	ceil.Parent = model
 
 	-- piso de duela
 	local woodFloor = part({
 		Name = "OfficeFloor",
-		Size = Vector3.new(OFF_X1 - OFF_X0 - 1, 0.12, innerLen - 1),
+		Size = Vector3.new(offW - 1.5, 0.12, offD - 1.5),
 		Position = Vector3.new(OFF_CX, 2.06, OFF_CZ),
-		Color = Color3.fromRGB(96, 72, 52), Material = Enum.Material.WoodPlanks,
+		Color = Color3.fromRGB(96, 72, 52),
+		Material = Enum.Material.WoodPlanks,
 		CanCollide = false,
 	})
 	woodFloor.Parent = model
 
-	-- ===== SAFEPAD: el detector del heat, ya SIN neon =====
-	-- Es el tapete de la sala. Main mide la distancia a esta parte para
-	-- enfriar el Heat mas rapido.
+	-- ventana al exterior
+	local win = part({
+		Name = "OfficeWindow",
+		Size = Vector3.new(1.4, 5, 10),
+		Position = Vector3.new(OFF_X1, 9, OFF_CZ),
+		Color = Color3.fromRGB(150, 180, 200),
+		Material = Enum.Material.Glass,
+		Transparency = 0.45,
+		CanCollide = false,
+	})
+	win.Parent = model
+
+	-- ===== SAFEPAD: el detector del Heat (ya sin neon) =====
 	local safe = part({
 		Name = "SafePad",
-		Size = Vector3.new(14, 0.12, 11),
-		Position = Vector3.new(OFF_CX, 2.14, OFF_CZ + 1),
+		Size = Vector3.new(offW - 6, 0.12, 11),
+		Position = Vector3.new(OFF_CX, 2.14, OFF_CZ + 5),
 		Color = Color3.fromRGB(64, 58, 72),
 		Material = Enum.Material.Fabric,
 		CanCollide = false,
@@ -1832,8 +1882,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	safe.Parent = model
 	for _, off in ipairs({-5.6, 5.6}) do
 		local edge = part({
-			Name = "RugEdge", Size = Vector3.new(14, 0.14, 0.6),
-			Position = Vector3.new(OFF_CX, 2.15, OFF_CZ + 1 + off),
+			Name = "RugEdge", Size = Vector3.new(offW - 6, 0.14, 0.6),
+			Position = Vector3.new(OFF_CX, 2.15, OFF_CZ + 5 + off),
 			Color = Color3.fromRGB(96, 84, 108), Material = Enum.Material.Fabric,
 			CanCollide = false,
 		})
@@ -1842,13 +1892,10 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 	local safeLight = Instance.new("PointLight")
 	safeLight.Color = Color3.fromRGB(255, 226, 180)
-	safeLight.Brightness = 0.9
-	safeLight.Range = 26
+	safeLight.Brightness = 0.95
+	safeLight.Range = 30
 	safeLight.Parent = ceil
 
-	-- ===== CAMA =====
-	local bedX = OFF_X1 - 5.5
-	local bedZ = OFF_Z0 + 5.5
 	local function furn(name, size, pos, col, mat)
 		local pp = part({
 			Name = name, Size = size, Position = pos,
@@ -1857,6 +1904,10 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		pp.Parent = model
 		return pp
 	end
+
+	-- ===== CAMA, contra el muro del fondo =====
+	local bedX = OFF_X1 - 6
+	local bedZ = OFF_Z0 + 6.5
 	furn("BedFrame", Vector3.new(7, 1.1, 9), Vector3.new(bedX, 2.7, bedZ),
 		Color3.fromRGB(78, 58, 42))
 	furn("Mattress", Vector3.new(6.4, 1.1, 8.4), Vector3.new(bedX, 3.7, bedZ),
@@ -1865,15 +1916,14 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		Color3.fromRGB(86, 96, 128), Enum.Material.Fabric)
 	furn("Pillow2", Vector3.new(4.4, 0.8, 1.9), Vector3.new(bedX, 4.5, bedZ - 3.2),
 		Color3.fromRGB(226, 224, 220), Enum.Material.Fabric)
-	furn("BedHead", Vector3.new(7, 4, 0.6), Vector3.new(bedX, 4.6, bedZ - 4.7),
+	furn("BedHead", Vector3.new(7, 4, 0.6), Vector3.new(bedX, 4.6, bedZ - 4.4),
 		Color3.fromRGB(68, 50, 38))
 
-	-- buro con lamparita
-	furn("NightStand", Vector3.new(2.6, 3, 2.6), Vector3.new(bedX - 5, 3.6, bedZ - 3.4),
+	furn("NightStand", Vector3.new(2.6, 3, 2.6), Vector3.new(bedX - 5.2, 3.6, bedZ - 3.2),
 		Color3.fromRGB(72, 56, 44))
 	local lampS = part({
 		Name = "DeskLamp", Size = Vector3.new(1.3, 1.3, 1.3),
-		Position = Vector3.new(bedX - 5, 5.7, bedZ - 3.4),
+		Position = Vector3.new(bedX - 5.2, 5.7, bedZ - 3.2),
 		Color = Color3.fromRGB(255, 226, 170), Material = Enum.Material.Neon,
 		CanCollide = false,
 	})
@@ -1884,8 +1934,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	ll2.Range = 14
 	ll2.Parent = lampS
 
-	-- ===== SILLON, separado de la cama y de la caja =====
-	local cz = OFF_Z1 - 5
+	-- ===== SILLON, del otro lado del cuarto =====
+	local cz = OFF_Z1 - 5.5
 	local cloth = Color3.fromRGB(86, 68, 64)
 	local function couchPart(name, size, pos, col)
 		local pp = part({
@@ -1911,13 +1961,12 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		end
 	end
 
-	-- mesita de centro
-	furn("CoffeeTable", Vector3.new(5, 0.3, 2.6), Vector3.new(safeX, 3.4, cz - 4.4),
+	furn("CoffeeTable", Vector3.new(5, 0.3, 2.6), Vector3.new(safeX, 3.4, cz - 4.6),
 		Color3.fromRGB(72, 56, 44))
 	for _, tx in ipairs({-2.1, 2.1}) do
 		for _, tz in ipairs({-1, 1}) do
 			furn("TableLegSmall", Vector3.new(0.3, 1.2, 0.3),
-				Vector3.new(safeX + tx, 2.7, cz - 4.4 + tz), Color3.fromRGB(58, 44, 36))
+				Vector3.new(safeX + tx, 2.7, cz - 4.6 + tz), Color3.fromRGB(58, 44, 36))
 		end
 	end
 

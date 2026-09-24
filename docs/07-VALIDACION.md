@@ -22,6 +22,8 @@ Corre tres etapas. Tienen que salir las tres OK.
 | `runmain.py` | Corre GameConfig → CityGenerator → DataService → Main y construye los 4 tiers |
 | `runclient.py` | Carga ClientUI en 3 tamaños de pantalla |
 | `findsfx.py` | Busca IDs de audio en el catálogo de Roblox |
+| `globals.py` | Lista los globales que toca cada script (caza typos tipo `Workspace`) |
+| `parts.py` | Construye los 4 niveles y verifica que existan las partes clave |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -64,6 +66,38 @@ Sirve sobre todo para cachar que la rama móvil del dock no truene.
 Si usas una API de Roblox que el mock no implementa, vas a ver un error que **no es
 real**. Agrégala a `tools/mock.lua`. Ya están: `math.clamp`, `math.round`, `Enum` global,
 `Vector3.Lerp`, `CFrame.ToObjectSpace`, `CFrame.Inverse`.
+
+## Etapa 4 — globales sospechosos
+
+```bash
+python3 tools/globals.py <archivos...>
+```
+
+Compila con `luac -l -l` y lee las instrucciones `GETTABUP _ENV "nombre"`, o sea **todos
+los globales que el script lee**. Los compara contra una lista blanca de globales que sí
+existen en Roblox y marca el resto.
+
+Así se encontró el bug más caro del proyecto: `Workspace` (con mayúscula) **no existe** en
+Roblox. El detector de cercanía lo usaba dentro de un `pcall`, así que tronaba en cada
+tick **en silencio** y ningún botón contextual aparecía nunca.
+
+> Si agregas un global legítimo, mételo al set `OK` de `tools/globals.py`.
+> `_SKIP` en Main es un artefacto del traductor de `continue`; se ignora.
+
+## Etapa 5 — partes de la bodega
+
+```bash
+python3 tools/parts.py
+```
+
+Construye los 4 niveles bajo el mock, recorre el modelo y verifica que existan todas las
+partes que Main y ClientUI buscan por nombre (`VaultBody`, `PressBase`, `UpgradeScreen`,
+`Bay1`, `SafePad`…).
+
+Nació porque en la v25, al reescribir una sección de `CityGenerator`, se borró **toda la
+caja fuerte** y ninguna validación lo detectó.
+
+> **Si agregas una parte que el código busque por nombre, métela a `REQUIRED`.**
 
 ## Lo que el simulador NO puede probar
 
