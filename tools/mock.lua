@@ -159,17 +159,34 @@ function Instance_.new(cls,parent)
   o.GetPropertyChangedSignal=function() return newSignal() end
   o.LoadAnimation=function() return {Play=function() end,Looped=false,Priority=0} end
   o.MoveTo=function() end ; o.Play=function() end ; o.Stop=function() end
+  -- asientos: en Roblox  seat:Sit(humanoid)  sienta al personaje. Sin esto, las
+  -- pruebas no podian comprobar que "Sacar y conducir" te deja manejando.
+  o.Sit=function(s, hum) if hum then s.Occupant = hum end return true end
+  o.SitOccupant=function(s) return s.Occupant end
   o.MoveToFinished=newSignal() ; o.Died=newSignal()
   o.AncestryChanged=newSignal() ; o.Completed=newSignal()
   o.MouseButton1Click=newSignal() ; o.OnClientEvent=newSignal() ; o.Touched=newSignal()
   o.OnServerEvent=newSignal() ; o.Activated=newSignal() ; o.Equipped=newSignal()
   o.ChildAdded=newSignal() ; o.CharacterAdded=newSignal()
+  -- ProximityPrompt: en Roblox trae Triggered/PromptShown/PromptHidden. El
+  -- simulador no los tenia y por eso los botones (bici, "Sacar y conducir",
+  -- portones) TRONABAN en las pruebas y esas partes quedaban sin revisar.
+  o.Triggered=newSignal() ; o.PromptShown=newSignal() ; o.PromptHidden=newSignal()
   -- GuiObject: se usan para "toca la pantalla para entrar" y hover
   o.InputBegan=newSignal() ; o.InputEnded=newSignal() ; o.InputChanged=newSignal()
   o.MouseEnter=newSignal() ; o.MouseLeave=newSignal() ; o.SelectionGained=newSignal()
   o.Activated=newSignal() ; o.ChildRemoved=newSignal() ; o.Changed=newSignal()
   o.AttributeChanged=newSignal()
-  o.FireClient=function() end
+  -- los RemoteEvent/RemoteFunction del simulador no traian FireAllClients: los
+  -- push del servidor tronaban dentro de un task.spawn y el error se veia solo
+  -- como "!! error en un task.spawn", sin decir de donde salia. Y ademas, para
+  -- poder probar LA PANTALLA, disparar un remoto tiene que llegar al manejador
+  -- del cliente (OnClientEvent) igual que en el juego.
+  o.FireClient=function(s, ...) local sig = s.OnClientEvent ; if sig and sig.Fire then sig:Fire(...) end end
+  o.FireAllClients=function(s, ...) local sig = s.OnClientEvent ; if sig and sig.Fire then sig:Fire(...) end end
+  o.Fire=function(s, ...) local sig = s.OnServerEvent ; if sig and sig.Fire then sig:Fire(...) end end
+  o.InvokeClient=function(s, ...) local f = s.OnClientInvoke ; if type(f) == "function" then return f(...) end end
+  o.InvokeServer=function(s, ...) local f = s.OnServerInvoke ; if type(f) == "function" then return f(...) end end
   local proxy
   proxy=setmetatable({},{
     __isinstance=true,
@@ -187,8 +204,23 @@ function Instance_.new(cls,parent)
           end)
         end
       end
+      -- POSICION y CFRAME van JUNTOS (como en Roblox: son la misma cosa).
+      -- El mock no lo hacia: las piezas creadas con Position no tenian CFrame,
+      -- asi que codigo real que guarda "piece.CFrame" (el porton del garaje,
+      -- que lo necesita para enrollarse) se veia como si no guardara nada.
+      -- Eso apagaba la prueba del garaje sin que nadie se diera cuenta.
+      if k == "Position" and type(v) == "table" and v.X then
+        o[k] = v
+        o.CFrame = mkCF(v)
+      elseif k == "CFrame" and type(v) == "table" and v.Position then
+        o[k] = v
+        o.Position = v.Position
+        o.Rotation = v.Rotation
+      else
+        o[k]=v
+      end
       if k ~= "_parentChildren" and __ON_SET then pcall(__ON_SET, o, k, v) end
-      o[k]=v end})
+    end})
   if parent then proxy.Parent=parent end
   return proxy
 end
@@ -341,6 +373,17 @@ function SCHED.advance(hasta)
 end
 
 task.__sched = SCHED
+-- señales de verdad disponibles para mockclient y para las pruebas: las señales
+-- falsas (Connect que no guarda nada y sin Fire) escondian bugs (leccion v40).
+_G.__newSignal = newSignal
+
+-- OJO (v42): os.clock() tambien va con el reloj VIRTUAL. Los scripts usan
+-- os.clock() para los enfriamientos ("no repitas el aviso antes de 14 s") y
+-- con el reloj de verdad (tiempo de CPU) esas esperas NUNCA pasaban en las
+-- pruebas: el oficial se quedaba con el primer aviso para siempre y la prueba
+-- no alcanzaba a ver el segundo. En Roblox os.clock() es el tiempo desde que
+-- arranco el servidor; aqui es el tiempo de la simulacion.
+os.clock = function() return SCHED.vtime end
 function wait() end
 warn=function(...) print("WARN:",...) end
 math.clamp=function(v,lo,hi) if v<lo then return lo elseif v>hi then return hi end return v end

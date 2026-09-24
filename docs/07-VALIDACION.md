@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre **trece etapas**. Tienen que salir todas OK.
+Corre **diecisiete etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -28,6 +28,10 @@ Corre **trece etapas**. Tienen que salir todas OK.
 | `walk.py` | Flood fill con el cuerpo del jugador: ¿se puede *caminar* a cada máquina? |
 | `api.py` | Valida enums, clases y props contra el API-Dump de Roblox |
 | `remotes.py` | El cliente pide los mismos remotes que el servidor crea, y las versiones cuadran |
+| `clases.py` | Ningún `Instance.new("X")` con una clase que no existe (sale del API-Dump) |
+| `vecinos.py` | **v42:** lotes sin dueño = bodega vecina **clausurada** (cinta, tablilla, 0 botones vivos) con **2 oficiales** que dicen sus dos líneas al acercarte |
+| `hud42.py` | **v42:** la columna ordenada, la caja fuerte en dos renglones, las **5 estrellas** del nivel de búsqueda bajo el reloj y el botón **Auto** (escritorio y celular) |
+| `vehiculos42.py` | **v42:** la bici (asiento que acepta controles, rueda completa, sin letrero en celular) y el auto del garaje (**sale afuera del cajón** y te sienta) |
 | `intro.py` | **Mide en segundos** cuánto tarda en salir el botón "ENTRAR AL BARRIO" |
 | `loops.py` | Caza `Destroy()` dentro de un bucle de `GetChildren()` (siempre queda uno vivo) |
 | `copias.py` | Simula el caso "carpetas Remotes de mas" (7 escenarios, servidor y cliente) |

@@ -1,6 +1,19 @@
 local TOOLS = os.getenv("TOOLS") or "."
 dofile(TOOLS .. "/mock.lua")
-local function newSignal() return {Connect=function() return {Disconnect=function() end} end} end
+-- señales REALES (del mock): asi una prueba puede disparar un remoto y ver
+-- como reacciona la interfaz. Antes esto devolvia un Connect hueco (no guardaba
+-- el manejador) y las pruebas del HUD no podian encender nada.
+local function newSignal()
+  if _G.__newSignal then return _G.__newSignal() end
+  local s = {_fns = {}}
+  function s:Connect(fn)
+    local i = #self._fns + 1
+    self._fns[i] = fn
+    return {Disconnect = function() self._fns[i] = nil end}
+  end
+  function s:Fire(...) for _, fn in ipairs(self._fns) do pcall(fn, ...) end end
+  return s
+end
 local vw = tonumber(os.getenv("MOCK_VW") or "1920")
 local vh = tonumber(os.getenv("MOCK_VH") or "1080")
 local touch = (os.getenv("MOCK_TOUCH") == "1")

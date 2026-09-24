@@ -41,6 +41,12 @@ echo "=== 12. CARPETAS REMOTES DE MAS (el caso real del usuario) ==="
 python3 tools/copias.py
 echo "=== 13. CLASES DE ROBLOX (nada de Instance.new con nombres inventados) ==="
 python3 tools/clases.py
+echo "=== 15. LOTES SIN DUENO: bodega clausurada con oficiales ==="
+python3 tools/vecinos.py
+echo "=== 16. HUD: columna ordenada, estrellas de busqueda y boton Auto ==="
+python3 tools/hud42.py
+echo "=== 17. BICICLETA Y AUTO DEL GARAJE (bici que rueda, auto que sale) ==="
+python3 tools/vehiculos42.py
 echo "=== 14. LA PAGINA DE COPIAR: cada pestana muestra su archivo ==="
 if command -v node >/dev/null 2>&1; then
   python3 tools/pegar.py /tmp/pagina-pestanas.html && node tools/pestanas.js /tmp/pagina-pestanas.html

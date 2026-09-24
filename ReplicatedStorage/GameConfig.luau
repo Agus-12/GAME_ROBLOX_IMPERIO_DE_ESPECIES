@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ReplicatedStorage.GameConfig
 -- Todos los numeros del juego viven aqui. Cambia esto para balancear.
@@ -13,7 +13,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v41"
+GameConfig.Build = "v42"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
@@ -341,17 +341,29 @@ GameConfig.DayNight = {
 -- Crece con la bodega: nivel 1 = cajon chico, nivel 4 = taller grande.
 -- Cada nivel tiene sus medidas en la lista (1..4 = nivel de bodega).
 GameConfig.Garage = {
-	Widths  = {44, 52, 60, 68},   -- ancho del anexo
-	Depths  = {26, 30, 34, 38},   -- fondo
-	Heights = {13, 15, 17, 19},   -- alto del techo
-	DoorWidth  = 9,               -- ancho del porton de cada cajon
-	DoorHeight = 11,              -- alto del porton
-	OpenRadius = 13,              -- a que distancia se abre solo el porton
-	-- v36: era 20. Con 20 el porton se abria desde adentro de la bodega y el
-	-- jugador NUNCA veia las puertas cerradas ("el garaje no tiene puertas").
-	-- Con 13 se abren justo cuando llegas al frente, como un porton de verdad.
-	Bays = 4,                     -- cajones (los Bay de GameConfig.Vehicles)
+	-- v42: el garaje CRECE con la bodega, empezando CHICO de verdad.
+	-- Nivel 1 = un solo cajon (alcanza para UN auto, como pidio el usuario:
+	-- "en el primer nivel solo puedas comprar un auto y el garage sea mas chico
+	-- pero con espacio suficiente"). Niveles 2, 3 y 4 = 2, 3 y 4 cajones.
+	Widths  = {26, 42, 56, 64},   -- ancho del anexo
+	Depths  = {24, 30, 34, 38},   -- fondo
+	Heights = {12, 15, 17, 19},   -- alto del techo
+	DoorWidth  = 12,              -- ancho del porton de cada cajon
+	DoorHeight = 10,              -- alto del porton
+	OpenRadius = 10,              -- a que distancia se abre solo el porton
+	-- v42: 10 (era 13). Se mide desde el FRENTE DE CADA CAJON, no del centro del
+	-- garaje: asi los portones se VEN CERRADOS cuando estas adentro o a un lado,
+	-- y solo se abren cuando vas a pasar por ese cajon.
+	Bays = 4,                     -- maximo de cajones (nivel 4)
+	BaysByTier = {1, 2, 3, 4},    -- cajones segun el nivel de bodega
 }
+
+-- cajones que tiene el garaje en cierto nivel de bodega
+function GameConfig.BaysDelNivel(nivel)
+	local b = GameConfig.Garage.BaysByTier or { 1, 2, 3, 4 }
+	local i = math.max(1, math.min(#b, tonumber(nivel) or 1))
+	return b[i]
+end
 
 -- ========== AMBIENTACION EXTERIOR ==========
 -- Adornos de afuera de la bodega (macetas, botes, poste de luz, toldo...).
@@ -396,6 +408,19 @@ GameConfig.WarehouseLots = {
 	-- los usa buildGround para saber cuanto estirar el suelo
 	HalfWidth = 150,
 	HalfDepth = 95,
+
+	-- ===== v42: LOTES SIN DUENO = BODEGA CLAUSURADA =====
+	-- El jugador reporto que su parcela se veia "practicamente vacia": los
+	-- lotes de los demas estaban pelones. Ahora, todo lote que no tiene dueno
+	-- se amuebla con una BODEGA VECINA de otro color, clausurada con cinta y
+	-- oficiales afuera (los oficiales solo en los lotes mas cercanos, para no
+	-- llenar el mapa de gente).
+	VecinasMax = 5,          -- cuantos lotes se amueblan (los mas pegados a la ciudad)
+	OficialesHasta = 5,      -- hasta que lote se plantan los oficiales
+	OficialesPorLote = 2,
+	VecinaTiers = {2, 1, 3, 1, 2},  -- de que nivel se ve cada bodega vecina
+	AvisoRadius = 22,        -- a cuantos studs te echan el aviso
+	AvisoCooldown = 14,      -- segundos entre aviso y aviso del MISMO oficial
 }
 
 -- Compradores repartidos por la ciudad. Multiplicador y riesgo.

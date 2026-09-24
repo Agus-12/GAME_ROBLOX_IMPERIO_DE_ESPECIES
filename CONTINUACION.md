@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v41** · 24 sep 2026
+> Última actualización: **v42** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v41 |
+| **Versión actual** | v42 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -176,13 +176,61 @@ El usuario mando captura nueva: **sigue saliendo el cartel**, pero al leerlo bie
 reportaba ningun `Main` duplicado**: solo **2 carpetas `Remotes`**. O sea que el duplicado
 de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres problemas:
 
-| Problema | Arreglo v41 |
+| Problema | Arreglo v41 (histórico) |
 |---|---|
 | Habia que cazar copias a mano en el Explorer | **`tools/limpiar.luau`**: se pega en la **Command Bar** (View > Command Bar, sin dar Play) y borra las copias solo, dice que borro y **que archivo volver a pegar**. Va como **PASO 0** del HTML |
 | El cartel rojo salia aunque el juego SI funcionara (2 carpetas pero con la buena completa) | **avisito azul chiquito** 14 s en vez de cartel; el cartel rojo queda solo si de verdad hay que arreglar algo |
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v42 (los 8 pedidos del usuario)
+
+El usuario confirmó la v41 ("okay ya todo jalo bien") y mandó 8 quejas nuevas + capturas
+(4.47–4.51: bici con el letrero E, auto blanco en el cajón con "Conducir", HUD, poste,
+cajón, isla). Esto se arregló:
+
+| Pedido | Causa real | Estado |
+|---|---|---|
+| Bici: "los rines se quedan ahí" | El bucle de manejo reposicionaba **solo la goma y el aro**; la **maza y los 6 rayos** quedaban anclados en el spawn | ✅ v42 (cada rayo guarda su ángulo y se mueven las 4 piezas) |
+| Bici en celular: el letrero `E / Bicicleta / Manejar` "no tiene sentido" | El prompt era igual para todos | ✅ v42 (el cliente marca `Tactil`; en celular se apaga y **te subes al acercarte** ≤6 studs, con marca `BiciLejos`) |
+| "Me subo y no me deja andar" (bici) | `seat.Torque = 0` y `TurnSpeed = 0` ⇒ el asiento **no acepta controles** | ✅ v42 (`40 / 14`) |
+| Auto del garaje con "las llantas como plato" | Un **solo disco cromado** del tamaño de la llanta | ✅ v42 (goma + aro + maza + 5 rayos; las piezas del rin van **soldadas a la llanta**) |
+| No se podía sacar el auto del cajón | El auto estacionado era **de adorno** (sin asiento) y salía dentro del cajón | ✅ v42 (botón **"Sacar y conducir"**, sale por `GarageExit` **afuera** y **te sienta**; el Teléfono también) |
+| "El garaje sigue sin puertas" | El portón **subía 11 studs sobre el techo** (desaparecía) y el radio se medía desde el centro del garaje | ✅ v42 (el portón se **ENROLLA** con `HomeSize`; se abre a ≤10 studs **al frente de cada cajón**, `HomeCF`) |
+| "En el primer nivel solo un auto y el garaje más chico" | Los 4 cajones existían desde el nivel 1 | ✅ v42 (`BaysByTier {1,2,3,4}` + `GameConfig.BaysDelNivel`; nivel 1 = 26×24 con 1 cajón) |
+| "Elegir qué auto sacar" | Te subías "en el primero que apareciera" | ✅ v42 (cada cajón tiene su portón, letrero `CAJON n` y su botón) |
+| Parcela "prácticamente vacía" | Los lotes sin dueño quedaban pelones | ✅ v42 (bodega vecina repintada en 6 estilos + **CLAUSURADA**: cinta, tablilla y **2 oficiales** con línea de "área clausurada" / "cárcel") |
+| "La lámpara de afuera parece despegada del tubo" | La cabeza de la luz flotaba | ✅ v42 (poste + brazo + cabeza + visor pegados) |
+| "La cochera tiene muy baja la iluminación por dentro" | La luz del techo estaba en `0.55` **y se apagaba de día** (`tagLight`) | ✅ v42 (encendida **siempre**, `1.15 / 24`; la de fachada `1.2 / 28`) |
+| Dashboard "se mira raro" + "la sirenita" | Números apretados, sin orden ni explicación | ✅ v42 (columna ordenada `$ / 🌿 / 🧱 / 🎒 / 🔒` y la caja fuerte **en dos renglones**) |
+| Nivel de búsqueda | La 🚨 vivía en la columna | ✅ v42 (**5 estrellas bajo el reloj**: se prenden con el heat, en rojo al final, y se apagan solas en zona segura) |
+| "El dashboard de abajo no funciona en celular" | Faltaba un botón para el auto | ✅ v42 (botón **Auto**: trae tu auto donde estés; los menús por cercanía ya abrían solos) |
+
+**3 etapas nuevas del validador** (ahora **17**), cada una probada **metiendo el bug**:
+
+* **15. `tools/vecinos.py`** — lotes sin dueño: bodegas, cinta, tablilla, cero botones
+  vivos, 2 oficiales por lote y **las dos líneas** al acercarte/reincidir. Fail-hard:
+  apagar el amueblado.
+* **16. `tools/hud42.py`** — las **5 estrellas** bajo el reloj (0 / 3 / 5 según el heat), la
+  caja fuerte en **dos renglones** y el botón **Auto**, en escritorio **y** celular.
+  Fail-hard: `nivel = 0`.
+* **17. `tools/vehiculos42.py`** — bici (asiento 40/14, rueda completa, letrero apagado en
+  celular y prendido en compu) y auto (llantas 4/4/4/20, te sienta, **fuera del cajón**
+  medido contra `GarageFloor`). Fail-hard: asiento en `0/0`, y auto puesto en el cajón.
+
+**3 trampas del SIMULADOR que mentían (v42, todas arregladas):**
+
+1. **`Position` y `CFrame` no iban juntos** ⇒ el `CFrame` que guarda el portón se veía
+   vacío y la prueba del garaje pasaba sin revisar nada.
+2. **`os.clock()` era el tiempo de CPU** ⇒ los enfriamientos ("no repitas el aviso en
+   14 s") no se cumplían nunca y los oficiales se quedaban con la primera línea.
+3. **`ProximityPrompt.Triggered` y `RemoteEvent:FireAllClients` no existían** en el mock
+   ⇒ esos caminos tronaban dentro de un `pcall` y quedaban **sin revisar** (los botones,
+   los push del servidor). Ahora existen, y **disparar un remoto llega al cliente**.
+4. `tools/api.py` revisaba **los comentarios**: explicar el bug viejo de la v41 hacía que
+   la validación gritara en falso. Ahora ignora comentarios (y se probó metiendo el bug
+   de verdad: sí lo caza).
 
 ### 🎯 LA CAUSA DE FONDO (v41): `Instance.new("AutomaticSize")` tumbaba la interfaz
 
@@ -270,9 +318,9 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v41 (arrancando...)` -> `RONDA v41  OK`; se encoge a un letrerito `v41` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v41` |
-| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v41]`, `VIEJO [v32]`...) |
+| **Placa verde** arriba al centro | el cliente | `RONDA v42 (arrancando...)` -> `RONDA v42  OK`; se encoge a un letrerito `v42` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v42` |
+| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v42]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);
 **placa atorada en "arrancando..."** = corre pero truena; **letrero viejo con placa nueva**
@@ -373,7 +421,7 @@ y debe haber **una sola**. Si hay otra (aunque sea en `StarterGui`), corre y con
 El usuario mando captura nueva: **el cartel seguia saliendo** y ademas pregunto donde
 esta la Command Bar (no la encontraba). Investigandolo salieron dos cosas:
 
-| Problema | Arreglo v41 |
+| Problema | Arreglo v41 (histórico) |
 |---|---|
 | **Remotes MUERTOS**: el cliente arranca ANTES de que el servidor limpie. Si hay una carpeta `Remotes` vieja guardada en el lugar, el cliente se enganchaba a ESA; el servidor la borraba ~0.3 s despues y el jugador quedaba con remotes que ya no existen: **botones que no hacen nada y CERO errores en consola** | **cambio en caliente**: el cliente guarda un **intermediario** (`crearProxy`) en vez del objeto. A los **1.5 s** y **4.5 s** revisa y, en cuanto ve la carpeta del servidor (sello `Build`), se **muda solo y reconecta las señales**. Los `FireServer`/`InvokeServer` se resuelven al momento de la llamada |
 | El cartel rojo salia por carpetas viejas que el servidor limpia solo (tu caso) | el diagnostico se da **a los 4.5 s**, no al instante: si las viejas ya se limpiaron, **no sale nada** (ni cartel ni avisito) |

@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -94,31 +94,58 @@ end
 
 -- Poste de luz para iluminar la ciudad de noche
 local function makeStreetLight(parent: Instance, pos: Vector3)
+	-- v42: el poste era un tubo delgado con una placa luminosa de 3x3 encima.
+	-- De cerca (y de noche) parecia una placa FLOTANDO despegada del tubo
+	-- (reporte del usuario). Ahora es un farol de verdad: poste + BRAZO que sale
+	-- del tope + luminaria colgando del brazo, todo pegado.
+	local poleH = 17.4
 	local pole = part({
 		Name = "LightPole",
-		Size = Vector3.new(0.8, 18, 0.8),
-		Position = pos + Vector3.new(0, 9, 0),
+		Size = Vector3.new(0.85, poleH, 0.85),
+		Position = pos + Vector3.new(0, poleH / 2, 0),
 		Color = Color3.fromRGB(40, 40, 44),
 		Material = Enum.Material.Metal,
 	})
 	pole.Parent = parent
 
+	-- brazo: sale del TOPE del poste hacia un lado (los dos se tocan)
+	local arm = part({
+		Name = "LightArm",
+		Size = Vector3.new(2.8, 0.45, 0.45),
+		Position = pos + Vector3.new(1.4, poleH - 0.2, 0),
+		Color = Color3.fromRGB(40, 40, 44),
+		Material = Enum.Material.Metal,
+	})
+	arm.Parent = parent
+
+	-- luminaria: colgando del extremo del brazo (toca el brazo por arriba)
 	local head = part({
 		Name = "LightHead",
-		Size = Vector3.new(3, 0.8, 3),
-		Position = pos + Vector3.new(0, 18, 0),
+		Size = Vector3.new(2.1, 0.6, 1.5),
+		Position = pos + Vector3.new(2.4, poleH - 0.75, 0),
 		Color = Color3.fromRGB(255, 220, 150),
 		Material = Enum.Material.Neon,
 	})
 	head.Parent = parent
 
+	-- y una visera oscura arriba de la luminaria (se ve como farol, no como placa)
+	local visor = part({
+		Name = "LightVisor",
+		Size = Vector3.new(2.3, 0.25, 1.7),
+		Position = pos + Vector3.new(2.4, poleH - 0.42, 0),
+		Color = Color3.fromRGB(52, 52, 58),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	visor.Parent = parent
+
 	local light = Instance.new("PointLight")
-	light.Brightness = 2.2
-	light.Range = 45
+	light.Brightness = 2.6
+	light.Range = 46
 	light.Color = Color3.fromRGB(255, 214, 160)
 	light.Shadows = false
 	light.Parent = head
-	tagLight(light, 2.2)
+	tagLight(light, 2.6)
 	tagNeon(head, Color3.fromRGB(255, 220, 150), Color3.fromRGB(120, 118, 110))
 end
 
@@ -640,6 +667,7 @@ local NPC_LOOKS = {
 local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: Vector3?, style: string?)
 	local look = NPC_LOOKS[rng:NextInteger(1, #NPC_LOOKS)]
 	local isGuard = (style == "guard")
+	local isPolice = (style == "police")   -- v42: oficial que cuida el lote clausurado
 	if isGuard then
 		-- el vigilante va todo de negro, no de comerciante
 		look = {
@@ -647,6 +675,14 @@ local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: V
 			shirt = Color3.fromRGB(26, 28, 34),
 			pants = Color3.fromRGB(20, 22, 28),
 			hair  = Color3.fromRGB(18, 18, 20),
+		}
+	elseif isPolice then
+		-- oficial: uniforme azul marino, gorra y placa
+		look = {
+			skin  = NPC_LOOKS[rng:NextInteger(1, #NPC_LOOKS)].skin,
+			shirt = Color3.fromRGB(40, 62, 118),
+			pants = Color3.fromRGB(28, 38, 68),
+			hair  = Color3.fromRGB(24, 20, 18),
 		}
 	elseif style == "raider" then
 		-- asaltante: encapuchado, todo oscuro
@@ -734,7 +770,29 @@ local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: V
 		return a
 	end
 
-	if isGuard then
+	if isPolice then
+		-- chaleco antibalas encima del uniforme
+		attach(torso, "Vest", Vector3.new(2.16, 1.9, 1.16), Vector3.new(0, 2.95, 0),
+			Color3.fromRGB(26, 34, 58), Enum.Material.Fabric)
+		-- placa dorada en el pecho
+		attach(torso, "Badge", Vector3.new(0.42, 0.5, 0.1), Vector3.new(0.72, 3.35, -0.6),
+			Color3.fromRGB(232, 196, 88), Enum.Material.Foil)
+		-- cinturon con equipo
+		attach(torso, "Belt", Vector3.new(2.24, 0.42, 1.24), Vector3.new(0, 2.15, 0),
+			Color3.fromRGB(32, 30, 34), Enum.Material.Leather)
+		attach(torso, "Holster", Vector3.new(0.5, 0.9, 0.6), Vector3.new(-1.0, 2.0, 0.2),
+			Color3.fromRGB(24, 24, 28), Enum.Material.Leather)
+		local radio = attach(torso, "Radio", Vector3.new(0.36, 0.72, 0.3), Vector3.new(-0.8, 3.75, -0.6),
+			Color3.fromRGB(16, 16, 18), Enum.Material.Plastic)
+		radio:SetAttribute("EsRadio", true)
+		-- gorra de policia con visera
+		attach(head, "Cap", Vector3.new(2.08, 0.5, 1.08), Vector3.new(0, 5.14, 0),
+			Color3.fromRGB(30, 48, 92), Enum.Material.Fabric)
+		attach(head, "CapBrim", Vector3.new(2.0, 0.16, 0.85), Vector3.new(0, 4.93, -0.86),
+			Color3.fromRGB(18, 24, 44), Enum.Material.Fabric)
+		attach(head, "CapBadge", Vector3.new(0.3, 0.22, 0.12), Vector3.new(0, 5.42, -0.5),
+			Color3.fromRGB(232, 196, 88), Enum.Material.Foil)
+	elseif isGuard then
 		-- chamarra de cuero abierta
 		attach(torso, "Jacket", Vector3.new(2.16, 1.9, 1.16), Vector3.new(0, 2.9, 0),
 			Color3.fromRGB(30, 30, 36), Enum.Material.Leather)
@@ -845,8 +903,8 @@ local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: V
 	-- reproducir idle (debe ser despues de estar en el Workspace)
 	task.spawn(function()
 		task.wait(0.4)
-		if isGuard then
-			-- el vigilante conserva su pose: solo voltea lento, vigilando
+		if isGuard or isPolice then
+			-- el vigilante/oficial conserva su pose: solo voltea lento, vigilando
 			local neck = torso:FindFirstChild("Neck")
 			local t = rng:NextNumber(0, 6)
 			while npc.Parent do
@@ -2329,7 +2387,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- Antes esta pared era UNA pieza solida: el garaje era una caja cerrada y
 	-- los coches no tenian por donde entrar ni salir. Ahora cada cajon tiene su
 	-- porton, que se abre solo cuando te acercas (lo maneja Main).
-	local BAYS  = math.max(1, GC.Bays or 4)
+	-- v42: los cajones salen del NIVEL de bodega (1 cajon al empezar, 4 al final)
+	local BAYS  = math.max(1, math.min(GC.Bays or 4, Config.BaysDelNivel(TIER)))
 	local bayW  = GAR_W / BAYS
 	local doorW = math.max(6, math.min(GC.DoorWidth or 9, bayW - 2))
 	local doorH = math.min(GC.DoorHeight or 11, garH - 1.5)
@@ -2417,6 +2476,10 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		-- completo (duelas, ventanita y manija) de un solo tiron
 		local function rememberCF(piece)
 			piece:SetAttribute("HomeCF", piece.CFrame)
+			-- v42: tambien se guarda el TAMANO original. Al abrir, el porton se
+			-- ENROLLA (se encoge hacia arriba) en vez de subir por encima del
+			-- techo, donde ya no se veia: eso parecia "garaje sin puertas".
+			piece:SetAttribute("HomeSize", piece.Size)
 		end
 		rememberCF(slab)
 
@@ -2483,11 +2546,14 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		gl.Parent = model
 		local gll = Instance.new("PointLight")
-		gll.Brightness = 0.55   -- v36: era mas alto (quemaba)
-		gll.Range = 18
+		-- v42: "la cochera tiene muy baja la iluminacion por dentro". El problema
+		-- era doble: la luz estaba en 0.55 Y se APAGABA de dia (tagLight), asi que
+		-- el taller de dia se veia negro. Ahora esta encendida SIEMPRE (sin tag)
+		-- con brillo medio: no quema y se ve todo el dia.
+		gll.Brightness = 1.15
+		gll.Range = 24
 		gll.Color = Color3.fromRGB(255, 246, 225)
 		gll.Parent = gl
-		tagLight(gll, 0.9)
 
 		-- lampara de fachada arriba del porton (se prende de noche)
 		local fLamp = part({
@@ -2500,8 +2566,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		fLamp.Parent = model
 		local fl = Instance.new("PointLight")
-		fl.Brightness = 0.8   -- v36: era mas alto (quemaba)
-		fl.Range = 22
+		fl.Brightness = 1.2   -- v42: 0.8 dejaba la cochera muy oscura
+		fl.Range = 28
 		fl.Color = Color3.fromRGB(255, 240, 205)
 		fl.Parent = fLamp
 		tagLight(fl, 1.6)
@@ -3633,10 +3699,28 @@ function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
 			Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(26, 26, 30),
 			Enum.Material.Rubber, { shape = Enum.PartType.Cylinder, collide = not parked,
 				rot = CFrame.Angles(0, 0, math.rad(90)) })
-		-- rin (se ve de los dos lados)
-		cp("Rim", Vector3.new(1.6, wheelR * 1.05, wheelR * 1.05),
+		-- ===== RIN (v42) =====
+		-- Antes era UN disco cromado que tapaba toda la llanta: de lejos se veia
+		-- "como plato" (reporte del usuario). Ahora, igual que la bici: aro mas
+		-- chico + maza + 5 rayos, o sea se lee como RIN de verdad.
+		local wheelCF = tire.CFrame
+		local rim = cp("Rim", Vector3.new(1.62, wheelR * 1.34, wheelR * 1.34),
+			Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(120, 124, 132),
+			Enum.Material.Metal, { shape = Enum.PartType.Cylinder,
+				rot = CFrame.Angles(0, 0, math.rad(90)) })
+		local hub = cp("Hub", Vector3.new(1.7, wheelR * 0.56, wheelR * 0.56),
 			Vector3.new(wp[1], wheelY, wp[2]), chrome, Enum.Material.Metal,
 			{ shape = Enum.PartType.Cylinder, rot = CFrame.Angles(0, 0, math.rad(90)) })
+		for k = 1, 5 do
+			-- los rayos van en el PLANO de la llanta: se gira alrededor del eje X
+			-- del cilindro (el mismo truco que la bici)
+			cp("Spoke", Vector3.new(1.66, wheelR * 1.1, 0.26),
+				Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(150, 154, 162),
+				Enum.Material.Metal,
+				{ rot = CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(k * 36), 0, 0) })
+		end
+		-- el rim, la maza y los rayos giran PEGADOS a la llanta (weld al tire),
+		-- si no se quedan fijos y el carro se ve patinando
 
 		if not parked then
 			-- bisagra para que gire al manejar (mismo truco que antes, pero
@@ -3681,13 +3765,37 @@ function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
 		end)
 		seat.Parent = m
 		-- el asiento NO lleva weld constraint: el chasis lo carga solo
+		-- OJO (v42): la rueda completa (Wheel, Rim, Hub, Spoke) NO se suelda al
+		-- chasis: va soldada a la LLANTA, que es la que gira con la bisagra. Si se
+		-- soldaba al chasis, el rin se quedaba quieto y parecia que patinaba.
+		local rueda = { Wheel = true, Rim = true, Hub = true, Spoke = true }
+		local porSoldar = {}
 		for _, d in ipairs(m:GetChildren()) do
-			if d:IsA("BasePart") and d ~= seat and d ~= body then
-				if d.Name ~= "Wheel" then
-					local wc = Instance.new("WeldConstraint")
-					wc.Part0 = body
-					wc.Part1 = d
-					wc.Parent = body
+			if d:IsA("BasePart") and d ~= seat and d ~= body and not rueda[d.Name] then
+				table.insert(porSoldar, d)
+			end
+		end
+		for _, d in ipairs(porSoldar) do
+			local wc = Instance.new("WeldConstraint")
+			wc.Part0 = body
+			wc.Part1 = d
+			wc.Parent = body
+		end
+		-- y cada pieza de la rueda, soldada a su llanta
+		for _, tire in ipairs(m:GetChildren()) do
+			if tire:IsA("BasePart") and tire.Name == "Wheel" then
+				local cerca = {}
+				for _, d in ipairs(m:GetChildren()) do
+					if d:IsA("BasePart") and (d.Name == "Rim" or d.Name == "Hub" or d.Name == "Spoke") then
+						local dd = (d.Position - tire.Position).Magnitude
+						if dd < 1.2 then table.insert(cerca, d) end
+					end
+				end
+				for _, d in ipairs(cerca) do
+					local wc2 = Instance.new("WeldConstraint")
+					wc2.Part0 = tire
+					wc2.Part1 = d
+					wc2.Parent = tire
 				end
 			end
 		end
@@ -3783,6 +3891,125 @@ function CityGenerator.MakeRaider(parent: Instance, pos: Vector3): Model
 	npc:SetAttribute("BuyerId", nil)
 	npc.Name = "Raider"
 	return npc
+end
+
+-- Oficial que cuida un lote CLAUSURADO (v42). No vende nada: solo esta
+-- plantado en la entrada del lote vigilando, y Main le hace decir sus lineas
+-- cuando el jugador se acerca ("esta area esta clausurada...").
+function CityGenerator.MakeOfficer(parent: Instance, pos: Vector3, facing: Vector3?): Model
+	local npc = makeBuyerNPC(parent, pos, {Id = "Officer" .. tostring(math.floor(pos.X)) .. tostring(math.floor(pos.Z)), Name = "Oficial"},
+		facing, "police")
+	CollectionService:RemoveTag(npc, "BuyerNPC")
+	npc:SetAttribute("BuyerId", nil)
+	npc:SetAttribute("Officer", true)
+	npc.Name = "Officer"
+	return npc
+end
+
+-- ===== v42: BODEGAS VECINAS =====
+-- El usuario reporto que su parcela se veia "practicamente vacia": los demas
+-- lotes estaban pelones. Aqui se pintan de OTRO color (cada lote de su estilo)
+-- para que no parezcan clones.
+local VARIANTES = {
+	{Wall = Color3.fromRGB(128, 136, 152), Floor = Color3.fromRGB(94, 98, 106), Roof = Color3.fromRGB(72, 80, 94)},   -- acero azul
+	{Wall = Color3.fromRGB(154, 108, 92),  Floor = Color3.fromRGB(106, 90, 84),  Roof = Color3.fromRGB(98, 64, 56)},   -- ladrillo
+	{Wall = Color3.fromRGB(112, 140, 118), Floor = Color3.fromRGB(90, 100, 94),  Roof = Color3.fromRGB(66, 86, 72)},   -- verde taller
+	{Wall = Color3.fromRGB(178, 164, 134), Floor = Color3.fromRGB(120, 114, 102), Roof = Color3.fromRGB(124, 106, 82)}, -- arena
+	{Wall = Color3.fromRGB(142, 126, 150), Floor = Color3.fromRGB(98, 94, 104),  Roof = Color3.fromRGB(80, 70, 88)},   -- lila
+	{Wall = Color3.fromRGB(96, 120, 134),  Floor = Color3.fromRGB(86, 94, 100),  Roof = Color3.fromRGB(62, 76, 86)},   -- petroleo
+}
+
+-- Repinta una bodega con el estilo n (1..6). Se hace DESPUES de construirla:
+-- solo cambia colores de piezas conocidas (paredes, piso, techo, porton), asi
+-- que no puede romper la geometria ni los nombres que buscan Main y ClientUI.
+function CityGenerator.VarianteVecina(model: Model, n: number): ()
+	local V = VARIANTES[((n - 1) % #VARIANTES) + 1]
+	local tier = math.clamp(tonumber(model:GetAttribute("Tier")) or 1, 1, #Config.WarehouseTiers)
+	local T = Config.WarehouseTiers[tier]
+	local pared = T.WallColor
+	local piso = T.FloorColor
+	local techoViejo = Color3.fromRGB(62, 66, 72)
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			local nom = d.Name
+			if d.Color == pared then
+				d.Color = V.Wall
+			elseif d.Color == piso then
+				d.Color = V.Floor
+			elseif (nom == "Roof" or nom == "GateLeft" or nom == "GateRight") and d.Color == techoViejo then
+				d.Color = V.Roof
+			end
+		end
+	end
+	model:SetAttribute("Vecina", true)
+	model:SetAttribute("EstiloVecina", ((n - 1) % #VARIANTES) + 1)
+end
+
+-- Lote CLAUSURADO (v42): cinta policial cruzada en la entrada, tablilla de
+-- "CLAUSURADA" y los letreros. Devuelve las dos posiciones donde se plantan
+-- los oficiales (izquierda y derecha del porton).
+function CityGenerator.Clausurar(model: Model): {Vector3}
+	local T = Config.WarehouseTiers[math.clamp(tonumber(model:GetAttribute("Tier")) or 1, 1, #Config.WarehouseTiers)]
+	local D = T.Size.Z
+
+	-- el porton de la entrada: de ahi salen las medidas de la cinta
+	-- (si por lo que sea no esta, se usan los numeros del nivel 1)
+	local halfGate, gateZ = 12, D * 0.5
+	local gl = model:FindFirstChild("GateLeft", true)
+	if gl and gl:IsA("BasePart") then
+		halfGate = math.abs(gl.Position.X) + gl.Size.X * 0.5
+		gateZ = gl.Position.Z
+	end
+	local tapeZ = gateZ + 1.6
+
+	local zone = model:FindFirstChild("Clausura") :: Folder?
+	if not zone then
+		zone = Instance.new("Folder")
+		zone.Name = "Clausura"
+		zone.Parent = model
+	end
+
+	local function cpart(nom: string, size: Vector3, pos: Vector3, color: Color3, mat: Enum.Material?): Part
+		local pp = part({Name = nom, Size = size, Position = pos, Color = color,
+			Material = mat or Enum.Material.SmoothPlastic, CanCollide = false})
+		pp.Parent = zone
+		return pp
+	end
+
+	-- postes a los lados del porton + tres franjas de cinta cruzando la entrada
+	for _, sx in ipairs({-1, 1}) do
+		cpart("CintaPoste", Vector3.new(0.5, 4.4, 0.5),
+			Vector3.new(sx * (halfGate + 0.9), 4.6, tapeZ), Color3.fromRGB(196, 172, 40), Enum.Material.Metal)
+	end
+	for k = 1, 3 do
+		cpart("CintaPolicial", Vector3.new(halfGate * 2 + 2, 0.55, 0.14),
+			Vector3.new(0, 3.1 + (k - 1) * 1.5, tapeZ), Color3.fromRGB(238, 206, 46))
+	end
+	-- franjas negras de la cinta (el rayado de cinta de obra)
+	for k = 1, 3 do
+		local y = 3.1 + (k - 1) * 1.5
+		local n = math.floor(halfGate / 2)
+		for i = -n, n do
+			cpart("CintaRayas", Vector3.new(0.9, 0.57, 0.16),
+				Vector3.new(i * 2, y, tapeZ - 0.02), Color3.fromRGB(26, 26, 30))
+		end
+	end
+
+	-- tablilla de CLAUSURADA clavada adelante, en el piso de afuera
+	local tabla = cpart("TablillaClausurada", Vector3.new(9, 4.6, 0.4),
+		Vector3.new(0, 6.4, tapeZ + 1.4), Color3.fromRGB(214, 206, 190), Enum.Material.WoodPlanks)
+	for _, sx in ipairs({-1, 1}) do
+		cpart("TablillaPata", Vector3.new(0.4, 4.2, 0.4), Vector3.new(sx * 3.7, 2.2, tapeZ + 1.4),
+			Color3.fromRGB(110, 84, 58), Enum.Material.Wood)
+	end
+	makeBillboard(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), 3)
+
+	-- donde se plantan los DOS oficiales: afuera, a los lados del porton.
+	-- OJO: aqui afuera el piso esta en y ~ 0.6 (la rampa baja del anden), no en 2.
+	return {
+		Vector3.new(-(halfGate + 2.2), 0.6, gateZ + 8),
+		Vector3.new(halfGate + 2.2, 0.6, gateZ + 8),
+	}
 end
 
 -- Guardia contratado, plantado junto a la caja.

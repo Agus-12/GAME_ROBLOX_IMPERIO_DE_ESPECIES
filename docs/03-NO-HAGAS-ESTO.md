@@ -676,3 +676,51 @@ En Lua, un `local` declarado **despues** de una funcion no existe dentro de ella
 funcion lee un **global** (que vale `nil`) y la validacion queda **apagada sin avisar**.
 Por eso existe `tools/globals.py` (etapa 4) y por eso hay que probar los chequeos
 **al reves**: metiendo el bug y viendo si truena.
+
+---
+
+## 23. 🧊 Guardar `Position` y creer que `CFrame` también quedó (v42)
+
+En Roblox, `part.Position` y `part.CFrame` son **la misma cosa**: mover una mueve la otra.
+El simulador las tenía **separadas**, así que este código:
+
+```lua
+local slab = part({Position = ...})         -- el mock solo guardaba .Position
+piece:SetAttribute("HomeCF", piece.CFrame)  -- ...y .CFrame venía NIL
+```
+
+guardaba un atributo vacío **sin tronar**, y el portón del garaje no se abría nunca. Peor:
+la prueba del garaje **pasaba** porque revisaba que el código corriera, no el resultado.
+**Regla:** en el mock, `Position` y `CFrame` se mueven juntos, como en Roblox.
+
+## 24. ⏱️ `os.clock()` era el tiempo de CPU en las pruebas (v42)
+
+El servidor usa `os.clock()` para los enfriamientos ("no repitas el aviso antes de 14 s").
+En el simulador eso es el tiempo **de CPU** de Lua (¡casi cero!), no el tiempo que avanza
+el reloj virtual: la espera **nunca** se cumplía, y el oficial se quedaba con la primera
+línea para siempre. **Regla:** `os.clock()` en el mock devuelve el **reloj de la
+simulación** (en Roblox es el tiempo desde que arrancó el servidor).
+
+Y de paso: cuando compares contra "la última vez", el valor inicial va en **`nil`**, no en
+`0` (con `0` los avisos no salen en los primeros segundos de partida).
+
+## 25. 🔌 Señales que el mock no tenía, y el `pcall` que escondía el daño (v42)
+
+`ProximityPrompt.Triggered` y `RemoteEvent:FireAllClients` **no existían** en el simulador.
+Resultado: los botones (bici, "Sacar y conducir", portones) y los push del servidor
+tronaban **dentro de un `pcall`** y quedaban **sin revisar**. Se veía solo como
+`!! error en un task.spawn`, sin decir de dónde salía.
+
+**Reglas:** (1) el mock tiene que traer las señales reales; (2) si un `pcall` envuelve un
+bucle, el error **se avisa una vez** en el Output (nada de tragarse la falla);
+(3) disparar un remoto en las pruebas tiene que **llegar al cliente**, si no el HUD se
+prueba a ciegas.
+
+## 26. 🔍 Revisar los COMENTARIOS hace gritar en falso (v42)
+
+`tools/api.py` revisaba `Instance.new("X")` con expresiones regulares sobre el archivo
+crudo, así que **un comentario que explicaba el bug viejo** de la v41
+(`-- Antes decía: Instance.new("AutomaticSize")`) hacía fallar la validación. Un chequeo
+que grita en falso es un chequeo que nadie le cree cuando grita de verdad.
+**Regla:** se ignoran comentarios (respetando cadenas de texto) y, al arreglar un chequeo,
+se prueba **metiendo el bug de verdad** para ver que todavía lo caza.

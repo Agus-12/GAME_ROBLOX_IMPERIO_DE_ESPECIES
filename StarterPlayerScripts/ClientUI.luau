@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v41"
+local MI_VERSION = "v42"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -865,6 +865,11 @@ end
 -- saltar abajo-derecha. Hay que dejar esas esquinas libres.
 local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
+-- v42: se avisa al SERVIDOR si este jugador anda en celular. Lo usan las cosas
+-- que en celular se comportan distinto: la bici (sin letrero de tecla E: te
+-- acercas y te subes) y los botones de los vehiculos.
+pcall(function() player:SetAttribute("Tactil", IS_MOBILE) end)
+
 local camera = workspace.CurrentCamera
 
 -- Hace que un panel grande SIEMPRE quepa en la pantalla.
@@ -1240,7 +1245,7 @@ local function row(icon: string, tint: Color3, order: number, wide: boolean?)
 		BackgroundTransparency = 0.25,
 	})
 	corner(holder, 9)
-	if wide then holder.Size = UDim2.new(1, 0, 0, IS_MOBILE and 28 or 32) end
+	if wide then holder.Size = UDim2.new(1, 0, 0, IS_MOBILE and 44 or 50) end
 
 	label(holder, {
 		Size = UDim2.new(0, 22, 1, 0),
@@ -1251,25 +1256,75 @@ local function row(icon: string, tint: Color3, order: number, wide: boolean?)
 	})
 
 	local txt = label(holder, {
-		Size = UDim2.new(1, -30, 1, 0),
-		Position = UDim2.new(0, 27, 0, 0),
+		Size = UDim2.new(1, -32, 1, -4),
+		Position = UDim2.new(0, 29, 0, 2),
 		TextSize = IS_MOBILE and 12 or 13,
 		Font = Enum.Font.GothamBold,
 		TextColor3 = tint,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextWrapped = true,
 		Text = "0",
 	})
 	return txt
 end
 
--- 🌿 hojas que traes  |  🧱 bloques que traes
--- 🎒 espacio de mochila  |  🔒 lo que hay en la caja fuerte  |  🚨 heat
+-- v42: la columna quedo ORDENADA y clara (el usuario reporto que se veia
+-- "recorrida" y que no sabia para que era la sirenita 🚨):
+--   $        = tu efectivo
+--   🌿 18    = hojas que TRAES encima
+--   🧱 23    = bloques que traes encima
+--   🎒 41/80 = tu mochila (espacio usado / capacidad)
+--   🔒 ....  = lo GUARDADO en la caja fuerte (una linea por producto)
+-- La sirenita 🚨 ya NO va aqui: el nivel de busqueda ahora son ESTRELLAS
+-- debajo del reloj (arriba a la derecha), como pidio el usuario.
 local chipLeaf  = row("🌿", Color3.fromRGB(150, 235, 140), 2)
 local chipBlock = row("🧱", Color3.fromRGB(238, 216, 160), 3)
 local chipBag   = row("🎒", Color3.fromRGB(170, 195, 235), 4)
--- este va mas alto: trae los dos topes de la caja
 local chipVault = row("🔒", Color3.fromRGB(130, 245, 190), 5, true)
-local chipHeat  = row("🚨", Color3.fromRGB(255, 150, 90), 6)
+
+-- ===== ESTRELLAS DE BUSQUEDA (v42) =====
+-- 5 estrellas debajo del reloj: se van encendiendo con el nivel de busqueda y
+-- se apagan solas cuando la zona segura te baja el heat (lo hace el servidor).
+local estrellas: {TextLabel} = {}
+do
+	local marco = Instance.new("Frame")
+	marco.Name = "EstrellasBusqueda"
+	marco.BackgroundTransparency = 1
+	marco.Size = UDim2.new(0, 5 * 20, 0, 22)
+	marco.Position = UDim2.new(1, IS_MOBILE and -108 or -120, 0, IS_MOBILE and 30 or 36)
+	marco.Parent = gui
+	local fila = Instance.new("UIListLayout")
+	fila.FillDirection = Enum.FillDirection.Horizontal
+	fila.SortOrder = Enum.SortOrder.LayoutOrder
+	fila.Parent = marco
+	local titulo2 = Instance.new("TextLabel")
+	titulo2.Name = "Rotulo"
+	titulo2.BackgroundTransparency = 1
+	titulo2.Size = UDim2.new(1, 0, 0, 12)
+	titulo2.Position = UDim2.new(0, -62, 0, 5)
+	titulo2.Font = Enum.Font.GothamBold
+	titulo2.TextSize = 11
+	titulo2.TextColor3 = Color3.fromRGB(190, 190, 205)
+	titulo2.TextXAlignment = Enum.TextXAlignment.Right
+	titulo2.Text = "BUSCA"
+	titulo2.Parent = marco
+	for i = 1, 5 do
+		local e = Instance.new("TextLabel")
+		e.Name = "Estrella" .. i
+		e.BackgroundTransparency = 1
+		e.Size = UDim2.new(0, 20, 1, 0)
+		e.LayoutOrder = i
+		e.Font = Enum.Font.GothamBold
+		e.TextSize = 18
+		e.Text = "★"
+		e.TextColor3 = Color3.fromRGB(64, 64, 76)   -- apagada
+		e.TextStrokeTransparency = 0.5
+		e.TextStrokeColor3 = Color3.new(0, 0, 0)
+		e.Parent = marco
+		estrellas[i] = e
+	end
+end
 
 -- aviso de BUSCADO (antes era un texto larguisimo arriba; ahora es una
 -- etiqueta pegada a la columna para que no tape la pantalla)
@@ -1460,6 +1515,9 @@ end, "sell")
 local shopBtn = dockBtn("Tienda", "B", function() end)
 local phoneBtn = dockBtn("Telefono", "T", function() end)
 dockBtn("Bodega", "H", function() act("teleportHome") end)
+-- v42: boton para traer tu auto donde estas (lo pidio el usuario para celular:
+-- "un icono de un auto para spawnear el auto donde estes")
+dockBtn("Auto", "Y", function() act("summonCar") end)
 
 ----------------------------------------------------------------------
 -- PANEL TIENDA
@@ -2023,16 +2081,24 @@ RE_State.OnClientEvent:Connect(function(data)
 	chipBag.TextColor3 = (carrying >= (data.CarryCap or 0))
 		and Color3.fromRGB(255, 130, 130) or Color3.fromRGB(170, 195, 235)
 
-	-- lo GUARDADO en la caja fuerte, con su tope por producto
-	chipVault.Text = string.format("%d/%d 🌿  %d/%d 🧱",
+	-- lo GUARDADO en la caja fuerte: una linea por producto (antes iba todo
+	-- apretado en un renglon y se veia "recorrido")
+	chipVault.Text = string.format("🌿 %d/%d\n🧱 %d/%d",
 		data.Leaves, data.VaultLeafCap or 0, data.Blocks, data.VaultBlockCap or 0)
 
 	local ratio = data.Heat / Config.Heat.Max
 	heatTxt.Text = string.format("HEAT %d%%", math.floor(ratio * 100))
-	chipHeat.Text = string.format("%d%%", math.floor(ratio * 100))
-	chipHeat.TextColor3 = ratio > 0.7 and Color3.fromRGB(255, 110, 110)
-		or ratio > 0.4 and Color3.fromRGB(255, 190, 110)
-		or Color3.fromRGB(150, 230, 160)
+
+	-- estrellas de busqueda: 0 a 5 segun el heat
+	local nivel = math.clamp(math.floor(ratio * 5 + 0.5), 0, 5)
+	for i = 1, 5 do
+		local e = estrellas[i]
+		if e then
+			e.TextColor3 = (i <= nivel)
+				and (nivel >= 4 and Color3.fromRGB(255, 110, 90) or Color3.fromRGB(255, 205, 70))
+				or Color3.fromRGB(64, 64, 76)
+		end
+	end
 	TweenService:Create(heatFill, TweenInfo.new(0.3), {Size = UDim2.new(ratio, 0, 1, 0)}):Play()
 	heatFill.BackgroundColor3 = ratio > 0.7 and Color3.fromRGB(255, 70, 70)
 		or ratio > 0.4 and Color3.fromRGB(255, 160, 60)

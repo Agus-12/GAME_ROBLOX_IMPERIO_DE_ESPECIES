@@ -90,3 +90,28 @@ carpetas `Remotes` de `ReplicatedStorage` y deja **un solo `Main`** en
 2. Captura del **Output** con las lineas `[SpiceEmpire]`.
 
 Con eso se sabe exactamente que archivo falta: **no hay que adivinar**.
+
+---
+
+## Si lo que no cambia es la BICI, el AUTO DEL GARAJE o la CLAUSURA (v42)
+
+Estas tres cosas se pueden revisar solas, sin adivinar:
+
+1. **Mira la placa de arriba al centro:** tiene que decir `RONDA v42  OK`. Si dice
+   `(arrancando...)` o no dice `v42`, el archivo del cliente que pegaste es de otra ronda.
+2. **Bici:** en compu sale el letrero `E / Bicicleta / Manejar`; **en celular NO tiene que
+   salir** y al acercarte la bici te sube sola. Si te subes y **no acelera**, el `Main` en
+   `ServerScriptService` es viejo (ese arreglo vive en el servidor).
+3. **Auto del garaje:** en cada cajón hay un letrero `CAJON n` y un botón
+   **"Sacar y conducir"**. Si el auto sale con las llantas como plato o se queda dentro del
+   cajón, el archivo viejo es `CityGenerator` (las llantas) o `Main` (el punto de salida).
+4. **Clausura:** afuera de tu bodega, los demás lotes tienen que tener casona de otro color,
+   cinta amarilla, tablilla `CLAUSURADA` y **dos oficiales**. Si no hay nada, el `Main`
+   viejo es el culpable (es el que amuebla los lotes).
+5. **Luz de la cochera:** entra al garaje de día: no puede verse negro. Si se ve negro, el
+   archivo viejo es `CityGenerator`.
+6. **Estrellas del nivel de búsqueda:** abajo del reloj (arriba a la derecha) tienen que
+   estar las 5 estrellitas. Si en su lugar sigue el 🚨 en la columna, el viejo es
+   `ClientUI` (el cliente).
+
+Recuerda: **borra las copias primero** (Explorer > clic derecho > Delete) y después pega.

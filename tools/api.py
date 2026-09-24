@@ -79,6 +79,57 @@ def all_props(classes, name):
     return out
 
 
+def sin_comentarios(linea, estado):
+    """Deja la linea sin comentarios (los reemplaza por espacios para no mover
+       las columnas). Respeta las cadenas de texto. 'estado' es una lista de un
+       elemento que recuerda si seguimos dentro de un --[[ ... ]]."""
+    salida = []
+    i, n = 0, len(linea)
+    while i < n:
+        if estado[0]:
+            fin = linea.find("]]", i)
+            if fin == -1:
+                salida.append(" " * (n - i))
+                i = n
+            else:
+                salida.append(" " * (fin + 2 - i))
+                i = fin + 2
+                estado[0] = False
+            continue
+        c = linea[i]
+        if c in "\"'":
+            j = i + 1
+            while j < n:
+                if linea[j] == "\\":
+                    j += 2
+                    continue
+                if linea[j] == c:
+                    j += 1
+                    break
+                j += 1
+            salida.append(linea[i:j])
+            i = j
+            continue
+        if linea.startswith("--[[", i) or linea.startswith("--[=[", i):
+            estado[0] = True
+            fin = linea.find("]]", i)
+            if fin == -1:
+                salida.append(" " * (n - i))
+                i = n
+            else:
+                salida.append(" " * (fin + 2 - i))
+                i = fin + 2
+                estado[0] = False
+            continue
+        if linea.startswith("--", i):
+            salida.append(" " * (n - i))
+            i = n
+            continue
+        salida.append(c)
+        i += 1
+    return "".join(salida)
+
+
 def main():
     dump = load_dump()
     if dump is None:
@@ -92,7 +143,12 @@ def main():
     bad = 0
     for f in FILES:
         src = strip_luau(open(os.path.join(ROOT, f)).read())
-        lines = src.split("\n")
+        lineas_crudas = src.split("\n")
+        # los COMENTARIOS no se revisan: si no, explicar un bug viejo (por
+        # ejemplo el  -- Instance.new("AutomaticSize")  de la v41) hace que la
+        # validacion grite en falso y nadie le cree cuando grite de verdad.
+        estado = [False]
+        lines = [sin_comentarios(l, estado) for l in lineas_crudas]
         problems = []
 
         for i, line in enumerate(lines, 1):

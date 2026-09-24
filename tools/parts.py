@@ -20,7 +20,10 @@ REQUIRED = [
     "OfficeWall", "OfficeDoorJamb",              # puerta de la oficina
     "GarageDoorJamb", "GarageDoorHead",          # puerta del garaje
     "GateApron", "ApronRail",                    # rampa de la entrada
-    "GarageFloor", "GarageExit", "Bay1", "Bay4", # garaje
+    "GarageFloor", "GarageExit",                  # garaje
+    # v42: los cajones del garaje ya NO son 4 siempre: el nivel 1 trae 1 y va
+    # creciendo con la bodega (GameConfig.BaysByTier). La lista Bay1..BayN se
+    # arma mas abajo, por nivel.
     "GarageDoor", "DoorSlab", "DoorSlat",        # portones que suben (v29)
     "GarageWallLamp", "GarageThreshold",         # luces y umbral del taller
     "GarageTrigger", "GarageSign",               # marcador y letrero
@@ -66,8 +69,22 @@ for tier = 1, 4 do
     for _, n in ipairs(REQ) do
       if not found[n] then table.insert(missing, n) end
     end
+    -- v42: cajones que le tocan a este nivel (1, 2, 3, 4)
+    local cajones = _cfg.BaysDelNivel and _cfg.BaysDelNivel(tier) or 4
+    for i = 1, cajones do
+      if not found["Bay"..i] then table.insert(missing, "Bay"..i) end
+    end
+    if cajones > 4 then table.insert(missing, "cajones de mas ("..cajones..")") end
+    -- y que haya UN PORTON por cajon (v42: cada cajon abre su propia puerta)
+    local portones = 0
+    for _, c in ipairs(wh:GetChildren()) do
+      if c.Name == "GarageDoor" then portones = portones + 1 end
+    end
+    if portones ~= cajones then
+      table.insert(missing, "portones="..portones.." (deberian ser "..cajones..")")
+    end
     if #missing == 0 then
-      print("  tier "..tier..": todas las partes presentes")
+      print("  tier "..tier..": todas las partes presentes ("..cajones.." cajon(es), "..portones.." porton(es))")
     else
       print("  !! tier "..tier.." FALTAN: "..table.concat(missing, ", ")); bad = 1
     end
