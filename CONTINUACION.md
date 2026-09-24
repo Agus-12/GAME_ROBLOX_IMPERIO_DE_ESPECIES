@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v31** · 24 sep 2026
+> Última actualización: **v32** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v31 |
+| **Versión actual** | v32 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -140,6 +140,40 @@ pidio copiar y pegar sin salir de ahí.
 3. **Lo que se rompe, se prueba rompiendolo**: `tools/intro.py` escenario E inyecta un
    error a proposito y exige que la portada siga abriendo (escenario D simula un servidor
    que NUNCA contesta).
+
+### ✅ Qué se cerró en la v32 (saber CUÁL copia borrar)
+
+El usuario tenia **2 scripts `Main`** pegados (el aviso de la v28p4 lo detecto, pero no
+decia **cual** borrar). En su captura se veian los letreros "CAJON CAJON" encimados y dos
+bodegas: cada `Main` construye lo suyo.
+
+| Cosa | Antes | Ahora |
+|---|---|---|
+| Aviso de copias | "2 x ServerScriptService.Main" | nombres exactos: "'Main' + 'Main2' en ServerScriptService" |
+| Deteccion | solo nombre exacto | tambien numerados por Roblox (`Main2`, `Remotes2`, `ClientUI2`) |
+| Saber cual conservar | habia que adivinar | **sello de ronda**: `Ctrl+F` -> `RONDA: vNN` arriba de los 5 archivos |
+| Instrucciones | solo en chat/docs | en el **cartel rojo** y en la consola, con los 3 pasos |
+| `Remotes` viejas | borraba solo las exactas | tambien `Remotes2`, `Remotes3`... |
+| Validador | — | **etapa 9 exige el sello `RONDA: vNN`** en los 5 archivos |
+
+### 🐛 Bug real encontrado al probar la v32
+
+`Destroy()` **dentro** del bucle que recorre `GetChildren()` se salta elementos: al borrar
+el primero, `ipairs` avanza al índice 2 (que ahora es el 3) y **siempre queda uno vivo**.
+Con 2 carpetas `Remotes` viejas solo se borraba una -> el cliente se enganchaba a la que
+sobraba y decia "faltan remotes".
+
+Estaba en **5 lugares**: limpieza de `Remotes`, limpieza de bodegas guardadas,
+`syncWorkers` (**empleados duplicados encimados**), `syncGarage` (autos encimados) y
+`renderTab` (**filas pegadas en las pestañas de la tienda**). Todos arreglados juntando la
+basura en una lista y borrando despues.
+
+**Etapa 11 del validador**: `tools/loops.py` caza ese patron (probado inyectando el bug).
+
+**Regla dura nueva:** al subir de ronda, **los 5 archivos llevan el sello**
+`-- ===== RONDA: vNN =====` en las primeras lineas (ademas de `GameConfig.Build`,
+`MI_VERSION`, README y CONTINUACION). `tools/remotes.py` falla si falta alguno: es lo que
+le permite al usuario identificar cual copia borrar cuando tiene duplicados en Studio.
 
 ### ⚠️ Reglas que NO puedes romper
 

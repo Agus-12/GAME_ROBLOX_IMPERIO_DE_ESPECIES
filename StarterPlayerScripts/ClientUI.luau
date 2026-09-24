@@ -1,4 +1,6 @@
 --!strict
+-- ===== RONDA: v32 =====   <-- Ctrl+F con este texto para saber si este script
+--                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
 
@@ -89,11 +91,15 @@ local PROBLEMAS: {string} = {}
 local function carpetaRemotes(): any
 	local todas = {}
 	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
-		if c.Name == "Remotes" then table.insert(todas, c) end
+		-- por PREFIJO: Roblox renombra solos los repetidos a "Remotes2"
+		if string.sub(c.Name, 1, 7) == "Remotes" then table.insert(todas, c) end
 	end
 	if #todas == 0 then return need(ReplicatedStorage, "Remotes") end
 	if #todas > 1 then
-		table.insert(PROBLEMAS, #todas .. " carpetas Remotes: tienes " .. #todas .. " Scripts Main pegados")
+		local nombres = {}
+		for _, c in ipairs(todas) do table.insert(nombres, "'" .. c.Name .. "'") end
+		table.insert(PROBLEMAS, #todas .. " carpetas Remotes (" .. table.concat(nombres, " + ") ..
+			"): eso significa que hay " .. #todas .. " Scripts Main pegados")
 		table.sort(todas, function(a, b) return #a:GetChildren() > #b:GetChildren() end)
 	end
 	return todas[1]
@@ -116,7 +122,7 @@ local RF_Action  = need(Remotes, "Action")
 -- era "faltan 2 remotes", sin decir cual de los 5 archivos pegar ni por que.
 -- Ahora el servidor estampa su version en la carpeta Remotes, GameConfig trae
 -- la suya, y aqui se comparan las tres cosas.
-local MI_VERSION = "v31"
+local MI_VERSION = "v32"
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
 	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
@@ -165,8 +171,17 @@ if viejo or #AVISOS > 0 or #PROBLEMAS > 0 then
 	end
 	local box = { titulo }
 	for _, l in ipairs(lineas) do table.insert(box, l) end
-	table.insert(box, "Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.")
-	table.insert(box, "Si ya los pegaste: revisa que no haya archivos REPETIDOS (docs/09-SI-SALE-DOBLE.md)")
+	if #PROBLEMAS > 0 then
+		table.insert(box, "COMO ARREGLARLO: en el Explorer, clic derecho en la copia > Delete.")
+		table.insert(box, "Tiene que quedar UNO de cada: Main, CityGenerator, DataService,")
+		table.insert(box, "GameConfig, ClientUI, y UNA carpeta Remotes.")
+		table.insert(box, "Para saber cual conservar: abre cada uno y busca con Ctrl+F")
+		table.insert(box, "el texto 'RONDA: " .. MI_VERSION .. "' (el que lo tenga es el bueno).")
+		table.insert(box, "Guia con dibujos: docs/09-SI-SALE-DOBLE.md")
+	else
+		table.insert(box, "Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.")
+		table.insert(box, "Si ya los pegaste: revisa que no haya archivos REPETIDOS (docs/09-SI-SALE-DOBLE.md)")
+	end
 	pcall(cartelDeError, box)
 end
 local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, PressLevel = 1,
@@ -255,6 +270,8 @@ if playerGui and playerGui:FindFirstChild("SpiceEmpireUI") then
 	pcall(cartelDeError, {
 		"HAY 2 ClientUI PEGADOS (por eso sale todo doble)",
 		"En el Explorer: StarterPlayer > StarterPlayerScripts -> deja UN solo 'ClientUI'.",
+		"Para saber cual conservar: abre cada uno y busca con Ctrl+F",
+		"el texto 'RONDA: " .. MI_VERSION .. "' (el que lo tenga es el bueno).",
 		"Tambien revisa que no haya 2 'Main' en ServerScriptService.",
 		"Guia con dibujos: docs/09-SI-SALE-DOBLE.md",
 	})
@@ -929,8 +946,12 @@ renderTab = function(tab: string)
 	-- Cuando esto solo borraba Frames, los TextLabel sueltos (los titulos
 	-- de MOCHILAS, por ejemplo) se quedaban pegados y se iban apilando en
 	-- todas las pestanas. Eso era el "mercado roto".
-	for _, c in ipairs(content:GetChildren()) do
-		if c:IsA("GuiObject") then c:Destroy() end
+	do
+		local basura = {}
+		for _, c in ipairs(content:GetChildren()) do
+			if c:IsA("GuiObject") then table.insert(basura, c) end
+		end
+		for _, c in ipairs(basura) do c:Destroy() end
 	end
 
 	if tab == "bodega" then

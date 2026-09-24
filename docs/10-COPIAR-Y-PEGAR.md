@@ -1,4 +1,4 @@
-# 📋 COPIAR Y PEGAR LOS 5 ARCHIVOS (ronda v31)
+# 📋 COPIAR Y PEGAR LOS 5 ARCHIVOS (ronda v32)
 
 Guía corta: aquí están los **5 archivos con su link directo** para copiar el texto completo
 y pegarlo en Studio. Sirve igual para **reemplazar** los que ya tienes (por ejemplo si
@@ -8,7 +8,7 @@ salió todo doble) o para instalarlos de cero.
 
 ## 📦 OPCIÓN RÁPIDA: un solo archivo con los 5 códigos adentro
 
-Hay un archivo llamado **`v31-ARCHIVOS.html`** (vive en el workspace, no en el repo) que
+Hay un archivo llamado **`v32-ARCHIVOS.html`** (vive en el workspace, no en el repo) que
 trae **los 5 códigos completos embebidos**, en 5 pestañas, cada una con su botón
 **COPIAR TODO**.
 
@@ -50,11 +50,14 @@ Búscalos uno por uno y borra las copias:
 | `Remotes` | **1** carpeta en `ReplicatedStorage` | idem (el juego la vuelve a crear sola) |
 | `ClientUI` | **1** en `StarterPlayer › StarterPlayerScripts` | idem |
 
+> 🏷️ **¿Cuál conservo?** Abre cada copia y busca con **`Ctrl+F`** el texto
+> **`RONDA: v32`**: la que lo tenga es la buena. (Los 5 archivos traen ese sello arriba.)
+
 > ⚠️ Ojo con los que Roblox numera solo: `Main` y **`Main2`**, o `ClientUI` y
 > **`ClientUI2`**. También son copias.
 
 > 💡 Si no sabes cuál es el bueno: el que tiene **el código más nuevo** es el que ya trae
-> el texto `MI_VERSION = "v31"`. Los viejos no. (Y si borras el bueno por error, no pasa
+> el texto `MI_VERSION = "v32"`. Los viejos no. (Y si borras el bueno por error, no pasa
 > nada: se pega otra vez con esta guía.)
 
 ---
@@ -115,7 +118,7 @@ Dale **Play**. **No** debe salir ningún cartel rojo.
 Menú **View › Output**. Tiene que decir **una sola vez**:
 
 ```
-========== IMPERIO DE ESPECIAS v31 ==========
+========== IMPERIO DE ESPECIAS v32 ==========
   remotes creados: 11
 [SpiceEmpire] Ciudad generada.
 [SpiceEmpire] Servidor listo.

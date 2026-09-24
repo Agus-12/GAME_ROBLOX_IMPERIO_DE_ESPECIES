@@ -1,4 +1,6 @@
 --!strict
+-- ===== RONDA: v32 =====   <-- Ctrl+F con este texto para saber si este archivo
+--                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
 -- puntos de compradores, la bodega del jugador y la estacion de Aduanas.
@@ -4025,11 +4027,16 @@ function CityGenerator.SetupLighting()
 	Lighting.ClockTime = DN.Enabled and DN.StartHour or DN.FixedHour
 	safeSet(Lighting, "GeographicLatitude", 20)
 
-	-- limpia efectos viejos
-	for _, e in ipairs(Lighting:GetChildren()) do
-		if e:IsA("PostEffect") or e:IsA("Sky") or e:IsA("Atmosphere") then
-			e:Destroy()
+	-- limpia efectos viejos (juntando primero: borrar dentro del bucle se salta
+	-- elementos y quedaban efectos duplicados encimados)
+	do
+		local basura = {}
+		for _, e in ipairs(Lighting:GetChildren()) do
+			if e:IsA("PostEffect") or e:IsA("Sky") or e:IsA("Atmosphere") then
+				table.insert(basura, e)
+			end
 		end
+		for _, e in ipairs(basura) do e:Destroy() end
 	end
 
 	local sky = Instance.new("Sky")

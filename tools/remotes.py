@@ -95,7 +95,6 @@ def main():
         print("  nota   el servidor crea y nadie pide: %s" % ", ".join(sobran))
 
     # ---------- 2. versiones ----------
-    print("\n=== VERSIONES ===")
     v_cfg = build_of(read(CFG), r'GameConfig\.Build\s*=\s*"([^"]+)"', "GameConfig", CFG)
     v_cli = build_of(cli_src, r'local\s+MI_VERSION\s*=\s*"([^"]+)"', "ClientUI", CLIENT)
     v_doc = build_of(read(README), r'Versión actual:\s*\**\s*(v\d+)', "README", README)
@@ -106,6 +105,30 @@ def main():
         key=lambda f: int(re.search(r"\d+", f).group()),
     )
     v_last = docs[-1][:-3] if docs else None      # "CAMBIOS-v28.md" -> "CAMBIOS-v28"
+
+    # ---------- 3. sello de ronda en los 5 archivos ----------
+    # El sello es la linea "RONDA: vNN" que va ARRIBA de cada archivo: sirve para
+    # que el usuario sepa CUAL copia conservar cuando tiene duplicados en Studio
+    # (busca con Ctrl+F). Si un archivo se queda sin sello, esta prueba chilla.
+    print("\n=== SELLO DE RONDA EN LOS 5 ARCHIVOS ===")
+    ARCHIVOS = [
+        ("GameConfig", CFG), ("CityGenerator", os.path.join(ROOT, "ServerScriptService/CityGenerator.luau")),
+        ("DataService", os.path.join(ROOT, "ServerScriptService/DataService.luau")),
+        ("Main", MAIN), ("ClientUI", CLIENT),
+    ]
+    if v_last is None:
+        print("  FALLA  no hay CAMBIOS-vN.md, no se puede saber la ronda")
+        errores.append("sin ronda para el sello")
+    else:
+        esperado = "v" + re.search(r"\d+", v_last).group()
+        for nombre, ruta in ARCHIVOS:
+            cabeza = "\n".join(read(ruta).splitlines()[:6])
+            tiene = ("RONDA: " + esperado) in cabeza
+            print("  %s %-14s %s" % ("OK    " if tiene else "FALLA ", nombre,
+                                     "sello 'RONDA: %s'" % esperado if tiene
+                                     else "SIN sello de la ronda (debe decir 'RONDA: %s')" % esperado))
+            if not tiene:
+                errores.append("%s no tiene el sello 'RONDA: %s' arriba" % (nombre, esperado))
 
     def show(etiqueta, valor, esperado):
         marca = "OK    " if valor == esperado else "FALLA "
@@ -118,6 +141,7 @@ def main():
         errores.append("no hay CAMBIOS-vN.md")
     else:
         esperado = "v" + re.search(r"\d+", v_last).group()
+        print("\n=== VERSIONES ===")
         print("  ronda (ultimo %s): %s" % (v_last + ".md", esperado))
         show("GameConfig.Build", v_cfg, esperado)
         show("ClientUI MI_VERSION", v_cli, esperado)

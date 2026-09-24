@@ -35,3 +35,5 @@ echo "=== 9. CONTRATO CLIENTE/SERVIDOR (remotes y versiones) ==="
 python3 tools/remotes.py
 echo "=== 10. LA PORTADA ABRE RAPIDO? (no trabarse en 'cargando la ciudad') ==="
 python3 tools/intro.py
+echo "=== 11. NADIE BORRA DENTRO DEL BUCLE (se salta elementos) ==="
+python3 tools/loops.py

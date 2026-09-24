@@ -25,6 +25,25 @@ encima**, con botones y paneles dibujados dos veces.
 
 ---
 
+## 🏷️ ¿Cuál de las copias conservo? (sello de ronda, v32)
+
+Los 5 archivos traen **arriba** una línea así:
+
+```lua
+-- ===== RONDA: v32 =====
+```
+
+Para saber cuál copia es la buena:
+
+1. Abre **cada** copia (por ejemplo los dos `Main`).
+2. En la ventana de código: **`Ctrl+F`** y escribe **`RONDA: v32`**.
+3. El que **lo tenga** es el nuevo: **quédate con ese** y borra el otro.
+4. Si **no** lo tiene, es viejo: bórralo.
+
+> 💡 **Camino más seguro si te da flojera comparar:** borra **las dos** copias y crea una
+> nueva: clic derecho en la carpeta → **Insert Object** → el tipo que toca → nómbrala
+> exacto → pega el código de `vNN-ARCHIVOS.html`.
+
 ## ✅ Cómo se arregla (1 minuto)
 
 En el **Explorer** de Studio, abre estas tres carpetas y cuenta:
@@ -58,6 +77,7 @@ todo dos veces, que es lo más difícil de diagnosticar):
 
 | Blindaje | Qué hace |
 |---|---|
+| **Detecta nombres numerados** | `Main2`, `Remotes2`, `ClientUI2`… (Roblox los numera solo) también cuentan como copias |
 | **Cuenta las copias al arrancar** | Si hay 2 `Main`, 2 `CityGenerator`, 2 `DataService`, 2 `GameConfig` o 2 carpetas `Remotes`, sale este aviso en el **Output**: *"*** HAY COPIAS PEGADAS EN STUDIO: 2 x ServerScriptService.Main *** Eso hace que TODO salga doble"* |
 | **Cartel en pantalla** | Si el cliente encuentra 2 carpetas `Remotes`, el cartel rojo dice *"HAY COPIAS PEGADAS EN STUDIO (todo sale doble)"* |
 | **Dos `ClientUI`** | El segundo `ClientUI` se **apaga solo** y avisa: *"HAY 2 ClientUI PEGADOS"* — así no se dibujan dos interfaces encima |

@@ -404,3 +404,25 @@ fallar, **envuelve ese bloque aparte** en vez de dejarlo tumbado todo lo de abaj
 
 *Prueba permanente:* `tools/intro.py` escenario E inyecta `error('falla simulada')` justo
 después del bloque de la portada y exige que el botón **siga saliendo**.
+
+---
+
+## 13. 🗑️ Borrar dentro del bucle deja basura (v32)
+
+```lua
+for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+    c:Destroy()      -- MAL
+end
+```
+
+Al borrar el hijo 1, la lista se encoge y `ipairs` salta al índice 2 — que ahora es el que
+era el 3. **Siempre queda uno vivo.** Con **dos** carpetas `Remotes` viejas solo se borraba
+una → el cliente se enganchaba a la que sobraba y decía *"faltan remotes"*. Y en Studio es
+facilísimo tener dos (un `Main` viejo pegando).
+
+El mismo patrón estaba en `syncWorkers` (empleados encimados en la mesa), `syncGarage`
+(autos encimados en el cajón), `renderTab` de la tienda (filas viejas pegadas) y la limpieza
+de efectos de iluminación.
+
+**Regla:** junta en una lista y borra **después** del bucle. Lo vigila la **etapa 11**
+(`tools/loops.py`), que está probada inyectando el bug.

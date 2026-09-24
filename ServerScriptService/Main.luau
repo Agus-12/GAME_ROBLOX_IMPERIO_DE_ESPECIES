@@ -1,4 +1,6 @@
 --!strict
+-- ===== RONDA: v32 =====   <-- Ctrl+F con este texto para saber si este script
+--                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
 -- asaltos, crews y PvP.
@@ -53,38 +55,65 @@ local function cuentaHijos(parent: Instance, name: string): number
 end
 
 local copias: {string} = {}
-local function revisaCopias(parent: Instance, name: string, etiqueta: string)
-	local n = cuentaHijos(parent, name)
-	if n > 1 then
-		table.insert(copias, string.format("%d x %s", n, etiqueta))
+
+-- Busca por PREFIJO, no por nombre exacto: Roblox renombra solos los repetidos
+-- a "Main2", "Main3"... y asi si se detectan.
+local function buscaRepetidos(parent: Instance, prefijo: string, etiqueta: string)
+	local nombres = {}
+	for _, c in ipairs(parent:GetChildren()) do
+		if string.sub(c.Name, 1, #prefijo) == prefijo then
+			table.insert(nombres, "'" .. c.Name .. "'")
+		end
+	end
+	if #nombres > 1 then
+		table.insert(copias, string.format("%s en %s", table.concat(nombres, " + "), etiqueta))
 	end
 end
 
-revisaCopias(SSS, "Main", "ServerScriptService.Main")
-revisaCopias(SSS, "CityGenerator", "ServerScriptService.CityGenerator")
-revisaCopias(SSS, "DataService", "ServerScriptService.DataService")
-revisaCopias(ReplicatedStorage, "GameConfig", "ReplicatedStorage.GameConfig")
-revisaCopias(ReplicatedStorage, "Remotes", "ReplicatedStorage.Remotes")
+buscaRepetidos(SSS, "Main", "ServerScriptService")
+buscaRepetidos(SSS, "CityGenerator", "ServerScriptService")
+buscaRepetidos(SSS, "DataService", "ServerScriptService")
+buscaRepetidos(ReplicatedStorage, "GameConfig", "ReplicatedStorage")
+buscaRepetidos(ReplicatedStorage, "Remotes", "ReplicatedStorage")
 
 if #copias > 0 then
 	warn("[SpiceEmpire] *** HAY COPIAS PEGADAS EN STUDIO: " .. table.concat(copias, " , ") ..
-		" *** Eso hace que TODO salga doble (dos ciudades, dos bodegas, dos avisos)." ..
-		" Borra las copias que sobran en el Explorer y vuelve a dar Play." ..
+		" *** Eso hace que TODO salga doble (dos ciudades, dos bodegas, dos avisos).")
+	warn("[SpiceEmpire] COMO ARREGLARLO: en el Explorer, clic derecho en la copia y 'Delete'." ..
+		" Tiene que quedar UNO de cada: Main, CityGenerator, DataService, GameConfig, ClientUI," ..
+		" y UNA carpeta Remotes.")
+	warn("[SpiceEmpire] Para saber cual conservar: abre cada uno y busca con Ctrl+F el texto" ..
+		" 'RONDA: " .. tostring(Config.Build) .. "' (el que lo tenga es el de esta ronda)." ..
 		" Guia: docs/09-SI-SALE-DOBLE.md")
 end
 
--- limpieza: carpetas Remotes viejas (de un Main viejo o de una partida anterior)
-for _, c in ipairs(ReplicatedStorage:GetChildren()) do
-	if c.Name == "Remotes" then
-		c:Destroy()
+-- limpieza: carpetas Remotes viejas (de un Main viejo o de una partida anterior).
+-- Por prefijo, para que "Remotes2" tampoco se quede viva: si sobrevive una
+-- vieja, el cliente se engancha a ella y dice "faltan remotes".
+-- OJO: NO borrar dentro del mismo bucle que itera GetChildren(): al quitar un
+-- hijo, ipairs se salta al siguiente y SIEMPRE queda uno vivo. Se junta la
+-- basura en una lista y se borra despues.
+do
+	local basura = {}
+	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+		if string.sub(c.Name, 1, 7) == "Remotes" then table.insert(basura, c) end
 	end
+	for _, c in ipairs(basura) do c:Destroy() end
 end
 
--- limpieza: bodegas que quedaron dentro del lugar guardado
-for _, c in ipairs(Workspace:GetChildren()) do
+-- limpieza: bodegas que quedaron dentro del lugar guardado (mismo cuidado:
+-- primero se juntan, luego se borran)
+for _, c in ipairs((Workspace:GetChildren())) do
 	if c:IsA("Model") and string.match(c.Name, "^Warehouse_%d+$") then
-		c:Destroy()
+		c:SetAttribute("ParaBorrar", true)
 	end
+end
+do
+	local basura = {}
+	for _, c in ipairs(Workspace:GetChildren()) do
+		if c:GetAttribute("ParaBorrar") then table.insert(basura, c) end
+	end
+	for _, c in ipairs(basura) do c:Destroy() end
 end
 
 ----------------------------------------------------------------------
@@ -1138,11 +1167,17 @@ function syncWorkersInner(player: Player)
 	-- (entrar, contratar, mejorar bodega) y si dos corrian casi al mismo
 	-- tiempo la lista se perdia a medias y quedaban empleados duplicados
 	-- encimados en la misma mesa.
-	for _, d in ipairs(wh:GetDescendants()) do
-		if d:IsA("Model") and (d:GetAttribute("Worker")
-			or string.sub(d.Name, 1, 7) == "Worker_") then
-			d:Destroy()
+	-- (primero se juntan los viejos y luego se borran: borrar DENTRO del bucle
+	-- se salta elementos y quedaban empleados encimados en la misma mesa)
+	do
+		local basura = {}
+		for _, d in ipairs(wh:GetDescendants()) do
+			if d:IsA("Model") and (d:GetAttribute("Worker")
+				or string.sub(d.Name, 1, 7) == "Worker_") then
+				table.insert(basura, d)
+			end
 		end
+		for _, d in ipairs(basura) do d:Destroy() end
 	end
 	for _, m in ipairs(workerModels[player] or {}) do
 		if m and m.Parent then m:Destroy() end
@@ -2839,8 +2874,14 @@ function syncGarage(player: Player)
 	local wh = warehouses[player]
 	if not (profile and wh and wh.Parent) then return end
 
-	for _, d in ipairs(wh:GetDescendants()) do
-		if d:IsA("Model") and string.sub(d.Name, 1, 7) == "Parked_" then d:Destroy() end
+	do
+		local basura = {}
+		for _, d in ipairs(wh:GetDescendants()) do
+			if d:IsA("Model") and string.sub(d.Name, 1, 7) == "Parked_" then
+				table.insert(basura, d)
+			end
+		end
+		for _, d in ipairs(basura) do d:Destroy() end
 	end
 	for _, m in ipairs(parkedCars[player] or {}) do
 		if m and m.Parent then m:Destroy() end

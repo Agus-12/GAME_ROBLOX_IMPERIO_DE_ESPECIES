@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre **diez etapas**. Tienen que salir todas OK.
+Corre **once etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -29,6 +29,7 @@ Corre **diez etapas**. Tienen que salir todas OK.
 | `api.py` | Valida enums, clases y props contra el API-Dump de Roblox |
 | `remotes.py` | El cliente pide los mismos remotes que el servidor crea, y las versiones cuadran |
 | `intro.py` | **Mide en segundos** cuánto tarda en salir el botón "ENTRAR AL BARRIO" |
+| `loops.py` | Caza `Destroy()` dentro de un bucle de `GetChildren()` (siempre queda uno vivo) |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -279,3 +280,31 @@ Antes `task.spawn` **no corría nada** y `task.wait` **no esperaba nada**, así 
 
 **Regla:** cuando algo no se pueda probar, **hazlo probable**. Si una decisión de diseño
 (usar `os.clock()`) impide verificar el comportamiento, **cambia el diseño**, no la prueba.
+
+## Etapa 11 — nadie borra dentro del bucle (`tools/loops.py`)
+
+```bash
+python3 tools/loops.py
+```
+
+```lua
+-- MAL: se salta elementos (al borrar el 1o, ipairs avanza al 2o)
+for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+    c:Destroy()
+end
+
+-- BIEN: juntar y borrar despues
+local basura = {}
+for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+    if <condicion> then table.insert(basura, c) end
+end
+for _, c in ipairs(basura) do c:Destroy() end
+```
+
+Con **dos** carpetas `Remotes` viejas, el patrón malo dejaba **una viva** → el cliente se
+enganchaba a esa y decía *"faltan remotes"*. El mismo patrón aparecía en `syncWorkers`
+(empleados duplicados), `syncGarage` (autos encimados) y `renderTab` (filas pegadas en la
+tienda). Detectores: `for ... in ipairs/pairs(...GetChildren()/GetDescendants())` con
+`:Destroy()` adentro del cuerpo (el borrado **después** del `end` no se marca: es correcto).
+
+**Probado inyectando el bug**: lo caza.
