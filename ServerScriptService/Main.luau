@@ -43,6 +43,7 @@ local RE_OpenUp  = mkEvent("OpenUpgrades")     -- server -> client, abrir panel 
 local RE_Sfx     = mkEvent("Sfx")              -- server -> client, efecto de sonido
 local RE_OpenVault = mkEvent("OpenVault")      -- server -> client, abrir la caja fuerte
 local RE_Shoot   = mkEvent("Shoot")            -- client -> server, disparo
+local RE_Terr    = mkEvent("TerritoryUpdate")  -- server -> todos, estado de territorios
 local RF_Action  = mkFunc("Action")           -- client -> server, todo lo demas
 
 ----------------------------------------------------------------------
@@ -82,6 +83,7 @@ local setupGate
 local syncWorkers
 local applyOfflineProduction
 local giveWeapon
+local territoryBonus
 
 -- estado de encargos y llamadas (se declara aqui arriba porque
 -- PlayerRemoving lo limpia antes de que se definan las funciones)
@@ -775,8 +777,12 @@ local function doSell(player: Player, buyerId: string)
 		return false, "No traes nada encima. Saca producto de tu caja fuerte"
 	end
 
-	local leafValue = cl * Config.Products.Leaf.BasePrice * buyer.PriceMult
-	local blockValue = cb * Config.Products.Block.BasePrice * buyer.PriceMult
+	-- si tu crew domina esta plaza, te pagan mejor
+	local terrBonus = territoryBonus and territoryBonus(player, buyerId) or 0
+	local mult = buyer.PriceMult * (1 + terrBonus)
+
+	local leafValue = cl * Config.Products.Leaf.BasePrice * mult
+	local blockValue = cb * Config.Products.Block.BasePrice * mult
 	local total = math.floor(leafValue + blockValue)
 
 	local heatGain = (cl * Config.Heat.PerLeafSold
@@ -801,8 +807,10 @@ local function doSell(player: Player, buyerId: string)
 		alert(player, "ALERTA", "La Unidad de Aduanas te tiene fichado. Escondete en tu Zona Segura.", "danger")
 	end
 
-	return true, string.format("Vendiste %d hojas y %d bloques en %s por $%s (+%.0f heat)",
-		soldL, soldB, buyer.Name, Config.Abbrev(total), heatGain)
+	local extra = (terrBonus > 0)
+		and string.format(" [+%d%% plaza propia]", math.floor(terrBonus * 100)) or ""
+	return true, string.format("Vendiste %d hojas y %d bloques en %s por $%s%s (+%.0f heat)",
+		soldL, soldB, buyer.Name, Config.Abbrev(total), extra, heatGain)
 end
 
 ----------------------------------------------------------------------
@@ -2018,7 +2026,15 @@ local function createCrew(player: Player, name: string)
 	if #name < 3 then return false, "Nombre muy corto" end
 
 	local id = "crew_" .. player.UserId
-	crews[id] = {Name = name, Owner = player.UserId, Members = {player.UserId}}
+	local palette = Config.Territories.CrewColors
+	local ci = 0
+	for _ in pairs(crews) do ci += 1 end
+	crews[id] = {
+		Name = name,
+		Owner = player.UserId,
+		Members = {player.UserId},
+		Color = palette[(ci % #palette) + 1],
+	}
 	profile.CrewId = id
 	push(player)
 	return true, "Crew '" .. name .. "' creado"
@@ -2790,5 +2806,202 @@ Players.PlayerRemoving:Connect(function(pl)
 	onPad[pl] = nil
 	onVaultPad[pl] = nil
 end)
+
+----------------------------------------------------------------------
+-- TERRITORIOS
+----------------------------------------------------------------------
+-- Cada zona de compradores se puede tomar. Te paras dentro del radio y
+-- aguantas; si hay gente de otro crew tambien adentro, la zona queda EN
+-- DISPUTA y nadie avanza hasta que se corran a balazos.
+
+local TR = Config.Territories
+-- [buyerId] = {CrewId, CrewName, Color, Progress, ByCrew, Contested}
+local territories: {[string]: any} = {}
+
+for _, b in ipairs(Config.Buyers) do
+	territories[b.Id] = {
+		CrewId = nil, CrewName = nil, Color = nil,
+		Progress = 0, ByCrew = nil, Contested = false,
+	}
+end
+
+-- cuanto vale de mas vender en tu propia zona
+function territoryBonus(player: Player, buyerId: string): number
+	if not TR.Enabled then return 0 end
+	local profile = DataService.Get(player)
+	local t = territories[buyerId]
+	if not (profile and profile.CrewId and t and t.CrewId) then return 0 end
+	if t.CrewId ~= profile.CrewId then return 0 end
+	return TR.PriceBonus
+end
+
+local function buyerPad(buyerId: string): BasePart?
+	local buyers = city and city:FindFirstChild("Buyers")
+	local pad = buyers and buyers:FindFirstChild(buyerId)
+	return (pad and pad:IsA("BasePart")) and pad or nil
+end
+
+local function paintFlag(buyerId: string)
+	local t = territories[buyerId]
+	local flag = city and city:FindFirstChild("Flag_" .. buyerId, true)
+	if not (t and flag) then return end
+
+	local col = t.Color or Color3.fromRGB(120, 124, 132)
+	flag.Color = col
+	local zl = flag:FindFirstChild("ZoneLight")
+	if zl then zl.Color = col end
+
+	local sign = flag:FindFirstChild("OwnerSign")
+	local lbl = sign and sign:FindFirstChild("OwnerText")
+	if lbl then
+		local info
+		for _, b in ipairs(Config.Buyers) do
+			if b.Id == buyerId then info = b end
+		end
+		local zone = info and info.Name or buyerId
+		if t.Contested then
+			lbl.Text = zone .. "\nEN DISPUTA"
+			lbl.TextColor3 = Color3.fromRGB(255, 190, 90)
+		elseif t.CrewName then
+			lbl.Text = zone .. "\n" .. string.upper(t.CrewName)
+			lbl.TextColor3 = col
+		else
+			lbl.Text = zone .. "\nSIN DUEÑO"
+			lbl.TextColor3 = Color3.fromRGB(215, 215, 225)
+		end
+	end
+end
+
+local function pushTerritories()
+	local snapshot = {}
+	for _, b in ipairs(Config.Buyers) do
+		local t = territories[b.Id]
+		table.insert(snapshot, {
+			Id = b.Id,
+			Name = b.Name,
+			CrewName = t.CrewName,
+			Contested = t.Contested,
+			Progress = math.floor((t.Progress / TR.CaptureSeconds) * 100),
+		})
+	end
+	RE_Terr:FireAllClients(snapshot)
+end
+
+if TR.Enabled then
+	-- ===== BUCLE DE CAPTURA =====
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local dirty = false
+
+			for _, b in ipairs(Config.Buyers) do
+				local t = territories[b.Id]
+				local pad = buyerPad(b.Id)
+				if pad then
+					-- quien esta dentro, agrupado por crew
+					local present: {[string]: number} = {}
+					local anyLoner = false
+					for _, pl in ipairs(Players:GetPlayers()) do
+						local prof = DataService.Get(pl)
+						local ch = pl.Character
+						local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+						local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+						if prof and hrp and hum and hum.Health > 0
+							and (hrp.Position - pad.Position).Magnitude <= TR.Radius then
+							if prof.CrewId then
+								present[prof.CrewId] = (present[prof.CrewId] or 0) + 1
+							else
+								anyLoner = true
+							end
+						end
+					end
+
+					local crewsIn = 0
+					local soloCrew = nil
+					for cid in pairs(present) do
+						crewsIn += 1
+						soloCrew = cid
+					end
+
+					local wasContested = t.Contested
+					t.Contested = (crewsIn > 1)
+						or (crewsIn == 1 and anyLoner and soloCrew ~= t.CrewId)
+
+					if t.Contested then
+						-- nadie avanza mientras haya bronca
+					elseif crewsIn == 1 and soloCrew ~= t.CrewId then
+						t.ByCrew = soloCrew
+						t.Progress += 1
+						if t.Progress >= TR.CaptureSeconds then
+							local crew = crews[soloCrew]
+							t.CrewId = soloCrew
+							t.CrewName = crew and crew.Name or "?"
+							t.Color = crew and crew.Color or nil
+							t.Progress = 0
+							t.ByCrew = nil
+							paintFlag(b.Id)
+							for _, pl in ipairs(Players:GetPlayers()) do
+								local prof = DataService.Get(pl)
+								if prof and prof.CrewId == soloCrew then
+									alert(pl, "TERRITORIO TOMADO",
+										"Tu crew ahora controla " .. b.Name .. ".", "good")
+								elseif prof and prof.CrewId then
+									alert(pl, "PERDIERON UNA PLAZA",
+										(t.CrewName or "Otro crew") .. " tomo " .. b.Name .. ".",
+										"danger")
+								end
+							end
+						end
+						dirty = true
+					else
+						if t.Progress > 0 then
+							t.Progress = math.max(0, t.Progress - TR.DecayPerSecond)
+							dirty = true
+						end
+					end
+
+					if wasContested ~= t.Contested then
+						paintFlag(b.Id)
+						dirty = true
+					end
+				end
+			end
+
+			if dirty then pushTerritories() end
+		end
+	end)
+
+	-- ===== RENTA DE TERRITORIOS =====
+	task.spawn(function()
+		while true do
+			task.wait(TR.IncomeInterval)
+			local perCrew: {[string]: number} = {}
+			for _, b in ipairs(Config.Buyers) do
+				local t = territories[b.Id]
+				if t.CrewId then
+					perCrew[t.CrewId] = (perCrew[t.CrewId] or 0) + TR.IncomePer
+				end
+			end
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local prof = DataService.Get(pl)
+				if prof and prof.CrewId and perCrew[prof.CrewId] then
+					local inc = perCrew[prof.CrewId]
+					prof.Cash += inc
+					push(pl); syncLeaderstats(pl)
+					alert(pl, "Plaza", string.format(
+						"Tus territorios dejaron $%s.", Config.Abbrev(inc)), "money")
+				end
+			end
+		end
+	end)
+
+	-- estado inicial para quien acaba de entrar
+	task.spawn(function()
+		while true do
+			task.wait(10)
+			pushTerritories()
+		end
+	end)
+end
 
 print("[SpiceEmpire] Servidor listo.")

@@ -42,6 +42,15 @@ Perillas para cambiar cosas sin rediseñar nada.
 | Quitar el arma | `GameConfig.Weapon` | `GiveOnSpawn = false` |
 | Guardias más efectivos | `GameConfig.Raids` | `GuardDamage`, baja `GuardEvery` |
 
+## Territorios
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Capturar más rápido (probar) | `GameConfig.Territories` | `CaptureSeconds = 25` → `5` |
+| Zona de captura más grande | idem | `Radius = 46` |
+| Más beneficio por plaza | idem | `PriceBonus = 0.20`, `IncomePer = 140` |
+| Desactivar territorios | idem | `Enabled = false` |
+
 ## Visual
 
 | Quiero… | Dónde | Cómo |

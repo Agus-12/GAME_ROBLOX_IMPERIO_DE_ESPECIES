@@ -1156,6 +1156,65 @@ local function buildBuyers(folder: Folder)
 			CanCollide = false,
 		})
 		pad:SetAttribute("BuyerId", info.Id)
+
+		-- ===== MASTIL DEL TERRITORIO =====
+		-- La bandera la pinta Main segun que crew domine la zona.
+		local flagPos = pos + Vector3.new(14, 0, 0)
+		local base = part({
+			Name = "FlagBase",
+			Size = Vector3.new(4, 0.8, 4),
+			Position = flagPos + Vector3.new(0, 0.4, 0),
+			Color = Color3.fromRGB(78, 80, 86),
+			Material = Enum.Material.Concrete,
+		})
+		base.Parent = props
+
+		local pole = part({
+			Name = "FlagPole",
+			Size = Vector3.new(0.5, 22, 0.5),
+			Position = flagPos + Vector3.new(0, 11.8, 0),
+			Color = Color3.fromRGB(168, 170, 178),
+			Material = Enum.Material.Metal,
+		})
+		pole.Parent = props
+
+		local cloth = part({
+			Name = "Flag_" .. info.Id,
+			Size = Vector3.new(0.25, 5, 8),
+			Position = flagPos + Vector3.new(0, 18.5, 4.2),
+			Color = Color3.fromRGB(120, 124, 132),
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+		})
+		cloth:SetAttribute("BuyerId", info.Id)
+		cloth.Parent = props
+
+		local zoneLight = Instance.new("PointLight")
+		zoneLight.Name = "ZoneLight"
+		zoneLight.Color = Color3.fromRGB(150, 150, 160)
+		zoneLight.Brightness = 1.1
+		zoneLight.Range = 22
+		zoneLight.Parent = cloth
+
+		local sign = Instance.new("BillboardGui")
+		sign.Name = "OwnerSign"
+		sign.Size = UDim2.new(0, 260, 0, 46)
+		sign.StudsOffset = Vector3.new(0, 4, 0)
+		sign.AlwaysOnTop = false
+		sign.MaxDistance = 320
+		sign.LightInfluence = 0
+		sign.Parent = cloth
+
+		local slbl = Instance.new("TextLabel")
+		slbl.Name = "OwnerText"
+		slbl.Size = UDim2.fromScale(1, 1)
+		slbl.BackgroundTransparency = 1
+		slbl.Font = Enum.Font.GothamBold
+		slbl.TextScaled = true
+		slbl.TextColor3 = Color3.fromRGB(235, 235, 245)
+		slbl.TextStrokeTransparency = 0.4
+		slbl.Text = info.Name .. "\nSIN DUEÑO"
+		slbl.Parent = sign
 		pad:SetAttribute("PriceMult", info.PriceMult)
 		pad:SetAttribute("HeatMult", info.HeatMult)
 		pad.Parent = buyers

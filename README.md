@@ -5,7 +5,7 @@ Juego de Roblox: **mundo abierto estilo GTA + tycoon empresarial**.
 Produces hojas de especia, las prensas en bloques, las vendes por la ciudad, evitas a la
 Unidad de Aduanas, defiendes tu bodega de asaltos y armas crew con tus amigos.
 
-> **Versión actual: v23**
+> **Versión actual: v24**
 
 ---
 
@@ -87,7 +87,8 @@ Detalles en [`docs/07-VALIDACION.md`](docs/07-VALIDACION.md).
 | Celular con alertas y llamadas de encargos | ✅ |
 | Encargos con recompensa y tiempo límite | ✅ |
 | Empleados, autos, propiedades | ✅ |
-| Crews | ✅ básico |
+| Crews | ✅ |
+| **Territorios capturables + guerra entre crews** | ✅ |
 | Bici inicial | ✅ |
 | Escritorio con computadora de mejoras | ✅ |
 | Caja fuerte (lo guardado no te lo incauta Aduanas) | ✅ |
@@ -102,7 +103,6 @@ Detalles en [`docs/07-VALIDACION.md`](docs/07-VALIDACION.md).
 | Ciclo día/noche | ✅ |
 
 
-| **Territorios capturables entre crews** | ⏳ pendiente |
 | **Interiores de propiedades** | ⏳ pendiente |
 | **Garaje real** | ⏳ pendiente |
 | **Música de fondo** | ⏳ pendiente |

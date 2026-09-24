@@ -18,6 +18,7 @@ local RE_OpenUp  = Remotes:WaitForChild("OpenUpgrades") :: RemoteEvent
 local RE_Sfx     = Remotes:WaitForChild("Sfx") :: RemoteEvent
 local RE_OpenVault = Remotes:WaitForChild("OpenVault") :: RemoteEvent
 local RE_Shoot   = Remotes:WaitForChild("Shoot") :: RemoteEvent
+local RE_Terr    = Remotes:WaitForChild("TerritoryUpdate") :: RemoteEvent
 local RF_Action = Remotes:WaitForChild("Action") :: RemoteFunction
 
 local player = Players.LocalPlayer
@@ -25,6 +26,7 @@ local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, Press
 	Employees = {Harvester=0,Presser=0,Guard=0}, Vehicles = {}, Properties = {}, Storage = 200}
 
 -- se define mas abajo, junto al panel de la caja fuerte
+local Territories: {any} = {}
 local refreshVault: () -> () = function() end
 
 local function act(name: string, a: any?, b: any?)
@@ -709,6 +711,28 @@ renderTab = function(tab: string)
 				function() act("hire", role) end, maxed)
 		end
 
+	elseif tab == "plazas" then
+		label(content, {Size = UDim2.new(1, -8, 0, 40), TextSize = 13, TextWrapped = true,
+			Text = "Parate dentro de una zona y aguanta para tomarla. Si hay gente de otro "
+				.. "crew adentro, la plaza queda EN DISPUTA y nadie avanza.",
+			TextColor3 = Color3.fromRGB(150, 200, 160)})
+
+		for _, t in ipairs(Territories) do
+			local mine = (t.CrewName and State.CrewName and t.CrewName == State.CrewName)
+			local estado
+			if t.Contested then
+				estado = "EN DISPUTA"
+			elseif t.CrewName then
+				estado = mine and ("TUYA - " .. t.CrewName) or t.CrewName
+			else
+				estado = "Sin dueño"
+			end
+			row(t.Name,
+				string.format("%s%s", estado,
+					(t.Progress or 0) > 0 and ("   ·   capturando " .. t.Progress .. "%") or ""),
+				mine and "+20%" or "-", function() end, true)
+		end
+
 	elseif tab == "autos" then
 		for _, v in ipairs(Config.Vehicles) do
 			local owned = State.Vehicles[v.Id]
@@ -776,6 +800,7 @@ end
 
 for _, t in ipairs({
 	{"bodega", "Bodega"}, {"negocio", "Negocio"}, {"empleados", "Empleados"}, {"autos", "Autos"},
+	{"plazas", "Plazas"},
 	{"props", "Propiedades"}, {"crew", "Crew"}, {"compradores", "Compradores"},
 }) do
 	local b = button(tabBar, t[2], {Size = UDim2.new(0, 80, 1, 0),
@@ -1872,3 +1897,61 @@ do
 		end
 	end)
 end
+
+----------------------------------------------------------------------
+-- TERRITORIOS
+----------------------------------------------------------------------
+-- Barra que sale cuando estas tomando una plaza, y el estado que usa la
+-- pestaña "Plazas" de la tienda.
+local capBar = frame(gui, {
+	Size = UDim2.fromOffset(320, 46),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 96),
+	BackgroundColor3 = BG1,
+	Visible = false,
+})
+corner(capBar, 10)
+stroke(capBar, Color3.fromRGB(240, 190, 70))
+fitPanel(capBar, 320, 46, false)
+
+local capLbl = label(capBar, {
+	Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 5),
+	TextSize = 14, Text = "", TextColor3 = Color3.fromRGB(240, 210, 140),
+})
+local capTrack = frame(capBar, {
+	Size = UDim2.new(1, -16, 0, 10), Position = UDim2.new(0, 8, 0, 26),
+	BackgroundColor3 = Color3.fromRGB(40, 40, 50),
+})
+corner(capTrack, 5)
+local capFill = frame(capTrack, {
+	Size = UDim2.new(0, 0, 1, 0),
+	BackgroundColor3 = Color3.fromRGB(240, 190, 70),
+})
+corner(capFill, 5)
+
+RE_Terr.OnClientEvent:Connect(function(list)
+	Territories = list or {}
+	if shop.Visible and currentTab == "plazas" then renderTab("plazas") end
+
+	-- ¿hay alguna en progreso o en disputa?
+	local show = nil
+	for _, t in ipairs(Territories) do
+		if t.Contested then show = t break end
+		if (t.Progress or 0) > 0 then show = t end
+	end
+
+	if show then
+		capBar.Visible = true
+		if show.Contested then
+			capLbl.Text = show.Name .. "  ·  EN DISPUTA"
+			capFill.BackgroundColor3 = Color3.fromRGB(255, 110, 110)
+		else
+			capLbl.Text = show.Name .. "  ·  tomando " .. (show.Progress or 0) .. "%"
+			capFill.BackgroundColor3 = Color3.fromRGB(240, 190, 70)
+		end
+		TweenService:Create(capFill, TweenInfo.new(0.3),
+			{Size = UDim2.new((show.Progress or 0) / 100, 0, 1, 0)}):Play()
+	else
+		capBar.Visible = false
+	end
+end)

@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v23** · 23 sep 2026
+> Última actualización: **v24** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v23 |
+| **Versión actual** | v24 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -116,7 +116,6 @@ Por orden de valor sugerido:
 | Pendiente | Qué implica |
 |---|---|
 
-| **Territorios de crews** | Zonas capturables en la ciudad + guerra entre crews. Es el feature grande que falta del pedido original |
 | **Interiores de propiedades** | Las casas/departamentos que compras hoy son solo fachada. No se puede entrar |
 | **Garaje real** | Un lugar físico donde aparezcan los autos comprados |
 | **Música ambiente** | Los SFX ya están (v17). Falta música de fondo y sonido de motores |
@@ -125,8 +124,11 @@ Features del pedido original que **ya están hechas**: mapa procedural, policía
 persiguen, celular con alertas, PvP de robo, crews básicos, empleados, autos, casas,
 bodega progresiva de 4 niveles, NPC vigilante, compradores en la ciudad, bici inicial,
 plantas con crecimiento visible, prensa detallada, encargos, llamadas telefónicas,
-adaptación a celular, sonido, caja fuerte, empleados físicos, **arma y asaltos con
-balacera**.
+adaptación a celular, sonido, caja fuerte, empleados físicos, arma y asaltos con
+balacera, **territorios capturables entre crews**.
+
+> ✅ **Con la v24 quedó cubierto TODO lo que el usuario pidió en su mensaje original.**
+> Lo que sigue en el roadmap ya son ideas para crecer el juego, no pendientes.
 
 ---
 

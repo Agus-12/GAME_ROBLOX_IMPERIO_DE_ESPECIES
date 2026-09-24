@@ -44,6 +44,7 @@ Action:InvokeServer(action, arg1, arg2)  -->  { ok = boolean, msg = string }
 | `OpenUpgrades` | — · se dispara al pisar el tapete del escritorio (v15) |
 | `Sfx` | `(key)` · nombre del sonido en `Config.Sounds` (v16) |
 | `OpenVault` | — · se dispara al pisar el tapete de la caja fuerte (v18) |
+| `TerritoryUpdate` | lista `{Id, Name, CrewName, Contested, Progress}` · a todos (v24) |
 
 ### Cliente → servidor
 
@@ -170,6 +171,28 @@ cargas, 🎒 espacio de mochila, 🔒 contenido de la caja. La barra grande y lo
 
 **Controles de teclado:** E cosechar · R prensar · F vender · G mejoras · B tienda ·
 T teléfono · H bodega · **C caja fuerte** · **M minimizar HUD** (único sin botón en el dock)
+
+## Territorios (v24)
+
+Estado en memoria (no se persiste; se recalcula cada sesión):
+`territories[buyerId] = {CrewId, CrewName, Color, Progress, ByCrew, Contested}`
+
+- Las 5 zonas de `Config.Buyers` son los territorios. El mástil lo construye
+  `buildBuyers` junto al pad: `FlagBase`, `FlagPole`, `Flag_<buyerId>` (con `ZoneLight`
+  y un `OwnerSign` → `OwnerText`).
+- Bucle de 1 s: cuenta jugadores vivos dentro de `TR.Radius` del pad, agrupados por crew.
+  - 2+ crews (o 1 crew + alguien sin crew que no sea el dueño) → `Contested`, se congela
+  - 1 solo crew y no es el dueño → `Progress += 1`; al llegar a `CaptureSeconds`, captura
+  - nadie → `Progress` baja por `DecayPerSecond`
+- `paintFlag(buyerId)` pinta bandera, luz y letrero.
+- `pushTerritories()` manda el snapshot por `RE_Terr` (`TerritoryUpdate`) a **todos**.
+- `territoryBonus(player, buyerId)` da `TR.PriceBonus` si tu crew domina esa plaza;
+  `doSell` lo multiplica sobre `buyer.PriceMult`.
+- Renta cada `IncomeInterval` a todos los miembros del crew dueño.
+- El color del crew se asigna al crearlo, rotando `TR.CrewColors`.
+
+> ⚠️ `territoryBonus` está **forward-declared** arriba: `doSell` la usa y se define al
+> final del archivo.
 
 ## Combate y asaltos (v21)
 

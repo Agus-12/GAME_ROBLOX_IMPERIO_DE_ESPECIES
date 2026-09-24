@@ -346,6 +346,28 @@ GameConfig.Buyers = {
 	{Id = "border",  Name = "Cruce Norte",    PriceMult = 1.90, HeatMult = 3.2, Cell = Vector2.new(4, 4)},
 }
 
+-- ========== TERRITORIOS ==========
+-- Cada zona de compradores es un territorio que los crews se pelean.
+-- Te paras dentro, aguantas el tiempo de captura y la zona es tuya.
+GameConfig.Territories = {
+	Enabled = true,
+	Radius = 46,             -- que tan grande es la zona
+	CaptureSeconds = 25,     -- cuanto hay que aguantar parado
+	DecayPerSecond = 1.5,    -- que tan rapido se pierde el avance al salirte
+	PriceBonus = 0.20,       -- +20% al vender en tu propio territorio
+	IncomePer = 140,         -- renta por territorio
+	IncomeInterval = 120,    -- cada cuanto se cobra
+	-- colores que se van repartiendo a los crews segun se crean
+	CrewColors = {
+		Color3.fromRGB(235, 90, 90),
+		Color3.fromRGB(90, 150, 255),
+		Color3.fromRGB(120, 230, 130),
+		Color3.fromRGB(240, 190, 70),
+		Color3.fromRGB(200, 120, 245),
+		Color3.fromRGB(90, 225, 230),
+	},
+}
+
 -- ========== DIALOGOS DE NPC ==========
 GameConfig.Dialogue = {
 	Radius = 22,   -- a que distancia aparece el dialogo
