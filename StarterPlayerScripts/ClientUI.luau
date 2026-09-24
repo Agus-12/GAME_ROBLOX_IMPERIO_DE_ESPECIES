@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v34 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v35 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -11,6 +11,62 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
+
+-- ===== QUE RONDA ES ESTE ARCHIVO =====
+-- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
+-- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
+-- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
+local MI_VERSION = "v35"
+local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
+-- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
+local DESDE = {
+	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
+	IncomingCall = "v28",   -- en la v28 se crea al arranque del servidor
+}
+
+----------------------------------------------------------------------
+-- ¿HAY OTRA ClientUI CORRIENDO?  (dos copias pegadas)
+----------------------------------------------------------------------
+-- CASO REAL (v35): el usuario pego la ronda nueva, pero le quedo una ClientUI
+-- VIEJA corriendo en otra parte del lugar (o una copia 'ClientUI2'). Dos HUD,
+-- dos carteles... y el cartel que veia era el de la copia VIEJA, que decia
+-- "esta ronda es v32" mientras su servidor ya era v34. Desde la pantalla es
+-- imposible de entender: parecia que el juego estaba roto y no lo estaba.
+--
+-- Como se evita: cada copia deja un LATIDO con su version en el PlayerGui. Al
+-- arrancar, si el latido ajeno es FRESCO y de una version igual o mas nueva,
+-- esta copia se apaga sola (y lo dice en la consola). La que gana se queda.
+do
+	local pg = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui", 10)
+	if pg then
+		local LATIDO, QUIEN = "SpiceEmpireLatido", "SpiceEmpireRonda"
+		local tAjeno, quienAjeno = pg:GetAttribute(LATIDO), pg:GetAttribute(QUIEN)
+		local ahora = os.clock()
+		local fresco = (type(tAjeno) == "number") and ((ahora - tAjeno) < 2)
+		local numAjeno = tonumber(string.match(tostring(quienAjeno or ""), "%d+") or "0") or 0
+		if fresco and numAjeno >= RONDA_NUM then
+			warn("[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (" .. tostring(quienAjeno) ..
+				") *** esta copia (" .. MI_VERSION .. ") se apaga sola para que no salga todo doble.")
+			warn("[SpiceEmpire] En el Explorer tiene que quedar UNA sola ClientUI, dentro de" ..
+				" StarterPlayer > StarterPlayerScripts. Borra las demas (clic derecho > Delete)." ..
+				" El servidor imprime la lista con rutas: busca 'INVENTARIO DE ARCHIVOS'.")
+			return
+		end
+		pg:SetAttribute(LATIDO, ahora)
+		pg:SetAttribute(QUIEN, MI_VERSION)
+		task.spawn(function()
+			while true do
+				task.wait(0.5)
+				if not pg.Parent then return end
+				pg:SetAttribute(LATIDO, os.clock())
+			end
+		end)
+		if fresco then
+			warn("[SpiceEmpire] hay otra ClientUI corriendo (" .. tostring(quienAjeno) ..
+				") pero es MAS VIEJA que esta (" .. MI_VERSION .. "): se apaga sola la vieja.")
+		end
+	end
+end
 
 ----------------------------------------------------------------------
 -- RECEPCION DE SCRIPTS Y REMOTES  (con TIMEOUT)
@@ -82,18 +138,6 @@ if not cfgModule then
 	return
 end
 local Config = require(cfgModule)
-
--- QUE RONDA SON ESTOS ARCHIVOS.
--- OJO: esto TIENE que estar declarado ARRIBA, antes de cualquier funcion que lo
--- use. La primera version lo puso mas abajo y las funciones de arriba leian un
--- global que valia nil: comparaban contra nada, nunca salia el aviso y no
--- tronaba nada. Lo cazaron tools/globals.py y tools/copias.py (etapa 4 y 12).
-local MI_VERSION = "v34"
--- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
-local DESDE = {
-	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
-	IncomingCall = "v28",   -- en la v28 se crea al arranque del servidor
-}
 
 -- 2) REMOTES (con cambio de carpeta EN CALIENTE)
 -- ======================================================================
@@ -374,6 +418,20 @@ local function veredicto(momento: string)
 			or "NADA (no hay sello: el Main del servidor es viejo)"
 		table.insert(lineas, " - el Main.luau del servidor dice " .. dice ..
 			"; esta ronda es " .. MI_VERSION)
+	elseif servidor ~= MI_VERSION then
+		viejo = true
+		local numServidor = tonumber(string.match(tostring(servidor), "%d+") or "0") or 0
+		if numServidor > RONDA_NUM then
+			-- ESTE es el caso del usuario: el servidor esta al dia y el que se
+			-- queda atras es ESTA ClientUI (hay una copia vieja corriendo).
+			table.insert(lineas, "*** ESTA ClientUI ES LA VIEJA: el servidor ya es " ..
+				tostring(servidor) .. " y esta copia dice " .. MI_VERSION .. " ***")
+			table.insert(lineas, "Hay MAS DE UNA ClientUI pegada. Deja UNA sola, en")
+			table.insert(lineas, "StarterPlayer > StarterPlayerScripts, y borra las demas.")
+		else
+			table.insert(lineas, " - el Main.luau del servidor dice '" .. tostring(servidor) ..
+				"'; esta ronda es " .. MI_VERSION)
+		end
 	end
 	if Config.Build ~= MI_VERSION then
 		viejo = true

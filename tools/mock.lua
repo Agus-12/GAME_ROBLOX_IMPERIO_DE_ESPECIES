@@ -133,6 +133,28 @@ local function svc(n)
   end
   return services[n] end
 game={GetService=function(_,n) return svc(n) end, BindToClose=function() end}
+-- game:GetDescendants() en Roblox recorre TODO el lugar (DataModel). El
+-- simulador no lo tenia y por eso el INVENTARIO DE ARCHIVOS de la v35 salia
+-- vacio al probarlo (falso verde). Aqui se recorre cada servicio registrado.
+game.GetDescendants=function()
+  local todo={}
+  for _,s in pairs(services) do
+    table.insert(todo,s)
+    for _,c in ipairs(s:GetChildren()) do
+      table.insert(todo,c)
+      local ok,hijos=pcall(function() return c:GetDescendants() end)
+      if ok and hijos then
+        for _,h in ipairs(hijos) do table.insert(todo,h) end
+      end
+    end
+  end
+  return todo
+end
+game.GetChildren=function()
+  local todo={}
+  for n,s in pairs(services) do table.insert(todo, s) end
+  return todo
+end
 workspace=svc("Workspace")
 RaycastParams={new=function() return {} end}
 Random={new=function(seed) local r={}; math.randomseed(seed or 1)

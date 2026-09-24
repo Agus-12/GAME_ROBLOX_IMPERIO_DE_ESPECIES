@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v34 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v35 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -212,7 +212,113 @@ local function revisarRemotes(momento: string)
 	print("[SpiceEmpire] carpetas Remotes en ReplicatedStorage: " .. cuantas .. " (debe ser 1)")
 end
 revisarRemotes("al arrancar")
-task.delay(5, function() revisarRemotes("a los 5 segundos") end)
+
+----------------------------------------------------------------------
+-- INVENTARIO DE ARCHIVOS (v35)
+----------------------------------------------------------------------
+-- Caso real: el usuario veia el cartel "hay copias pegadas" y no tenia forma de
+-- saber DONDE estaba la copia. El servidor SI puede recorrer todo el lugar
+-- (game:GetDescendants), asi que al arrancar imprime la lista completa con la
+-- RUTA de cada archivo del juego y marca las copias. Asi el aviso deja de ser
+-- un misterio: sale la direccion exacta de lo que hay que borrar.
+local NOMBRES_JUEGO = { "Main", "CityGenerator", "DataService", "GameConfig", "ClientUI" }
+
+local function esCopiaDe(nombre: string, base: string): boolean
+	return nombre == base or string.match(nombre, "^" .. base .. "%d+$") ~= nil
+end
+
+local function rutaLarga(o: any): string
+	local partes = {}
+	local actual = o
+	local saltos = 0
+	while actual and actual ~= game and saltos < 6 do
+		local n = actual.Name
+		if not n or n == "" then break end
+		table.insert(partes, 1, n)
+		local ok, p = pcall(function() return actual.Parent end)
+		actual = (ok and p) or nil
+		saltos += 1
+	end
+	return table.concat(partes, " > ")
+end
+
+local function inventario(momento: string)
+	local ok, lista = pcall(function() return game:GetDescendants() end)
+	if not ok or not lista then return end
+
+	local porNombre: {[string]: {any}} = {}
+	local carpetas: {any} = {}
+	for _, base in ipairs(NOMBRES_JUEGO) do porNombre[base] = {} end
+
+	for _, o in ipairs(lista) do
+		local okc, cls = pcall(function() return o.ClassName end)
+		if okc then
+			if cls == "Script" or cls == "LocalScript" or cls == "ModuleScript" then
+				for _, base in ipairs(NOMBRES_JUEGO) do
+					if esCopiaDe(o.Name, base) then
+						table.insert(porNombre[base], o)
+						break
+					end
+				end
+			elseif cls == "Folder" and string.match(o.Name, "^Remotes%d*$") then
+				table.insert(carpetas, o)
+			end
+		end
+	end
+
+	local renglones = {}
+	local problemas = 0
+	local function apunta(marca: string, ruta: string, nota: string)
+		table.insert(renglones, "  " .. marca .. " " .. ruta .. (nota ~= "" and ("   " .. nota) or ""))
+	end
+
+	for _, base in ipairs(NOMBRES_JUEGO) do
+		local lista2 = porNombre[base]
+		if #lista2 == 0 then
+			apunta("FALTA ", base, "<- pegalo (falta por completo)")
+			problemas += 1
+		else
+			for i, o in ipairs(lista2) do
+				local ruta = rutaLarga(o)
+				local sobra = (i > 1) or (o.Name ~= base)
+				if sobra then
+					apunta("COPIA ", ruta, "<- borra esta (clic derecho > Delete)")
+					problemas += 1
+				else
+					apunta("OK    ", ruta, "")
+				end
+			end
+		end
+	end
+
+	for i, o in ipairs(carpetas) do
+		local ruta = rutaLarga(o)
+		if i > 1 then
+			apunta("CARP. ", ruta, "<- borra esta carpeta (el juego crea la suya)")
+			problemas += 1
+		else
+			apunta("CARP. ", ruta, "(la del juego)")
+		end
+	end
+
+	print("[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (" .. tostring(Config.Build) ..
+		", " .. momento .. ") ====")
+	for _, l in ipairs(renglones) do print("[SpiceEmpire]" .. l) end
+	if problemas > 0 then
+		print("[SpiceEmpire] ==== " .. problemas .. " archivo(s)/carpeta(s) de mas: borralos en el" ..
+			" Explorer (clic derecho > Delete). Debe quedar UNO de cada y UNA sola carpeta Remotes. ====")
+		warn("[SpiceEmpire] hay " .. problemas .. " copias: mira arriba el INVENTARIO, ahi sale la" ..
+			" ruta exacta de cada una (docs/09-SI-SALE-DOBLE.md)")
+	else
+		print("[SpiceEmpire] ==== todo en orden: 1 de cada archivo y 1 carpeta Remotes ====")
+	end
+end
+
+inventario("al arrancar")
+task.delay(5, function()
+	revisarRemotes("a los 5 segundos")
+	inventario("a los 5 segundos")
+end)
 task.delay(15, function() revisarRemotes("a los 15 segundos") end)
 print("========== IMPERIO DE ESPECIAS " .. tostring(Config.Build) .. " ==========")
 print("  remotes creados: " .. #Remotes:GetChildren())

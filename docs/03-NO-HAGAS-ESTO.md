@@ -431,7 +431,7 @@ de efectos de iluminación.
 
 ## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
 
-En la v34, el cliente quedo asi:
+En la v35, el cliente quedo asi:
 
 ```lua
 local function carpetaRemotes()
@@ -441,11 +441,11 @@ local function carpetaRemotes()
     end
 end
 
-local MI_VERSION = "v34"    -- se declara 60 lineas mas abajo
+local MI_VERSION = "v35"    -- se declara 60 lineas mas abajo
 ```
 
 En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
-vale nil**. Entonces la comparacion era `"v34" == nil` -> siempre falso, el avisito
+vale nil**. Entonces la comparacion era `"v35" == nil` -> siempre falso, el avisito
 no salia nunca, y en la consola no habia ni un error. Un bug invisible.
 
 **Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
@@ -454,7 +454,7 @@ toca como globales; si sale uno que deberia ser local, ahi esta el bug.
 
 ---
 
-## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v34)
+## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v35)
 
 ```lua
 -- MAL: te quedas con el objeto. Si el servidor borra esa carpeta (limpieza,
@@ -467,7 +467,7 @@ RE_Shoot.OnClientEvent:Connect(...)     -- nunca vuelve a dispararse
 Sintoma: **los botones no hacen nada y en la consola no sale ni un error**. Es lo
 peor de depurar, porque no hay rastro.
 
-El caso real (v34): el cliente arranca **antes** de que el servidor termine de limpiar.
+El caso real (v35): el cliente arranca **antes** de que el servidor termine de limpiar.
 Si en el lugar habia una carpeta `Remotes` vieja guardada, el cliente se enganchaba a
 esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes muertos.
 

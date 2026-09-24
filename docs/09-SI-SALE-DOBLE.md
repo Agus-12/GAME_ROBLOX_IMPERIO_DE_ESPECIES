@@ -112,7 +112,7 @@ para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.m
 
 ---
 
-## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v34)
+## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v35)
 
 Todo lo de arriba se hace a mano en el Explorer. Si quieres que se haga solo:
 
@@ -133,7 +133,38 @@ Hace esto:
 * borra **todas** las carpetas `Remotes` (el juego crea la suya al dar Play);
 * te dice **que archivo hay que volver a pegar** si el que tienes es de otra ronda.
 
-**Y desde la v34 el cartel rojo ya no sale cuando el juego en realidad si
+**Y desde la v35 el cartel rojo ya no sale cuando el juego en realidad si
 funciona** (la carpeta buena es de esta ronda y tiene los 11 remotes): en ese caso
 sale un **avisito azul chiquito** abajo durante 14 segundos y puedes jugar normal.
 El cartel rojo queda solo para cuando de verdad hay que arreglar algo.
+
+---
+
+## 🧾 El juego te dice DONDE esta la copia (v35)
+
+Al arrancar, el servidor imprime en el **Output** un inventario completo con la **ruta** de
+cada archivo del juego y marca las copias:
+
+```
+[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v35, al arrancar) ====
+[SpiceEmpire]  OK     ServerScriptService > Main
+[SpiceEmpire]  OK     StarterPlayer > StarterPlayerScripts > ClientUI
+[SpiceEmpire]  COPIA  StarterGui > ClientUI   <- borra esta (clic derecho > Delete)
+[SpiceEmpire]  CARP.  ReplicatedStorage > Remotes   (la del juego)
+[SpiceEmpire] ==== 1 archivo(s) de mas: borralos en el Explorer (clic derecho > Delete) ====
+```
+
+Busca en el Output la palabra **INVENTARIO**. Ahi sale exactamente que borrar y que falta.
+
+### Y si hay DOS `ClientUI` corriendo
+
+Cada copia deja un "latido" con su version. La que sobra **se apaga sola** y avisa:
+
+```
+[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v35) *** esta copia (v35) se apaga sola...
+```
+
+**Ojo importante:** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`.
+Si la pegas en `StarterGui` tambien corre, y eso hace que salgan dos HUD y que un cartel
+viejo te confunda (paso de verdad: un cartel de la ronda v32 culpando al `Main` cuando el
+`Main` estaba bien).

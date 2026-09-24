@@ -327,6 +327,7 @@ Simula **el caso real del usuario** (captura con el cartel "HAY COPIAS PEGADAS")
 | 4. dos carpetas viejas, ninguna con etiqueta | **cartel rojo**, con los nombres exactos |
 | 5. la buena + una carpeta vieja vacia | **avisito**, **sin** cartel rojo |
 | 6. **la carrera**: el servidor crea su carpeta 0.6 s despues | el cliente se **muda solo** a la carpeta del servidor (se cuentan las conexiones por carpeta) y **no** sale cartel |
+| 7. **dos `ClientUI` corriendo** | el juego sale **una sola vez** y la copia avisa que se apago |
 
 Probado quitando el arreglo a proposito: con el avisito convertido en `if false` fallan
 los escenarios 2 y 5; desactivando el **cambio en caliente** de los remotes falla el

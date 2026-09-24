@@ -292,6 +292,37 @@ else:
     if not ok:
         fallas += 1
 
+# ------------------------------------------------- 7) DOS ClientUI CORRIENDO
+# Caso real (v35): el usuario tenia la ronda nueva pegada, pero seguia corriendo
+# una ClientUI VIEJA en otra parte del lugar. El cartel que veia era el de la
+# COPIA (decia "esta ronda es v32" con el servidor ya en v34). Ahora la copia se
+# apaga sola y lo dice en la consola.
+print()
+print("=== 7. DOS ClientUI corriendo: la copia se apaga sola ===")
+
+
+def corre_dos_clientes():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += "-- primera copia (la buena)\n"
+    guion += "local ok1, err1 = pcall(function()\n" + CLIENTE + "\nend)\n"
+    guion += 'print("__COPIA1__ ok=" .. tostring(ok1))\n'
+    guion += "-- segunda copia (la que sobra)\n"
+    guion += "local ok2, err2 = pcall(function()\n" + CLIENTE + "\nend)\n"
+    guion += 'print("__COPIA2__ ok=" .. tostring(ok2))\n'
+    return lua(guion, env=ENTORNO)
+
+
+sal = corre_dos_clientes()
+ui = sal.count("[SpiceEmpire] UI cargada.")
+se_apago = "HAY OTRA ClientUI CORRIENDO" in sal
+ok = (ui == 1) and se_apago
+print("  %s  el juego salio %d vez (debe ser 1) y la copia aviso que se apaga: %s" %
+      ("OK   " if ok else "FALLA", ui, "si" if se_apago else "no"))
+if not ok:
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:140])
+    fallas += 1
+
 print()
 if fallas:
     print("FALLA")
