@@ -431,7 +431,7 @@ de efectos de iluminación.
 
 ## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
 
-En la v33, el cliente quedo asi:
+En la v34, el cliente quedo asi:
 
 ```lua
 local function carpetaRemotes()
@@ -441,13 +441,41 @@ local function carpetaRemotes()
     end
 end
 
-local MI_VERSION = "v33"    -- se declara 60 lineas mas abajo
+local MI_VERSION = "v34"    -- se declara 60 lineas mas abajo
 ```
 
 En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
-vale nil**. Entonces la comparacion era `"v33" == nil` -> siempre falso, el avisito
+vale nil**. Entonces la comparacion era `"v34" == nil` -> siempre falso, el avisito
 no salia nunca, y en la consola no habia ni un error. Un bug invisible.
 
 **Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
 validador lo revisa: `tools/globals.py` (etapa 4) lista los nombres que el script
 toca como globales; si sale uno que deberia ser local, ahi esta el bug.
+
+---
+
+## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v34)
+
+```lua
+-- MAL: te quedas con el objeto. Si el servidor borra esa carpeta (limpieza,
+-- otro Main, un remoto reemplazado), tu variable apunta a un remote MUERTO.
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local RE_Shoot = Remotes:WaitForChild("Shoot")
+RE_Shoot.OnClientEvent:Connect(...)     -- nunca vuelve a dispararse
+```
+
+Sintoma: **los botones no hacen nada y en la consola no sale ni un error**. Es lo
+peor de depurar, porque no hay rastro.
+
+El caso real (v34): el cliente arranca **antes** de que el servidor termine de limpiar.
+Si en el lugar habia una carpeta `Remotes` vieja guardada, el cliente se enganchaba a
+esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes muertos.
+
+**Regla:** guarda un **intermediario** que se pueda re-apuntar y que resuelva
+`FireServer`/`InvokeServer` en el momento de la llamada. En este proyecto es
+`crearProxy()` en `ClientUI.luau`, y se re-apunta a los 1.5 s y a los 4.5 s.
+
+**Y la prueba:** `tools/copias.py` escenario 6 monta la carrera a proposito (el servidor
+crea su carpeta 0.6 s despues) y **cuenta las conexiones por carpeta**. No basta con que
+"no salga un error": hay que ver que los remotes esten vivos (`Remotes#true=10`) y que la
+vieja quede desconectada (`Remotes#false=0`).

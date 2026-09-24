@@ -5,8 +5,10 @@
 --   sin que tengas que andar cazando cosas en el Explorer.
 --
 -- COMO SE USA (2 pasos)
---   1) En Studio, SIN dar Play (en modo edicion), abre: View > Command Bar
---      (es la barrita que sale abajo del todo, junto al Output).
+--   1) En Studio, SIN dar Play (en modo edicion), abre la PESTANA 'View' (las de
+--      adentro: Home, Model, Avatar, Terrain, Test, View, Plugins) y prende el
+--      boton 'Command Bar' (es la barrita que sale abajo, junto al Output).
+--      OJO: el menu 'View' de la barra de arriba de la pantalla NO es ese menu.
 --   2) Pega TODO este codigo y dale Enter. Listo: te dice que borro.
 --
 -- QUE HACE
@@ -21,7 +23,7 @@
 -- gusta, Ctrl+Z lo deshace.
 ----------------------------------------------------------------------
 
-local RONDA = "v33"          -- esta ronda de archivos (lo revisa tools/remotes.py)
+local RONDA = "v34"          -- esta ronda de archivos (lo revisa tools/remotes.py)
 
 local SALIDA: {string} = {}
 local borrados: {string} = {}

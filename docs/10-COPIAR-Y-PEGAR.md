@@ -1,10 +1,13 @@
-# 📋 COPIAR Y PEGAR LOS 5 ARCHIVOS (ronda v33)
+# 📋 COPIAR Y PEGAR LOS 5 ARCHIVOS (ronda v34)
 
 > **PASO 0 (recomendado): LIMPIAR STUDIO ANTES DE PEGAR.**
 > Si tu juego alguna vez dijo *"HAY COPIAS PEGADAS EN STUDIO"* o *"faltan remotes"*,
-> primero limpia. Abre `View > Command Bar` en Studio (la barrita de abajo, **sin dar
-> Play**), pega el código del **PASO 0** del HTML de la ronda y dale Enter: él borra
-> las copias solo y te dice qué archivo te falta pegar.
+> primero limpia. En Studio (**sin dar Play**) abre la **pestaña** `View` (arriba) y prende
+> el botón **`Command Bar`**; pega el código del **PASO 0** del HTML de la ronda y dale Enter:
+> él borra las copias solo y te dice qué archivo te falta pegar.
+> (El menú `View` de la barra de arriba de la pantalla NO es ese: son dos cosas distintas.
+>  Y si no encuentras la Command Bar, a mano: en el Explorer, clic derecho sobre la carpeta
+>  `Remotes` → Delete. Se pueden borrar todas.)
 
 Guía corta: aquí están los **5 archivos con su link directo** para copiar el texto completo
 y pegarlo en Studio. Sirve igual para **reemplazar** los que ya tienes (por ejemplo si
@@ -14,7 +17,7 @@ salió todo doble) o para instalarlos de cero.
 
 ## 📦 OPCIÓN RÁPIDA: un solo archivo con los 5 códigos adentro
 
-Hay un archivo llamado **`v33-ARCHIVOS.html`** (vive en el workspace, no en el repo) que
+Hay un archivo llamado **`v34-ARCHIVOS.html`** (vive en el workspace, no en el repo) que
 trae **los 5 códigos completos embebidos**, en 5 pestañas, cada una con su botón
 **COPIAR TODO**.
 
@@ -57,13 +60,13 @@ Búscalos uno por uno y borra las copias:
 | `ClientUI` | **1** en `StarterPlayer › StarterPlayerScripts` | idem |
 
 > 🏷️ **¿Cuál conservo?** Abre cada copia y busca con **`Ctrl+F`** el texto
-> **`RONDA: v33`**: la que lo tenga es la buena. (Los 5 archivos traen ese sello arriba.)
+> **`RONDA: v34`**: la que lo tenga es la buena. (Los 5 archivos traen ese sello arriba.)
 
 > ⚠️ Ojo con los que Roblox numera solo: `Main` y **`Main2`**, o `ClientUI` y
 > **`ClientUI2`**. También son copias.
 
 > 💡 Si no sabes cuál es el bueno: el que tiene **el código más nuevo** es el que ya trae
-> el texto `MI_VERSION = "v33"`. Los viejos no. (Y si borras el bueno por error, no pasa
+> el texto `MI_VERSION = "v34"`. Los viejos no. (Y si borras el bueno por error, no pasa
 > nada: se pega otra vez con esta guía.)
 
 ---
@@ -124,7 +127,7 @@ Dale **Play**. **No** debe salir ningún cartel rojo.
 Menú **View › Output**. Tiene que decir **una sola vez**:
 
 ```
-========== IMPERIO DE ESPECIAS v33 ==========
+========== IMPERIO DE ESPECIAS v34 ==========
   remotes creados: 11
 [SpiceEmpire] Ciudad generada.
 [SpiceEmpire] Servidor listo.

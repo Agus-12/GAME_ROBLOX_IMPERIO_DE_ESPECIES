@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v33 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v34 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -83,76 +83,189 @@ if not cfgModule then
 end
 local Config = require(cfgModule)
 
--- 2) Remotes: si falta alguno seguimos, pero avisando.
---    Ojo: si hay DOS carpetas 'Remotes' es que tienes DOS Main pegados. Se usa
---    la mas completa, porque la vieja puede tener menos remotes y el juego
---    se queda sin la mitad de las funciones.
 -- QUE RONDA SON ESTOS ARCHIVOS.
--- OJO: esto TIENE que estar declarado ARRIBA, antes de cualquier funcion que
--- lo use. La primera version lo puso mas abajo (junto a la comparacion) y las
--- funciones de mas arriba leian un global que valia nil: comparaban contra
--- nada, nunca salia el aviso y no tronaba nada. Lo cazo tools/globals.py.
-local MI_VERSION = "v33"
+-- OJO: esto TIENE que estar declarado ARRIBA, antes de cualquier funcion que lo
+-- use. La primera version lo puso mas abajo y las funciones de arriba leian un
+-- global que valia nil: comparaban contra nada, nunca salia el aviso y no
+-- tronaba nada. Lo cazaron tools/globals.py y tools/copias.py (etapa 4 y 12).
+local MI_VERSION = "v34"
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
 	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
 	IncomingCall = "v28",   -- en la v28 se crea al arranque del servidor
 }
 
+-- 2) REMOTES (con cambio de carpeta EN CALIENTE)
+-- ======================================================================
+-- LECCION DE LA v34 (caso real del usuario):
+--   El cliente arranca ANTES de que el servidor termine de limpiar. Si en
+--   ReplicatedStorage hay una carpeta 'Remotes' VIEJA guardada en el lugar, el
+--   cliente se enganchaba a ESA (era la unica que veia), el servidor la borraba
+--   un instante despues, y el jugador quedaba con remotes MUERTOS: botones que
+--   no hacian nada, sin un solo error en consola. Dificilisimo de diagnosticar.
+--
+-- ARREGLO: el cliente NO guarda el objeto del remote, guarda un INTERMEDIARIO.
+--   - Al arrancar: se engancha a lo que haya (para no tardar ni un segundo).
+--   - A los 1.5 s y a los 4.5 s: vuelve a mirar. En cuanto aparece la carpeta
+--     del servidor (la que trae el sello 'Build'), el intermediario se muda a
+--     esa y RECONECTA solo las señales: los paneles siguen funcionando.
+--   - Los que envian (FireServer/InvokeServer) se resuelven en el momento de
+--     llamar, asi que tambien van a la carpeta correcta.
+local NOMBRES_REMOTE = {
+	"StateUpdate", "PhoneAlert", "Toast", "MissionUpdate", "IncomingCall",
+	"OpenUpgrades", "OpenVault", "Sfx", "Shoot", "TerritoryUpdate", "Action",
+}
+local PA: {[string]: any} = {}          -- nombre -> intermediario
+
+local function crearProxy(nombre: string): any
+	local real: any = nil
+	local conexiones: {{fn: any, conn: any}} = {}
+	local proxy: any = {}
+
+	local function conectarTodo()
+		for _, c in ipairs(conexiones) do
+			c.conn = nil
+			if real and real.Parent then
+				local sig = real.OnClientEvent or real.OnServerEvent
+				if sig then
+					local ok, conn = pcall(function() return sig:Connect(c.fn) end)
+					if ok then c.conn = conn end
+				end
+			end
+		end
+	end
+
+	-- mueve el intermediario a otra carpeta (esta es la parte que arregla el bug)
+	function proxy.apuntar(nuevo: any)
+		if real == nuevo then return false end
+		for _, c in ipairs(conexiones) do
+			if c.conn then pcall(function() c.conn:Disconnect() end) end
+			c.conn = nil
+		end
+		real = nuevo
+		conectarTodo()
+		return true
+	end
+
+	return setmetatable(proxy, {
+		__index = function(_, k)
+			if k == "OnClientEvent" or k == "OnServerEvent" then
+				return {
+					Connect = function(_, fn)
+						local reg = { fn = fn, conn = nil }
+						table.insert(conexiones, reg)
+						if real and real.Parent then
+							local sig = real[k]
+							if sig then
+								local ok, conn = pcall(function() return sig:Connect(fn) end)
+								if ok then reg.conn = conn end
+							end
+						end
+						return {
+							Disconnect = function()
+								if reg.conn then pcall(function() reg.conn:Disconnect() end) end
+								reg.conn = nil
+							end,
+						}
+					end,
+				}
+			end
+			-- FireServer / InvokeServer: se resuelven AL MOMENTO de llamar, asi
+			-- que siempre van a la carpeta que este en uso (y si el remote ya no
+			-- existe, no truena: se regresa el mismo "no hay" de siempre)
+			return function(_, ...)
+				-- OJO: '...' NO se puede usar dentro de la clausura de pcall
+				-- (truena al compilar). Se copia a una tabla y se desempaqueta.
+				local args = { ... }
+				local cuantos = select("#", ...)
+				local ok, res = pcall(function()
+					if real and real.Parent then
+						local fn = real[k]
+						if type(fn) == "function" then
+							return fn(real, table.unpack(args, 1, cuantos))
+						end
+					end
+					return nil
+				end)
+				if not ok then res = nil end
+				if res == nil and k == "InvokeServer" then
+					return { ok = false, msg = "el servidor todavia no tiene ese remote" }
+				end
+				return res
+			end
+		end,
+	})
+end
+
+for _, n in ipairs(NOMBRES_REMOTE) do PA[n] = crearProxy(n) end
+
 local PROBLEMAS: {string} = {}
-local copiasLeves = false      -- hay carpetas Remotes viejas, pero la buena sirve
-local function carpetaRemotes(): any
-	local todas = {}
+local copiasLeves = false              -- hay carpetas Remotes de mas, pero la buena sirve
+local carpetaUsada: any = nil          -- la carpeta a la que apuntan los intermediarios
+
+local function carpetasRemotes(): {any}
+	local lista = {}
 	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
 		-- por PREFIJO: Roblox renombra solos los repetidos a "Remotes2"
-		if string.sub(c.Name, 1, 7) == "Remotes" then table.insert(todas, c) end
+		if string.sub(c.Name, 1, 7) == "Remotes" then table.insert(lista, c) end
 	end
-	if #todas == 0 then return need(ReplicatedStorage, "Remotes") end
-	if #todas > 1 then
-		-- Cual es la buena: la que el servidor marco con la etiqueta "Build" (esa
-		-- la acaba de crear ESTE arranque). Las que no la traen son carpetas viejas
-		-- que quedaron pegadas en el lugar. Se ordena: etiqueta > nombre exacto > mas grande.
-		local funcion = function(c: any): number
-			local et = c:GetAttribute("Build")
-			if et then return 3 end
-			if c.Name == "Remotes" then return 2 end
-			return 1
-		end
-		table.sort(todas, function(a, b)
-			local fa, fb = funcion(a), funcion(b)
-			if fa ~= fb then return fa > fb end
-			return #a:GetChildren() > #b:GetChildren()
-		end)
-		local detalles = {}
-		for _, c in ipairs(todas) do
-			local et = c:GetAttribute("Build")
-			table.insert(detalles, "'" .. c.Name .. "' (" ..
-				(et and ("etiqueta " .. tostring(et)) or "SIN etiqueta = vieja") .. ")")
-		end
-		table.insert(PROBLEMAS, #todas .. " carpetas Remotes en ReplicatedStorage: " ..
-			table.concat(detalles, " + "))
-		table.insert(PROBLEMAS, "el juego esta usando la de etiqueta " ..
-			tostring(todas[1]:GetAttribute("Build") or "?") ..
-			"; las que NO tienen etiqueta son viejas y se pueden borrar")
-		-- si la buena tiene TODO y es de esta ronda, no hay nada que arreglar a mano:
-		-- solo hay basura de sobra. Ese caso se avisa chiquito, no con cartel rojo.
-		if tostring(todas[1]:GetAttribute("Build") or "") == MI_VERSION then
-			copiasLeves = true
-		end
-	end
-	return todas[1]
+	return lista
 end
-local Remotes = carpetaRemotes()
-local RE_State = need(Remotes, "StateUpdate")
-local RE_Phone = need(Remotes, "PhoneAlert")
-local RE_Toast = need(Remotes, "Toast")
-local RE_Mission = need(Remotes, "MissionUpdate")
-local RE_OpenUp  = need(Remotes, "OpenUpgrades")
-local RE_Sfx     = need(Remotes, "Sfx")
-local RE_OpenVault = need(Remotes, "OpenVault")
-local RE_Shoot   = need(Remotes, "Shoot")
-local RE_Terr    = need(Remotes, "TerritoryUpdate")
-local RF_Action  = need(Remotes, "Action")
+
+-- cual es la buena: la que el servidor marco con el sello "Build" (esa la acaba
+-- de crear ESTE arranque). Las que no lo traen son carpetas viejas del lugar.
+local function puntajeDe(c: any): number
+	if c:GetAttribute("Build") ~= nil then return 3 end
+	if c.Name == "Remotes" then return 2 end
+	return 1
+end
+
+local function eligeCarpeta(todas: {any}): any
+	if #todas == 0 then return nil end
+	local copia = {}
+	for i, c in ipairs(todas) do copia[i] = c end
+	table.sort(copia, function(a, b)
+		local pa, pb = puntajeDe(a), puntajeDe(b)
+		if pa ~= pb then return pa > pb end
+		return #a:GetChildren() > #b:GetChildren()
+	end)
+	return copia[1]
+end
+
+-- (re)apunta los intermediarios a esta carpeta y devuelve los que faltan
+local function apuntarRemotes(carpeta: any): {string}
+	local faltan: {string} = {}
+	for _, n in ipairs(NOMBRES_REMOTE) do
+		local obj = nil
+		if carpeta then
+			local ok, f = pcall(function() return carpeta:FindFirstChild(n) end)
+			obj = ok and f or nil
+		end
+		PA[n].apuntar(obj)
+		if not obj then table.insert(faltan, n) end
+	end
+	carpetaUsada = carpeta
+	return faltan
+end
+
+local function elegirYApuntar(): {string}
+	return apuntarRemotes(eligeCarpeta(carpetasRemotes()))
+end
+-- El cliente se engancha YA a lo que haya (no espera al servidor). Si todavia
+-- esta agarrando una carpeta vieja, a los 1.5 s se muda solo a la buena: ver
+-- veredicto(), mas abajo.
+elegirYApuntar()
+
+local RE_State = PA.StateUpdate
+local RE_Phone = PA.PhoneAlert
+local RE_Toast = PA.Toast
+local RE_Mission = PA.MissionUpdate
+local RE_OpenUp  = PA.OpenUpgrades
+local RE_Sfx     = PA.Sfx
+local RE_OpenVault = PA.OpenVault
+local RE_Shoot   = PA.Shoot
+local RE_Terr    = PA.TerritoryUpdate
+local RF_Action  = PA.Action
 
 -- ===== ¿LOS ARCHIVOS QUE PEGASTE SON DE ESTA RONDA? =====
 -- Esto nace de un caso real: el cliente ya era de la ronda nueva pero el
@@ -160,39 +273,12 @@ local RF_Action  = need(Remotes, "Action")
 -- era "faltan 2 remotes", sin decir cual de los 5 archivos pegar ni por que.
 -- Ahora el servidor estampa su version en la carpeta Remotes, GameConfig trae
 -- la suya, y aqui se comparan las tres cosas.
-local servidor = (typeof(Remotes) == "Instance") and Remotes:GetAttribute("Build") or nil
 local lineas: {string} = {}
 local viejo = false
+local yaAviso = false
 
-if servidor ~= MI_VERSION then
-	viejo = true
-	local dice = servidor and ("'" .. tostring(servidor) .. "'") or "NADA (es viejo, ni siquiera dice version)"
-	table.insert(lineas, " - Main.luau del servidor dice " .. dice .. "; esta ronda es " .. MI_VERSION)
-end
-if Config.Build ~= MI_VERSION then
-	viejo = true
-	table.insert(lineas, " - GameConfig dice '" .. tostring(Config.Build) ..
-		"'; esta ronda es " .. MI_VERSION)
-end
-if #AVISOS > 0 then
-	local faltan = {}
-	for i, a in ipairs(AVISOS) do
-		if i <= 4 then
-			local n = string.match(a, "([^%.]+)$") or a      -- "Remotes.Shoot" -> "Shoot"
-			local d = DESDE[n]
-			table.insert(faltan, a .. (d and ("  (existe desde " .. d .. ")") or ""))
-		end
-	end
-	table.insert(lineas, " - el servidor NO creo: " .. table.concat(faltan, " , "))
-end
--- problemas de copias pegadas (dos carpetas Remotes, dos interfaces...)
-for _, p in ipairs(PROBLEMAS) do
-	table.insert(lineas, " - " .. p)
-end
-
--- Avisito chiquito (no tapa el juego): hay carpetas Remotes viejas pero la buena
--- es la de esta ronda y tiene todo. No hay nada que arreglar para jugar; el
--- servidor borra las viejas solo.
+-- avisito azul chiquito (abajo de la pantalla, 14 s): para cuando hay carpetas
+-- de mas pero el juego SI funciona. Antes esto era un cartel rojo gigante.
 local function avisoChiquito(texto: string)
 	local pg = player:FindFirstChild("PlayerGui")
 	if not pg then return end
@@ -228,40 +314,125 @@ local function avisoChiquito(texto: string)
 	end)
 end
 
-if copiasLeves and not viejo and #AVISOS == 0 then
-	pcall(avisoChiquito, "Encontre carpetas 'Remotes' viejas pegadas en Studio (" ..
-		table.concat(PROBLEMAS, "; ") .. "). El juego ya esta usando la buena y el servidor" ..
-		" borra las viejas solo: puedes jugar normal. Si quieres, borralas en el Explorer.")
-	PROBLEMAS = {}   -- ya no hace falta el cartel rojo
-end
-
--- si falta algo O los archivos son de otra ronda: cartel explicando que pegar
-if viejo or #AVISOS > 0 or #PROBLEMAS > 0 then
+-- cartel rojo del final (se dibuja con cartelDeError, que esta mas arriba)
+local function dibujarCartel()
+	local hayCopias = #PROBLEMAS > 0
 	local titulo
-	if #PROBLEMAS > 0 and not viejo and #AVISOS == 0 then
+	if hayCopias and not viejo and #lineas > 0 and #PROBLEMAS == #lineas then
 		titulo = "HAY CARPETAS 'Remotes' DE MAS EN STUDIO"
 	elseif viejo then
 		titulo = "ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es " .. MI_VERSION
+	elseif hayCopias then
+		titulo = "HAY CARPETAS 'Remotes' DE MAS EN STUDIO"
 	else
-		titulo = "FALTAN REMOTES EN EL SERVIDOR (" .. #AVISOS .. ")"
+		titulo = "FALTAN REMOTES EN EL SERVIDOR"
 	end
 	local box = { titulo }
 	for _, l in ipairs(lineas) do table.insert(box, l) end
-	if #PROBLEMAS > 0 then
-		table.insert(box, "Arreglo facil (2 min): en Studio abre View > Command Bar (la barrita")
-		table.insert(box, "de abajo), pega el LIMPIADOR de la ronda " .. MI_VERSION .. " y Enter:")
-		table.insert(box, "el borra las copias solo y te dice que archivo volver a pegar.")
-		table.insert(box, "A mano: clic derecho en la copia > Delete. Tiene que quedar UNO de")
-		table.insert(box, "cada: Main, CityGenerator, DataService, GameConfig, ClientUI, y UNA")
-		table.insert(box, "carpeta Remotes. Cual conservar: abre cada uno y Ctrl+F")
-		table.insert(box, "el texto 'RONDA: " .. MI_VERSION .. "' (el que lo tenga es el bueno).")
-		table.insert(box, "Guia: docs/09-SI-SALE-DOBLE.md")
+	if hayCopias then
+		table.insert(box, "Arreglo facil (2 min): en Studio abre la pestana View (arriba),")
+		table.insert(box, "boton Command Bar, pega el LIMPIADOR de la ronda " .. MI_VERSION)
+		table.insert(box, "y Enter: el borra las copias solo y dice que archivo volver a pegar.")
+		table.insert(box, "A mano: en el Explorer, clic derecho en la carpeta > Delete.")
+		table.insert(box, "Tiene que quedar UNA sola carpeta Remotes (o ninguna: el juego la")
+		table.insert(box, "crea sola al dar Play). Guia: docs/09-SI-SALE-DOBLE.md")
 	else
 		table.insert(box, "Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.")
 		table.insert(box, "Si ya los pegaste: revisa que no haya archivos REPETIDOS (docs/09-SI-SALE-DOBLE.md)")
 	end
 	pcall(cartelDeError, box)
 end
+
+-- ===== VEREDICTO =====
+-- Se corre a los 1.5 s y a los 4.5 s (nunca al instante: el cliente arranca
+-- ANTES de que el servidor termine de limpiar, y juzgar tan temprano era justo
+-- el bug: avisaba "hay 2 Main pegados" nada mas porque todavia no se borraba la
+-- carpeta vieja del lugar).
+local function veredicto(momento: string)
+	local definitivo = (momento == "final")
+	local todas = carpetasRemotes()
+	local carpeta = eligeCarpeta(todas)
+	local antes = carpetaUsada
+	local faltanAqui = apuntarRemotes(carpeta)
+	local servidor = carpeta and carpeta:GetAttribute("Build") or nil
+	local esDelServidor = (servidor ~= nil)
+
+	if carpeta ~= antes and carpeta then
+		print("[SpiceEmpire] remotes enganchados a la carpeta '" .. carpeta.Name .. "'" ..
+			(esDelServidor and (" (sello " .. tostring(servidor) .. ")") or " (SIN sello del servidor)"))
+	end
+
+	-- ¿todavia no aparece la carpeta del servidor? No se juzga hasta el final.
+	if not esDelServidor and not definitivo then return end
+
+	-- armar el diagnostico
+	lineas = {}
+	viejo = false
+	if not esDelServidor then
+		viejo = true
+		local dice = servidor and ("'" .. tostring(servidor) .. "'")
+			or "NADA (no hay sello: el Main del servidor es viejo)"
+		table.insert(lineas, " - el Main.luau del servidor dice " .. dice ..
+			"; esta ronda es " .. MI_VERSION)
+	end
+	if Config.Build ~= MI_VERSION then
+		viejo = true
+		table.insert(lineas, " - GameConfig dice '" .. tostring(Config.Build) ..
+			"'; esta ronda es " .. MI_VERSION)
+	end
+
+	local faltan = faltanAqui
+	if #faltan > 0 then
+		local bonito = {}
+		for i, n in ipairs(faltan) do
+			if i <= 4 then
+				local d = DESDE[n]
+				table.insert(bonito, n .. (d and ("  (existe desde " .. d .. ")") or ""))
+			end
+		end
+		table.insert(lineas, " - el servidor no tiene estos remotes: " .. table.concat(bonito, " , "))
+	end
+
+	-- carpetas de mas
+	PROBLEMAS = {}
+	copiasLeves = false
+	if #todas > 1 then
+		local detalles = {}
+		for _, c in ipairs(todas) do
+			local et = c:GetAttribute("Build")
+			table.insert(detalles, "'" .. c.Name .. "' (" ..
+				(et and ("sello " .. tostring(et)) or "SIN sello = vieja") .. ", " ..
+				#c:GetChildren() .. " remotes)")
+		end
+		table.insert(PROBLEMAS, #todas .. " carpetas Remotes en ReplicatedStorage: " ..
+			table.concat(detalles, " + "))
+		table.insert(PROBLEMAS, "el juego esta usando '" .. tostring(carpeta and carpeta.Name or "?") ..
+			"'; se puede borrar la que NO tiene sello del servidor")
+		if esDelServidor and #faltan == 0 then copiasLeves = true end
+	end
+	for _, p in ipairs(PROBLEMAS) do table.insert(lineas, " - " .. p) end
+
+	local hayQueArreglar = viejo or #faltan > 0 or (#PROBLEMAS > 0 and not copiasLeves)
+
+	if hayQueArreglar and not yaAviso then
+		yaAviso = true
+		pcall(dibujarCartel)
+	elseif copiasLeves and definitivo and not yaAviso then
+		-- hay carpetas de mas pero TODO funciona: avisito, no cartel rojo
+		yaAviso = true
+		pcall(avisoChiquito, "Encontre carpetas 'Remotes' de mas en Studio (" ..
+			table.concat(PROBLEMAS, "; ") .. "). El servidor borra las viejas solo: puedes" ..
+			" jugar normal. Si quieres limpiarlas a mano: Explorer > clic derecho > Delete.")
+	elseif definitivo and #PROBLEMAS > 0 then
+		warn("[SpiceEmpire] siguen habiendo " .. #PROBLEMAS .. " carpetas Remotes de mas, pero" ..
+			" el juego esta funcionando con la buena. Borra las que no tienen sello (docs/09)")
+	end
+end
+
+veredicto("1.5s")
+task.delay(1.5, function() veredicto("1.5s") end)
+task.delay(4.5, function() veredicto("final") end)
+
 local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, PressLevel = 1,
 	Employees = {Harvester=0,Presser=0,Guard=0}, Vehicles = {}, Properties = {}, Storage = 200}
 
@@ -1689,7 +1860,7 @@ end)
 ----------------------------------------------------------------------
 -- LLAMADA ENTRANTE (encargo: aceptas o rechazas)
 ----------------------------------------------------------------------
-local RE_Call = need(Remotes, "IncomingCall")
+local RE_Call = PA.IncomingCall      -- por el intermediario, no directo
 
 -- El celular entra deslizandose por la DERECHA, timbra y vibra.
 local CALL_W, CALL_H = 290, 330

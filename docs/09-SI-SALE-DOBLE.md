@@ -112,11 +112,17 @@ para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.m
 
 ---
 
-## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v33)
+## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v34)
 
 Todo lo de arriba se hace a mano en el Explorer. Si quieres que se haga solo:
 
-1. En Studio, **sin dar Play**, abre `View > Command Bar` (la barrita de abajo).
+1. En Studio, **sin dar Play**, abre la pestaña **`View`** (las de adentro de Studio:
+   Home, Model, Avatar, Terrain, Test, **View**, Plugins) y prende el botón **`Command Bar`**.
+   > OJO: el menú `View` de arriba de la pantalla (el de la manzanita en Mac) **no** es ese:
+   > es otro menú distinto que se llama igual. La Command Bar vive en la **pestaña** `View`.
+   >
+   > Si no la encuentras, no hace falta: **en el Explorer, clic derecho sobre cada carpeta
+   > `Remotes` → Delete**. Se pueden borrar TODAS (el juego crea la suya al dar Play).
 2. Pega el codigo del **PASO 0** del HTML de la ronda y dale Enter.
 
 Hace esto:
@@ -127,7 +133,7 @@ Hace esto:
 * borra **todas** las carpetas `Remotes` (el juego crea la suya al dar Play);
 * te dice **que archivo hay que volver a pegar** si el que tienes es de otra ronda.
 
-**Y desde la v33 el cartel rojo ya no sale cuando el juego en realidad si
+**Y desde la v34 el cartel rojo ya no sale cuando el juego en realidad si
 funciona** (la carpeta buena es de esta ronda y tiene los 11 remotes): en ese caso
 sale un **avisito azul chiquito** abajo durante 14 segundos y puedes jugar normal.
 El cartel rojo queda solo para cuando de verdad hay que arreglar algo.

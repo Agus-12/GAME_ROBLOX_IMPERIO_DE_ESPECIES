@@ -180,24 +180,37 @@ end
     return s
 
 
-def corre_cliente(nombre, cuerpo):
+# (el conteo de conexiones por carpeta vive en tools/mockclient.lua: tiene que
+# ver tambien las carpetas que se crean DESPUES, como en la carrera)
+
+
+def corre_cliente(nombre, cuerpo, avanza=8.0):
     guion = 'dofile("%s/mockclient.lua")\n' % HERE
     guion += cuerpo
     guion += CLIENTE
     guion += '''
+-- el veredicto del cliente se da a los 1.5 s y a los 4.5 s: hay que dejar correr
+-- el reloj virtual antes de mirar la pantalla
+if task.__sched then task.__sched.advance(%s) end
 local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
 local cartel = pg and pg:FindFirstChild("SpiceEmpire_Error")
 local aviso  = pg and pg:FindFirstChild("SpiceEmpire_Avisito")
-print("__RESULTADO__ cartel=" .. tostring(cartel ~= nil) .. " aviso=" .. tostring(aviso ~= nil))
-'''
+local enganchados = {}
+for k, v in pairs(_G.__CON or {}) do
+  if v > 0 then table.insert(enganchados, k .. "=" .. v) end
+end
+table.sort(enganchados)
+print("__RESULTADO__ cartel=" .. tostring(cartel ~= nil) .. " aviso=" .. tostring(aviso ~= nil) ..
+  " enganchados=" .. table.concat(enganchados, ","))
+''' % str(avanza)
     sal = lua(guion, env=ENTORNO)
-    m = re.search(r"__RESULTADO__ cartel=(\w+) aviso=(\w+)", sal)
+    m = re.search(r"__RESULTADO__ cartel=(\w+) aviso=(\w+) enganchados=(\S*)", sal)
     if not m:
         print("  FALLA  %s: el cliente no llego al final" % nombre)
         for linea in sal.strip().splitlines()[-8:]:
             print("         | " + linea[:140])
         return None
-    return m.group(1) == "true", m.group(2) == "true"
+    return m.group(1) == "true", m.group(2) == "true", m.group(3)
 
 
 CASOS = [
@@ -219,12 +232,63 @@ for nombre, etiqueta, otra, faltan, cartel_esperado, aviso_esperado in CASOS:
     if res is None:
         fallas += 1
         continue
-    cartel, aviso = res
+    cartel, aviso, enganchados = res
     ok = (cartel == cartel_esperado) and (aviso == aviso_esperado)
     print("  %s  cartel rojo: %s (esperado %s)   avisito: %s (esperado %s)" % (
         "OK   " if ok else "FALLA",
         "si" if cartel else "no", "si" if cartel_esperado else "no",
         "si" if aviso else "no", "si" if aviso_esperado else "no"))
+    print("         enganchado a: %s" % (enganchados or "(nada)"))
+    if not ok:
+        fallas += 1
+
+# ------------------------------------------------- 6) LA CARRERA (caso real v34)
+# El cliente arranca ANTES de que el servidor cree su carpeta: al principio solo
+# ve la carpeta VIEJA guardada en el lugar. A los 0.6 s el servidor la borra y
+# crea la suya con sello. El cliente tiene que MUDARSE solo, sin cartel y sin
+# quedarse con remotes muertos.
+print()
+print("=== 6. LA CARRERA: el servidor crea su carpeta 0.6 s DESPUES ===")
+
+
+def corre_carrera():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += CLIENTE
+    guion += '''
+if task.__sched then task.__sched.advance(8.0) end
+local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local cartel = pg and pg:FindFirstChild("SpiceEmpire_Error")
+local aviso  = pg and pg:FindFirstChild("SpiceEmpire_Avisito")
+local vivos, muertos = {}, {}
+for k, v in pairs(_G.__CON or {}) do
+  if v > 0 then table.insert(vivos, k .. "=" .. v) else table.insert(muertos, k) end
+end
+table.sort(vivos) ; table.sort(muertos)
+print("__CARRERA__ cartel=" .. tostring(cartel ~= nil) .. " aviso=" .. tostring(aviso ~= nil) ..
+  " vivos=" .. table.concat(vivos, ",") .. " muertos=" .. table.concat(muertos, ";"))
+'''
+    env = dict(ENTORNO, MOCK_REMOTES_TARDE="1")
+    return lua(guion, env=env)
+
+
+sal = corre_carrera()
+m = re.search(r"__CARRERA__ cartel=(\w+) aviso=(\w+) vivos=(\S*) muertos=(.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-8:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    cartel, aviso, vivos, muertos = m.group(1) == "true", m.group(2) == "true", m.group(3), m.group(4)
+    fin = [k for k in vivos.split(",") if k.startswith("Remotes#true")]
+    vieja_viva = [k for k in vivos.split(",") if k.startswith("Remotes#false")]
+    vieja_muerta = [k for k in (vivos + "," + muertos).split(",") if k.startswith("Remotes#false=")]
+    ok = (not cartel) and (not aviso) and fin and not vieja_viva and (not vieja_muerta or "=0" in str(vieja_muerta))
+    print("  %s  cartel: %s   avisito: %s" % ("OK   " if ok else "FALLA",
+                                              "si" if cartel else "no", "si" if aviso else "no"))
+    print("         escuchando la carpeta del servidor: %s" % (", ".join(fin) or "NO"))
+    print("         todavia enganchado a la vieja:      %s" % (", ".join(vieja_viva) or "no (bien)"))
+    print("         desconectado de la vieja:            %s" % (", ".join(vieja_muerta) or "si (bien)"))
     if not ok:
         fallas += 1
 

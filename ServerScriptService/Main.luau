@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v33 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v34 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,

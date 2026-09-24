@@ -22,20 +22,73 @@ plr.WaitForChild = function(s,n)
 local pg = Instance.new("PlayerGui") ; pg.Name="PlayerGui" ; pg.Parent=plr
 game:GetService("Players").LocalPlayer = plr
 local rs = game:GetService("ReplicatedStorage")
-local remotes = Instance.new("Folder") ; remotes.Name="Remotes" ; remotes.Parent=rs
-local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Shoot","TerritoryUpdate","Action"}
-for _,n in ipairs(NEEDED) do
-  local e=Instance.new(n=="Action" and "RemoteFunction" or "RemoteEvent")
-  e.Name=n ; e.OnClientEvent=newSignal()
-  if n == "Action" and os.getenv("MOCK_SERVER_MUDO") == "1" then
-    -- servidor atorado (por ejemplo esperando a DataStore): la llamada NUNCA
-    -- regresa. Es el caso que dejaba la portada en "Cargando la ciudad..."
-    e.InvokeServer=function() while true do task.wait(1) end end
-  else
-    e.InvokeServer=function() return {ok=true} end
-  end
-  e.Parent=remotes end
 local cfgSrc = dofile(TOOLS .. "/cfgload.lua")
+local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Shoot","TerritoryUpdate","Action"}
+
+-- El juego de verdad: el SERVIDOR borra las carpetas Remotes viejas y crea la
+-- suya con el sello "Build" (Config.Build). El simulador tiene que hacer lo
+-- mismo, si no las pruebas mienten.
+-- Anota a QUE carpeta se engancha el cliente, contando conexiones por carpeta.
+-- Tiene que vivir AQUI (no en el guion de prueba): en el escenario de la carrera
+-- la carpeta del servidor se crea DESPUES, asi que un instrumento puesto al
+-- principio no la veria y la prueba daria un falso "no se engancho".
+_G.__CON = {}
+local function instrumentar(f)
+  local et = tostring(f.Name) .. "#" .. tostring(f:GetAttribute("Build") ~= nil)
+  for _, r in ipairs(f:GetChildren()) do
+    local sig = r.OnClientEvent
+    if sig and sig.Connect then
+      local orig = sig.Connect
+      sig.Connect = function(self, fn)
+        _G.__CON[et] = (_G.__CON[et] or 0) + 1
+        local conn = orig(self, fn)
+        return { Disconnect = function()
+          _G.__CON[et] = (_G.__CON[et] or 0) - 1
+          if conn and conn.Disconnect then conn:Disconnect() end
+        end }
+      end
+    end
+  end
+end
+
+local function crearRemotes(cualSello)
+  local f = Instance.new("Folder") ; f.Name="Remotes" ; f.Parent=rs
+  for _,n in ipairs(NEEDED) do
+    local e=Instance.new(n=="Action" and "RemoteFunction" or "RemoteEvent")
+    e.Name=n ; e.OnClientEvent=newSignal()
+    if n == "Action" and os.getenv("MOCK_SERVER_MUDO") == "1" then
+      -- servidor atorado (por ejemplo esperando a DataStore): la llamada NUNCA
+      -- regresa. Es el caso que dejaba la portada en "Cargando la ciudad..."
+      e.InvokeServer=function() while true do task.wait(1) end end
+    else
+      e.InvokeServer=function() return {ok=true} end
+    end
+    e.Parent=f end
+  if cualSello then f:SetAttribute("Build", tostring(cfgSrc.Build or "?")) end
+  instrumentar(f)
+  return f
+end
+
+local remotes
+if os.getenv("MOCK_REMOTES_TARDE") == "1" then
+  -- CASO REAL DEL USUARIO (v34): en el lugar quedo guardada una carpeta Remotes
+  -- VIEJA (sin sello, con menos remotes) y el servidor todavia NO crea la suya.
+  -- Antes: el cliente se enganchaba a la vieja y el servidor la borraba 0.6 s
+  -- despues -> remotes MUERTOS (botones que no hacian nada, sin error).
+  local vieja = Instance.new("Folder") ; vieja.Name="Remotes" ; vieja.Parent=rs
+  vieja:SetAttribute("Build", nil)
+  for _,n in ipairs({"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall"}) do
+    local e=Instance.new("RemoteEvent") ; e.Name=n ; e.OnClientEvent=newSignal() ; e.Parent=vieja
+  end
+  instrumentar(vieja)
+  task.delay(0.6, function()
+    vieja:Destroy()                 -- el servidor limpia la vieja...
+    remotes = crearRemotes(true)    -- ...y crea la suya con sello
+    print("[mock] el servidor ya creo su carpeta Remotes (sello " .. tostring(cfgSrc.Build) .. ")")
+  end)
+else
+  remotes = crearRemotes(true)
+end
 rs.WaitForChild=function(s,n)
   if n=="Remotes" then return remotes end
   if n=="GameConfig" then return "__CFG__" end
