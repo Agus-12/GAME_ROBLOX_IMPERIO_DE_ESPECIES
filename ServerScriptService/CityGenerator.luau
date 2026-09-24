@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v35 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v36 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -1591,8 +1591,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		lamp.Parent = model
 		local pl = Instance.new("PointLight")
 		pl.Color = Color3.fromRGB(255, 205, 150)
-		pl.Brightness = 1.1
-		pl.Range = 18
+		pl.Brightness = 0.7      -- v36: era 1.1 (se veia quemado)
+		pl.Range = 15
 		pl.Parent = lamp
 		tagLight(lamp, 2, Color3.fromRGB(255, 220, 160))
 	end
@@ -2483,8 +2483,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		gl.Parent = model
 		local gll = Instance.new("PointLight")
-		gll.Brightness = 0.9
-		gll.Range = 24
+		gll.Brightness = 0.55   -- v36: era mas alto (quemaba)
+		gll.Range = 18
 		gll.Color = Color3.fromRGB(255, 246, 225)
 		gll.Parent = gl
 		tagLight(gll, 0.9)
@@ -2500,8 +2500,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		fLamp.Parent = model
 		local fl = Instance.new("PointLight")
-		fl.Brightness = 1.6
-		fl.Range = 30
+		fl.Brightness = 0.8   -- v36: era mas alto (quemaba)
+		fl.Range = 22
 		fl.Color = Color3.fromRGB(255, 240, 205)
 		fl.Parent = fLamp
 		tagLight(fl, 1.6)
@@ -3663,6 +3663,22 @@ function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
 		seat.TurnSpeed = 20
 		seat.Transparency = 0.15
 		seat.Color = Color3.fromRGB(48, 48, 54)
+		-- v36: boton de verdad para subirse. Antes habia que "tocar" el asiento
+		-- y en celular eso casi no funciona (nadie sabia donde picarle).
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "Conducir"
+		prompt.ActionText = "Conducir"
+		prompt.ObjectText = "Vehiculo"
+		prompt.KeyboardKeyCode = Enum.KeyCode.E
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 14
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = seat
+		prompt.Triggered:Connect(function(quien)
+			local c = quien and quien.Character
+			local hum = c and c:FindFirstChildOfClass("Humanoid")
+			if hum and not seat.Occupant then seat:Sit(hum) end
+		end)
 		seat.Parent = m
 		-- el asiento NO lleva weld constraint: el chasis lo carga solo
 		for _, d in ipairs(m:GetChildren()) do
@@ -4022,7 +4038,9 @@ function CityGenerator.SetupLighting()
 	safeSet(Lighting, "GlobalShadows", true)
 	safeSet(Lighting, "EnvironmentDiffuseScale", 0.45)
 	safeSet(Lighting, "EnvironmentSpecularScale", 0.35)
-	safeSet(Lighting, "ExposureCompensation", 0.15)
+	-- v36: el interior salia BLANCO, quemado (captura del usuario). Se bajo la
+	-- exposicion, el bloom y las luces de adentro (ver mas abajo).
+	safeSet(Lighting, "ExposureCompensation", 0)
 	local DN = Config.DayNight
 	Lighting.ClockTime = DN.Enabled and DN.StartHour or DN.FixedHour
 	safeSet(Lighting, "GeographicLatitude", 20)
@@ -4055,15 +4073,19 @@ function CityGenerator.SetupLighting()
 	atmo.Parent = Lighting
 
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.5
-	bloom.Size = 22
-	bloom.Threshold = 1.1
+	-- v36: era 0.5 / 22 / 1.1. Con tantas luces encendidas de noche (la bodega
+	-- sola tiene ~20) todo salia con halo blanco, sobre todo las paredes y el
+	-- piso de adentro. Ahora brilla menos y solo lo MUY brillante.
+	bloom.Intensity = 0.22
+	bloom.Size = 16
+	bloom.Threshold = 1.45
 	bloom.Parent = Lighting
 
 	local cc = Instance.new("ColorCorrectionEffect")
 	cc.Name = "CityGrade"
-	cc.Saturation = 0.08
-	cc.Contrast = 0.12
+	-- v36: menos contraste/saturacion = menos "quemado" adentro
+	cc.Saturation = 0.04
+	cc.Contrast = 0.05
 	cc.Brightness = 0
 	cc.Parent = Lighting
 

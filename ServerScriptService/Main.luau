@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v35 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v36 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -268,8 +268,24 @@ local function inventario(momento: string)
 
 	local renglones = {}
 	local problemas = 0
-	local function apunta(marca: string, ruta: string, nota: string)
-		table.insert(renglones, "  " .. marca .. " " .. ruta .. (nota ~= "" and ("   " .. nota) or ""))
+	-- La RONDA de cada archivo. En Studio se puede leer el codigo de un script
+	-- (Source) y ahi viene el sello "RONDA: vNN". Sirve para lo que le paso al
+	-- usuario: su ClientUI y su CityGenerator eran de rondas VIEJAS mientras el
+	-- Main ya era nuevo, y desde la pantalla era imposible saberlo.
+	local function selloDe(o: any): string
+		local ok, src = pcall(function() return o.Source end)
+		if not ok or type(src) ~= "string" then return "" end
+		local v = string.match(src, "RONDA:%s*(v%d+)")
+		if not v then
+			v = string.match(src, "RONDA%s*=%s*\"(v%d+)\"")   -- asi lo guarda el limpiador: local RONDA = "vNN"
+		end
+		return v and ("[" .. v .. "] ") or ""
+	end
+
+	local function apunta(marca: string, ruta: string, nota: string, objeto: any?)
+		local sello = objeto and selloDe(objeto) or ""
+		table.insert(renglones, "  " .. marca .. " " .. sello .. ruta ..
+			(nota ~= "" and ("   " .. nota) or ""))
 	end
 
 	for _, base in ipairs(NOMBRES_JUEGO) do
@@ -281,11 +297,17 @@ local function inventario(momento: string)
 			for i, o in ipairs(lista2) do
 				local ruta = rutaLarga(o)
 				local sobra = (i > 1) or (o.Name ~= base)
+				local sello = selloDe(o)
+				local esperado = "[" .. tostring(Config.Build) .. "] "
 				if sobra then
-					apunta("COPIA ", ruta, "<- borra esta (clic derecho > Delete)")
+					apunta("COPIA ", ruta, "<- borra esta (clic derecho > Delete)", o)
+					problemas += 1
+				elseif sello ~= "" and sello ~= esperado then
+					-- el archivo es de OTRA ronda: hay que volver a pegarlo
+					apunta("VIEJO ", ruta, "<- es de otra ronda, pegalo de nuevo", o)
 					problemas += 1
 				else
-					apunta("OK    ", ruta, "")
+					apunta("OK    ", ruta, "", o)
 				end
 			end
 		end
@@ -298,6 +320,17 @@ local function inventario(momento: string)
 			problemas += 1
 		else
 			apunta("CARP. ", ruta, "(la del juego)")
+		end
+	end
+
+	-- aviso especial: si el archivo es de otra ronda, decirlo en grande
+	for _, base in ipairs(NOMBRES_JUEGO) do
+		for _, o in ipairs(porNombre[base]) do
+			local sello = selloDe(o)
+			if sello ~= "" and sello ~= ("[" .. tostring(Config.Build) .. "] ") then
+				warn("[SpiceEmpire] OJO: " .. rutaLarga(o) .. " es de la ronda " .. sello ..
+					" y esta es la " .. tostring(Config.Build) .. ". Hay que volver a pegar ese archivo.")
+			end
 		end
 	end
 
@@ -2697,6 +2730,28 @@ function spawnBike(player: Player)
 	seat.Massless = true
 	seat.Parent = model
 
+	-- ===== COMO TE SUBES (ronda v36) =====
+	-- El asiento era VehicleSeat con CanCollide = false y la bici es un cuerpo
+	-- CINEMATICO (sin fisica): caminando encima NO pasaba nada, y en un celular
+	-- menos. Ahora hay un boton de verdad: te acercas y le picas "Manejar"
+	-- (en compu tambien sirve la tecla E). Es la forma que SI funciona en telefono.
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "Subirse"
+	prompt.ActionText = "Manejar"
+	prompt.ObjectText = "Bicicleta"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = seat
+	prompt.Triggered:Connect(function(quien)
+		local c = quien and quien.Character
+		local hum = c and c:FindFirstChildOfClass("Humanoid")
+		if hum and not seat.Occupant then
+			seat:Sit(hum)
+		end
+	end)
+
 	-- ===== MANUBRIO =====
 	bp("Stem", Vector3.new(0.25, 0.25, 0.9),
 		spawnCF * CFrame.new(0, 1.55, -1.9), Color3.fromRGB(50, 50, 56))
@@ -2718,20 +2773,38 @@ function spawnBike(player: Player)
 			Enum.Material.Plastic)
 	end
 
-	-- ===== RUEDAS (decorativas, giran solas al avanzar) =====
+	-- ===== RUEDAS =====
+	-- OJO (ronda v36): aqui estaba el "se ven al reves". El cilindro de Roblox
+	-- ya trae el eje en X (caras redondas a los lados) — la ORIENTACION estaba
+	-- bien. Lo que se veia mal era el ARO: un disco blanco grandote (1.5 de
+	-- diametro, metal brillante) que parecia un plato pegado. Ahora la llanta
+	-- es: goma oscura + aro gris mas chico + maza + 6 rayos que sobresalen un
+	-- poquito, o sea se ve como rueda y no como plato.
+	-- La llanta mide 2.5 (antes 2.6) y su centro baja a -1.0 para que el fondo
+	-- siga dando exacto en -2.25 (la altura del chasis NO se mueve).
 	local wheelParts = {}
-	for wi, off in ipairs({Vector3.new(0, -0.95, -2.2), Vector3.new(0, -0.95, 2.2)}) do
-		-- OJO: el cilindro de Roblox ya trae el eje en X (caras redondas a
-		-- los lados), que es justo como va una llanta. NO hay que rotarlo:
-		-- el CFrame.Angles(0,0,90) las dejaba acostadas como platos.
-		local wheel = bp(wi == 1 and "WheelFront" or "WheelRear",
-			Vector3.new(0.32, 2.6, 2.6),
+	for wi, off in ipairs({Vector3.new(0, -1.0, -2.2), Vector3.new(0, -1.0, 2.2)}) do
+		local tire = bp(wi == 1 and "WheelFront" or "WheelRear",
+			Vector3.new(0.34, 2.5, 2.5),
 			spawnCF * CFrame.new(off),
-			Color3.fromRGB(26, 26, 28), Enum.Material.Rubber, Enum.PartType.Cylinder)
-		local rim = bp("Rim", Vector3.new(0.36, 1.5, 1.5),
-			wheel.CFrame, Color3.fromRGB(180, 182, 188),
+			Color3.fromRGB(24, 24, 26), Enum.Material.Rubber, Enum.PartType.Cylinder)
+		local rim = bp("Rim", Vector3.new(0.30, 2.02, 2.02),
+			tire.CFrame, Color3.fromRGB(96, 100, 108),
 			Enum.Material.Metal, Enum.PartType.Cylinder)
-		table.insert(wheelParts, {wheel = wheel, rim = rim, offset = off})
+		local hub = bp("Hub", Vector3.new(0.42, 0.62, 0.62),
+			tire.CFrame, Color3.fromRGB(178, 180, 186),
+			Enum.Material.Metal, Enum.PartType.Cylinder)
+		local spokes = {}
+		for k = 1, 6 do
+			-- los rayos viven en el PLANO de la rueda: se rota alrededor del eje
+			-- de la llanta (el X del cilindro), no de cualquier eje.
+			local spoke = bp("Spoke",
+				Vector3.new(0.36, 1.62, 0.14),
+				tire.CFrame * CFrame.Angles(math.rad(k * 30), 0, 0),
+				Color3.fromRGB(150, 154, 162), Enum.Material.Metal)
+			table.insert(spokes, spoke)
+		end
+		table.insert(wheelParts, {wheel = tire, rim = rim, hub = hub, spokes = spokes, offset = off})
 	end
 
 	-- ===== TODO ANCLADO =====
@@ -2742,6 +2815,8 @@ function spawnBike(player: Player)
 	for _, w in ipairs(wheelParts) do
 		isWheel[w.wheel] = true
 		isWheel[w.rim] = true
+		isWheel[w.hub] = true
+		for _, sp in ipairs(w.spokes or {}) do isWheel[sp] = true end
 	end
 
 	local rigidParts = {}

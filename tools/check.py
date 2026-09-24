@@ -75,6 +75,22 @@ def strip_luau(c):
                  r'\1 = \1 '+sym+r' (\2)',c,flags=re.M)
     c=re.sub(r'\bcontinue\b','goto cont',c)
     return _devolver_strings(c, _partes)
+def locales_arriba(c):
+    """Cuenta las variables locales del nivel de arriba del archivo.
+
+    POR QUE: Lua/Luau (y Roblox) permiten 200 locales por funcion, y el nivel de
+    arriba de un script cuenta como UNA funcion. ClientUI.luau andaba rozando el
+    tope de 200: al agregar un bloque nuevo, el script dejaba de compilar con
+    "too many local variables" (paso de verdad en la v36). Aqui se avisa ANTES
+    de llegar: a partir de 170 se marca y de 190 se considera falla.
+    """
+    n = 0
+    for l in strip_luau(c).splitlines():
+        if re.match(r'^local\s', l):
+            n += 1
+    return n
+
+
 if __name__=="__main__":
     if not os.path.exists(LUAC):
         sys.exit("Falta Lua. Corre primero:  bash tools/setup.sh")
@@ -87,4 +103,15 @@ if __name__=="__main__":
         if r.returncode==0: print("OK   ",f)
         elif "no visible label" in r.stderr: print("OK   ",f," (continue)")
         else: print("FAIL ",f);print("   ",r.stderr.strip()[:400]);bad=1
+        # Lua/Roblox: 200 locales por funcion. El nivel de arriba de un script
+        # cuenta como una. ClientUI.luau anda cerca (185): si se pasa, el script
+        # NO COMPILA en Studio ("too many local variables"). Aqui se avisa antes.
+        n = locales_arriba(open(f).read())
+        if n >= 190:
+            print("FAIL  %s tiene %d variables locales arriba (el tope es 200):" % (f, n))
+            print("      mete los bloques nuevos dentro de 'do ... end'")
+            bad=1
+        elif n >= 170:
+            print("   (ojo: %d variables locales arriba, el tope es 200: los bloques" % n)
+            print("    nuevos van dentro de 'do ... end')")
     sys.exit(bad)

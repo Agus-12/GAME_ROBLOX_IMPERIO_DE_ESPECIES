@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v35 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v36 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -12,11 +12,14 @@ local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
+-- interfaces propias (el cartel y el avisito): el barrido de arriba nunca las toca
+local MIS_GUIS: {[any]: boolean} = {}
+
 -- ===== QUE RONDA ES ESTE ARCHIVO =====
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v35"
+local MI_VERSION = "v36"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -83,6 +86,7 @@ local AVISOS: {string} = {}
 -- todavia no existen en este punto del archivo.
 local function cartelDeError(lineas: {string})
 	local sg = Instance.new("ScreenGui")
+	MIS_GUIS[sg] = true
 	sg.Name = "SpiceEmpire_Error"
 	sg.ResetOnSpawn = false
 	sg.IgnoreGuiInset = true
@@ -327,6 +331,7 @@ local function avisoChiquito(texto: string)
 	local pg = player:FindFirstChild("PlayerGui")
 	if not pg then return end
 	local sg = Instance.new("ScreenGui")
+	MIS_GUIS[sg] = true
 	sg.Name = "SpiceEmpire_Avisito"
 	sg.ResetOnSpawn = false
 	sg.DisplayOrder = 90            -- por debajo del cartel rojo (999)
@@ -591,6 +596,45 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset = true
 gui.Parent = playerGui or player:WaitForChild("PlayerGui")
+
+----------------------------------------------------------------------
+-- BARRIDO DE INTERFACES VIEJAS  (v36)
+----------------------------------------------------------------------
+-- CASO REAL: el usuario veia el "dashboard anterior" (la barra ancha vieja)
+-- aunque su ClientUI ya era la nueva. Causa: quedaba OTRA copia de ClientUI
+-- corriendo (vieja) y ESA dibujaba SU interfaz encima. Las dos se ven, y una
+-- es de hace varias rondas.
+--
+-- Solucion: al arrancar, esta copia borra las interfaces del juego que NO son
+-- suyas (las de las otras copias), asi se ve UNA sola. Se repite un par de
+-- veces porque la copia vieja puede arrancar un instante despues.
+local MIA = gui
+local function barrerInterfacesViejas(): number
+	local pg = player:FindFirstChild("PlayerGui")
+	if not pg then return 0 end
+	local basura = {}
+	for _, g in ipairs(pg:GetChildren()) do
+		if g:IsA("ScreenGui") and g ~= MIA then
+			local n = g.Name
+			-- del juego (SpiceEmpireUI, SpiceEmpire_Error, SpiceEmpire_Avisito, ...)
+			-- pero NUNCA las mias: el cartel y el avisito se registran aparte.
+			if (n == "SpiceEmpireUI" or string.sub(n, 1, 12) == "SpiceEmpire_")
+				and not MIS_GUIS[g] then
+				table.insert(basura, g)
+			end
+		end
+	end
+	for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
+	if #basura > 0 then
+		print("[SpiceEmpire] limpie " .. #basura .. " interfaz(es) de otra copia del juego" ..
+			" (habia mas de una ClientUI corriendo)")
+	end
+	return #basura
+end
+
+barrerInterfacesViejas()
+task.delay(1.5, barrerInterfacesViejas)
+task.delay(4, barrerInterfacesViejas)
 
 ----------------------------------------------------------------------
 -- ADAPTACION A CELULAR

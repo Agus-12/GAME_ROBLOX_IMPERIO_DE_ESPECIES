@@ -32,6 +32,7 @@ Corre **trece etapas**. Tienen que salir todas OK.
 | `loops.py` | Caza `Destroy()` dentro de un bucle de `GetChildren()` (siempre queda uno vivo) |
 | `copias.py` | Simula el caso "carpetas Remotes de mas" (7 escenarios, servidor y cliente) |
 | `pestanas.js` | Da clic en cada pestaña de la pagina de copiar y comprueba que se vea su archivo |
+| (en la etapa 1) | avisa si un archivo se acerca al tope de **200 variables locales** de Luau |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis

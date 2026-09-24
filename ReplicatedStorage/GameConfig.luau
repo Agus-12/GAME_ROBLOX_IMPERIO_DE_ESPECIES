@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v35 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v36 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ReplicatedStorage.GameConfig
 -- Todos los numeros del juego viven aqui. Cambia esto para balancear.
@@ -13,7 +13,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v35"
+GameConfig.Build = "v36"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
@@ -346,7 +346,10 @@ GameConfig.Garage = {
 	Heights = {13, 15, 17, 19},   -- alto del techo
 	DoorWidth  = 9,               -- ancho del porton de cada cajon
 	DoorHeight = 11,              -- alto del porton
-	OpenRadius = 20,              -- a que distancia se abre solo el porton
+	OpenRadius = 13,              -- a que distancia se abre solo el porton
+	-- v36: era 20. Con 20 el porton se abria desde adentro de la bodega y el
+	-- jugador NUNCA veia las puertas cerradas ("el garaje no tiene puertas").
+	-- Con 13 se abren justo cuando llegas al frente, como un porton de verdad.
 	Bays = 4,                     -- cajones (los Bay de GameConfig.Vehicles)
 }
 

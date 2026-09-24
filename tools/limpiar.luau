@@ -23,7 +23,7 @@
 -- gusta, Ctrl+Z lo deshace.
 ----------------------------------------------------------------------
 
-local RONDA = "v35"          -- esta ronda de archivos (lo revisa tools/remotes.py)
+local RONDA = "v36"          -- esta ronda de archivos (lo revisa tools/remotes.py)
 
 local SALIDA: {string} = {}
 local borrados: {string} = {}

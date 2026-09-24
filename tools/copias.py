@@ -187,7 +187,10 @@ end
 def corre_cliente(nombre, cuerpo, avanza=8.0):
     guion = 'dofile("%s/mockclient.lua")\n' % HERE
     guion += cuerpo
-    guion += CLIENTE
+    # el codigo del cliente se encierra en su propia funcion: asi sus locales no
+    # se suman a los del guion (Lua/Roblox permiten 200 por funcion) y la prueba
+    # mide lo mismo que corre el juego.
+    guion += "local __cli = function()\n" + CLIENTE + "\nend\n__cli()\n"
     guion += '''
 -- el veredicto del cliente se da a los 1.5 s y a los 4.5 s: hay que dejar correr
 -- el reloj virtual antes de mirar la pantalla

@@ -431,7 +431,7 @@ de efectos de iluminación.
 
 ## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
 
-En la v35, el cliente quedo asi:
+En la v36, el cliente quedo asi:
 
 ```lua
 local function carpetaRemotes()
@@ -441,11 +441,11 @@ local function carpetaRemotes()
     end
 end
 
-local MI_VERSION = "v35"    -- se declara 60 lineas mas abajo
+local MI_VERSION = "v36"    -- se declara 60 lineas mas abajo
 ```
 
 En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
-vale nil**. Entonces la comparacion era `"v35" == nil` -> siempre falso, el avisito
+vale nil**. Entonces la comparacion era `"v36" == nil` -> siempre falso, el avisito
 no salia nunca, y en la consola no habia ni un error. Un bug invisible.
 
 **Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
@@ -454,7 +454,7 @@ toca como globales; si sale uno que deberia ser local, ahi esta el bug.
 
 ---
 
-## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v35)
+## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v36)
 
 ```lua
 -- MAL: te quedas con el objeto. Si el servidor borra esa carpeta (limpieza,
@@ -467,7 +467,7 @@ RE_Shoot.OnClientEvent:Connect(...)     -- nunca vuelve a dispararse
 Sintoma: **los botones no hacen nada y en la consola no sale ni un error**. Es lo
 peor de depurar, porque no hay rastro.
 
-El caso real (v35): el cliente arranca **antes** de que el servidor termine de limpiar.
+El caso real (v36): el cliente arranca **antes** de que el servidor termine de limpiar.
 Si en el lugar habia una carpeta `Remotes` vieja guardada, el cliente se enganchaba a
 esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes muertos.
 
@@ -482,7 +482,7 @@ vieja quede desconectada (`Remotes#false=0`).
 
 ---
 
-## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v35)
+## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v36)
 
 ```js
 for (var k = 0; k < 5; k++) {        // MAL: cuantos paneles hay, escrito a mano
@@ -500,3 +500,23 @@ con un cartel que culpaba a otro archivo.
 (`document.querySelectorAll('.panel').length`). Y si la pagina es una herramienta que el
 usuario usa para instalar, **se prueba de verdad**: `tools/pestanas.js` (etapa 13) corre el
 JavaScript de la pagina y **da clic en cada pestaña**.
+
+---
+
+## 17. 📦 Pasarse de 200 variables locales (v36)
+
+Luau (y Roblox) permiten **200 variables locales por funcion**, y **el nivel de arriba de
+un script cuenta como una funcion**. `ClientUI.luau` andaba en **185**: al agregar un
+bloque nuevo con 6 locals mas, el script **dejaba de compilar**:
+
+```
+too many local variables (limit is 200) in main function
+```
+
+Lo peor: eso **no se nota hasta que el script corre**.
+
+**Reglas:** los bloques nuevos van dentro de **`do ... end`** (ahí sus locales se
+sueltan al salir); `tools/check.py` **avisa a partir de 170** y **falla a partir de 190**;
+y si hace falta mas espacio, junta los elementos de UI en **una tabla** (`UI.cash`) en vez
+de una variable por elemento. Los simuladores encierran el codigo del cliente en su propia
+funcion antes de agregarle instrumentacion, para no gastar los locales del guion.

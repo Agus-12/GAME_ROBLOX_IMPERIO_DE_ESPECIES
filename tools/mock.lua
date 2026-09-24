@@ -43,7 +43,21 @@ local Instance_={}
 function Instance_.new(cls,parent)
   local o={ClassName=cls,Name=cls,_children={},_attrs={}}
   o.GetChildren=function(s) return s._children end
-  o.GetDescendants=function(s) return s._children end
+  -- OJO: GetDescendants en Roblox baja TODOS los niveles. Aqui devolvia solo los
+  -- hijos directos: el simulador decia "GetDescendants" y los scripts que
+  -- recorrian a fondo (limpieza de empleados, inventario, conteo de luces) se
+  -- probaban solo UN nivel. Un falso verde mas. Ahora baja de verdad.
+  o.GetDescendants=function(s)
+    local todo={}
+    local function baja(n)
+      for _,c in ipairs(n:GetChildren()) do
+        table.insert(todo,c)
+        baja(c)
+      end
+    end
+    baja(s)
+    return todo
+  end
   o.FindFirstChild=function(s,n) for _,c in ipairs(s._children) do if c.Name==n then return c end end end
   o.FindFirstChildWhichIsA=function(s) return s._children[1] end
   o.FindFirstChildOfClass=function(s,c) for _,x in ipairs(s._children) do if x.ClassName==c then return x end end end
