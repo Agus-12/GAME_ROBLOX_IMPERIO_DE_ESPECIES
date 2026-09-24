@@ -61,6 +61,8 @@ Si sale otro número, o no sale esa línea, es que un archivo quedó viejo: mira
 
 ## 📋 Cómo copiar los archivos desde GitHub
 
+> ⚡ **Versión rápida con los 5 links directos: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.md)**
+
 El repo es **público**, así que puedes copiar sin iniciar sesión:
 
 👉 **https://github.com/Agus-12/GAME_ROBLOX_IMPERIO_DE_ESPECIES**

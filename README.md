@@ -27,6 +27,9 @@ volver a intentar, y las reglas que no se pueden romper.
 >
 > 👯 ¿"Sale todo doble" (dos bodegas, dos interfaces)? Son **copias pegadas**:
 > [`docs/09-SI-SALE-DOBLE.md`](docs/09-SI-SALE-DOBLE.md)
+>
+> 📋 ¿Quieres los 5 archivos con link directo para copiar y pegar?
+> [`docs/10-COPIAR-Y-PEGAR.md`](docs/10-COPIAR-Y-PEGAR.md)
 
 Son 5 archivos que se copian y pegan en Roblox Studio. Unos 10 minutos.
 

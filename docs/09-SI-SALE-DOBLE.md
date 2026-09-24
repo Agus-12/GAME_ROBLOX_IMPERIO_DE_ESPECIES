@@ -79,6 +79,11 @@ clic derecho → **Delete** en esa carpeta `City` y en los `Warehouse_...`, y gu
 
 ---
 
+## 📋 ¿Quieres los archivos ya listos para copiar y pegar?
+
+Los 5 links directos (texto plano, se copia con `Ctrl+A` + `Ctrl+C`) y el paso a paso
+para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.md).
+
 ## 📌 Resumen
 
 1. **Doble = copias pegadas en Studio.** No hay que tocar el repo.
