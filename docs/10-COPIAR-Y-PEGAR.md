@@ -6,6 +6,26 @@ salió todo doble) o para instalarlos de cero.
 
 ---
 
+## 📦 OPCIÓN RÁPIDA: un solo archivo con los 5 códigos adentro
+
+Hay un archivo llamado **`v29-ARCHIVOS.html`** (vive en el workspace, no en el repo) que
+trae **los 5 códigos completos embebidos**, en 5 pestañas, cada una con su botón
+**COPIAR TODO**.
+
+- **No pide nada a internet**: el código viaja dentro del archivo (por eso funciona
+  aunque la vista previa esté aislada).
+- Si tu navegador bloquea el copiado automático, el botón **deja el texto ya
+  seleccionado**: nomas toca **Copiar** (o `Ctrl+C`).
+- Cada pestaña te dice **dónde se pega** en Studio y **qué tipo** de objeto es.
+
+Se regenera con: `python3 tools/pegar.py [salida.html]`
+
+> 💡 **¿Por qué los links de GitHub no abren en la vista previa?** Porque la vista previa
+> del workspace corre **aislada y sin internet**: los links son para abrirlos en el
+> navegador de verdad. Los links `raw` sí funcionan en Chrome/Safari normal.
+
+---
+
 ## ⚠️ PASO 0 — PRIMERO borra lo que sobra (1 minuto)
 
 **Si no borras las copias, da igual cuántas veces pegues: va a seguir saliendo doble.**

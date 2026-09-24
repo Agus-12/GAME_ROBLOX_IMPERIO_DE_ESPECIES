@@ -92,6 +92,20 @@ por duplicado. Y **nada truena**, que es lo peor: funciona dos veces.
 cabiendo en `Config.WarehouseLots.SpacingX` (hoy 297 de 340) y que se pueda caminar a
 cada cuarto.
 
+### 📦 Herramienta nueva: `tools/pegar.py`
+
+Arma **un solo HTML** con los 5 codigos embebidos y un boton "COPIAR TODO" por archivo
+(`python3 tools/pegar.py /home/user/vNN-ARCHIVOS.html`). Existe porque **los links no se
+pueden abrir desde la vista previa del usuario** (el visor corre aislado, sin red), y él
+pidio copiar y pegar sin salir de ahí.
+
+- Sin JS, el HTML **muestra los 5 archivos seguidos** (nada se pierde); con JS se vuelven
+  pestanas. El boton intenta `navigator.clipboard` -> `execCommand('copy')` -> y si todo
+  falla **deja el texto seleccionado**.
+- Se comprueba que lo embebido sea **idéntico** al repo antes de entregarlo.
+- **Regenerarlo en cada ronda** que toque alguno de los 5 archivos, y entregar el archivo
+  al usuario en el workspace (no se commitea: duplicaria el codigo dentro del repo).
+
 ### ⚠️ Reglas que NO puedes romper
 
 0. **🔴 SUBE TODO AL REPO, SIEMPRE, EN CADA RONDA.**
