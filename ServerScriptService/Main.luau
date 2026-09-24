@@ -29,6 +29,65 @@ local CityGenerator = require(need(ServerScriptService, "CityGenerator"))
 local DataService = require(need(ServerScriptService, "DataService"))
 
 ----------------------------------------------------------------------
+-- ANTI-DUPLICADOS  (el bug de "me sale todo doble")
+----------------------------------------------------------------------
+-- Sintoma clasico: el usuario pega el archivo nuevo SIN borrar el viejo, o
+-- el lugar quedo guardado con el mapa ya generado. Resultado: dos ciudades,
+-- dos bodegas (una AL LADO de la otra si el Main viejo calculaba otras
+-- coordenadas), dos letreros y avisos por duplicado. Y NADA truena: todo
+-- simplemente funciona DOS VECES, que es lo mas dificil de diagnosticar.
+--
+-- Aqui se detecta y se limpia:
+--   1) se cuentan las copias pegadas y se avisa con nombre y apellido
+--   2) se borra cualquier carpeta 'Remotes' vieja (si hay dos, el cliente
+--      puede engancharse a la vieja y decir "faltan remotes")
+--   3) se borran bodegas huérfanas que hayan quedado guardadas en el lugar
+local SSS = ServerScriptService
+
+local function cuentaHijos(parent: Instance, name: string): number
+	local n = 0
+	for _, c in ipairs(parent:GetChildren()) do
+		if c.Name == name then n += 1 end
+	end
+	return n
+end
+
+local copias: {string} = {}
+local function revisaCopias(parent: Instance, name: string, etiqueta: string)
+	local n = cuentaHijos(parent, name)
+	if n > 1 then
+		table.insert(copias, string.format("%d x %s", n, etiqueta))
+	end
+end
+
+revisaCopias(SSS, "Main", "ServerScriptService.Main")
+revisaCopias(SSS, "CityGenerator", "ServerScriptService.CityGenerator")
+revisaCopias(SSS, "DataService", "ServerScriptService.DataService")
+revisaCopias(ReplicatedStorage, "GameConfig", "ReplicatedStorage.GameConfig")
+revisaCopias(ReplicatedStorage, "Remotes", "ReplicatedStorage.Remotes")
+
+if #copias > 0 then
+	warn("[SpiceEmpire] *** HAY COPIAS PEGADAS EN STUDIO: " .. table.concat(copias, " , ") ..
+		" *** Eso hace que TODO salga doble (dos ciudades, dos bodegas, dos avisos)." ..
+		" Borra las copias que sobran en el Explorer y vuelve a dar Play." ..
+		" Guia: docs/09-SI-SALE-DOBLE.md")
+end
+
+-- limpieza: carpetas Remotes viejas (de un Main viejo o de una partida anterior)
+for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+	if c.Name == "Remotes" then
+		c:Destroy()
+	end
+end
+
+-- limpieza: bodegas que quedaron dentro del lugar guardado
+for _, c in ipairs(Workspace:GetChildren()) do
+	if c:IsA("Model") and string.match(c.Name, "^Warehouse_%d+$") then
+		c:Destroy()
+	end
+end
+
+----------------------------------------------------------------------
 -- REMOTES
 ----------------------------------------------------------------------
 local Remotes = Instance.new("Folder")
@@ -141,22 +200,36 @@ local nextCallAt: {[Player]: number} = {}
 local warnedCityGen = false
 
 local function assignWarehouse(player: Player): Model
+	-- NUNCA dos bodegas del mismo jugador. Si quedo una vieja (un Main
+	-- duplicado, o el mapa ya guardado dentro del lugar), se borra ANTES de
+	-- construir la nueva. Antes se construia encima y se veian dos bodegas.
+	local nombre = "Warehouse_" .. player.UserId
+	local vieja = Workspace:FindFirstChild(nombre)
+	local slotViejo = vieja and vieja:GetAttribute("Slot")
+
 	local slot
-	for i = 1, WAREHOUSE_MAX_SLOTS do
-		if warehouseSlots[i] == nil then
-			slot = i
-			break
+	if slotViejo and warehouseSlots[slotViejo] == nil then
+		slot = slotViejo            -- quedate en el mismo lote
+	end
+	if not slot then
+		for i = 1, WAREHOUSE_MAX_SLOTS do
+			if warehouseSlots[i] == nil then
+				slot = i
+				break
+			end
 		end
 	end
 	slot = slot or 1
 	warehouseSlots[slot] = player
+	if vieja then vieja:Destroy() end
 
 	local profile = DataService.Get(player)
 	local tier = (profile and profile.WarehouseTier) or 1
 
 	local clone = CityGenerator.BuildWarehouse(tier)
-	clone.Name = "Warehouse_" .. player.UserId
+	clone.Name = nombre
 	clone:SetAttribute("OwnerId", player.UserId)
+	clone:SetAttribute("Slot", slot)
 	clone:PivotTo(CFrame.new(warehouseSlotPos(slot)))
 	clone.Parent = Workspace
 
@@ -199,6 +272,48 @@ local function releaseWarehouse(player: Player)
 		if p == player then warehouseSlots[i] = nil end
 	end
 end
+
+-- ===== RED DE SEGURIDAD: UNA SOLA BODEGA POR JUGADOR =====
+-- Si por lo que sea queda mas de una bodega del mismo jugador (un Main
+-- duplicado en Studio construye la suya aparte, en OTRAS coordenadas: por eso
+-- se veian "una bodega al lado de otra"), este vigilante borra las extra y
+-- avisa UNA vez en la consola. Es barato (cada 6 s revisa nombres) y evita
+-- que el jugador tenga que adivinar cual de las dos es la buena.
+task.spawn(function()
+	local avisado: {[Player]: boolean} = {}
+	while true do
+		task.wait(6)
+		-- en pcall: si algo raro pasa aqui (un Destroy sobre algo ya borrado),
+		-- este hilo no debe morir en silencio: sigue vigilando
+		pcall(function()
+		for _, pl in ipairs(Players:GetPlayers()) do
+			local bueno = warehouses[pl]
+			local nombre = "Warehouse_" .. pl.UserId
+			local total, extras = 0, {}
+			for _, c in ipairs(Workspace:GetChildren()) do
+				if c.Name == nombre and c:IsA("Model") then
+					total += 1
+					if c ~= bueno then table.insert(extras, c) end
+				end
+			end
+			if total > 1 then
+				-- quedate con la que el servidor reconoce como buena
+				if bueno == nil then
+					-- ninguna es la oficial: deja una sola (la primera)
+					bueno = extras[1]
+					table.remove(extras, 1)
+				end
+				for _, e in ipairs(extras) do e:Destroy() end
+				if not avisado[pl] then
+					avisado[pl] = true
+					warn("[SpiceEmpire] Habia " .. total .. " bodegas de " .. pl.Name ..
+						". Sobra una: tienes copias de scripts pegadas en Studio. Ver docs/09-SI-SALE-DOBLE.md")
+				end
+			end
+		end
+		end)
+	end
+end)
 
 ----------------------------------------------------------------------
 -- ESTADO / SYNC

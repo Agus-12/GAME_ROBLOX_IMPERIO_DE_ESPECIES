@@ -24,6 +24,9 @@ volver a intentar, y las reglas que no se pueden romper.
 
 > 🚨 ¿Te sale un cartel rojo *"FALTAN SCRIPTS/REMOTES"* en el juego? Son archivos de
 > rondas distintas pegados en Studio: [`docs/08-SI-SALE-FALTAN-REMOTES.md`](docs/08-SI-SALE-FALTAN-REMOTES.md)
+>
+> 👯 ¿"Sale todo doble" (dos bodegas, dos interfaces)? Son **copias pegadas**:
+> [`docs/09-SI-SALE-DOBLE.md`](docs/09-SI-SALE-DOBLE.md)
 
 Son 5 archivos que se copian y pegan en Roblox Studio. Unos 10 minutos.
 

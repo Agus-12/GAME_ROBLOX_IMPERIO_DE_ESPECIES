@@ -205,6 +205,21 @@ Dos cosas:
 `ClientUI.luau` y en `README` / `CONTINUACION.md`, y esta etapa te avisa si se te olvidó
 alguno.
 
+## 🕵️ El simulador tiene que ser HONESTO (4 agujeros tapados en la v28)
+
+Cuatro veces en una sola ronda, una validación "verde" escondía un bug real. Todas del
+mismo tipo: **algo decía que estaba bien sin comprobarlo**.
+
+| Agujero | Qué pasaba | Arreglado |
+|---|---|---|
+| `runmain.py` / `runclient.py` salían con código 0 | Imprimían `!! error` y la etapa seguía en verde | Ahora `exit 1` (probado inyectando errores) |
+| `tools/globals.py` saltaba `Main.luau` | El archivo más grande quedaba **sin auditar**, y encima su fallo se ignoraba con `\|\| true` | `_SKIP` agregado al set OK; se quitó el `\|\| true` |
+| El mock no tenía `typeof()` | Roblox lo tiene: sin él, código que funciona en Studio reventaba en el simulador | `typeof()` en `mock.lua`, con marca `__isinstance` en las Instances |
+| **El `Destroy()` del mock no hacía NADA** | Era una función vacía: el simulador no podía ver si el juego limpiaba lo que ya no sirve (justo el bug de "todo sale doble") | `Destroy()` desparenta de verdad; con eso se comprobó la limpieza de `Remotes` viejos y de bodegas huérfanas |
+
+**Regla:** cuando agregues una herramienta o un mock, **ruémpelo a propósito** y confirma
+que lo caza. Un validador que siempre dice "OK" no vale nada.
+
 ## ⚠️ Las etapas 2 y 3 tienen que FALLAR cuando algo truena
 
 `runmain.py` y `runclient.py` salían con código 0 aunque el script reventara, así que

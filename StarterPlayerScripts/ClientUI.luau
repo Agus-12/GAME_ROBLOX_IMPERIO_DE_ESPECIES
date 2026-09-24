@@ -82,7 +82,23 @@ end
 local Config = require(cfgModule)
 
 -- 2) Remotes: si falta alguno seguimos, pero avisando.
-local Remotes = need(ReplicatedStorage, "Remotes")
+--    Ojo: si hay DOS carpetas 'Remotes' es que tienes DOS Main pegados. Se usa
+--    la mas completa, porque la vieja puede tener menos remotes y el juego
+--    se queda sin la mitad de las funciones.
+local PROBLEMAS: {string} = {}
+local function carpetaRemotes(): any
+	local todas = {}
+	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+		if c.Name == "Remotes" then table.insert(todas, c) end
+	end
+	if #todas == 0 then return need(ReplicatedStorage, "Remotes") end
+	if #todas > 1 then
+		table.insert(PROBLEMAS, #todas .. " carpetas Remotes: tienes " .. #todas .. " Scripts Main pegados")
+		table.sort(todas, function(a, b) return #a:GetChildren() > #b:GetChildren() end)
+	end
+	return todas[1]
+end
+local Remotes = carpetaRemotes()
 local RE_State = need(Remotes, "StateUpdate")
 local RE_Phone = need(Remotes, "PhoneAlert")
 local RE_Toast = need(Remotes, "Toast")
@@ -132,13 +148,25 @@ if #AVISOS > 0 then
 	end
 	table.insert(lineas, " - el servidor NO creo: " .. table.concat(faltan, " , "))
 end
+-- problemas de copias pegadas (dos carpetas Remotes, dos interfaces...)
+for _, p in ipairs(PROBLEMAS) do
+	table.insert(lineas, " - " .. p)
+end
 
 -- si falta algo O los archivos son de otra ronda: cartel explicando que pegar
-if viejo or #AVISOS > 0 then
-	local box = { (viejo and ("ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es " .. MI_VERSION))
-		or ("FALTAN REMOTES EN EL SERVIDOR (" .. #AVISOS .. ")") }
+if viejo or #AVISOS > 0 or #PROBLEMAS > 0 then
+	local titulo
+	if #PROBLEMAS > 0 and not viejo and #AVISOS == 0 then
+		titulo = "HAY COPIAS PEGADAS EN STUDIO (todo sale doble)"
+	elseif viejo then
+		titulo = "ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es " .. MI_VERSION
+	else
+		titulo = "FALTAN REMOTES EN EL SERVIDOR (" .. #AVISOS .. ")"
+	end
+	local box = { titulo }
 	for _, l in ipairs(lineas) do table.insert(box, l) end
 	table.insert(box, "Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.")
+	table.insert(box, "Si ya los pegaste: revisa que no haya archivos REPETIDOS (docs/09-SI-SALE-DOBLE.md)")
 	pcall(cartelDeError, box)
 end
 local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, PressLevel = 1,
@@ -215,12 +243,30 @@ end
 ----------------------------------------------------------------------
 -- SCREEN GUI
 ----------------------------------------------------------------------
+-- ¿HAY DOS ClientUI PEGADOS?
+----------------------------------------------------------------------
+-- Dos LocalScripts 'ClientUI' = DOS interfaces encima (botones, paneles y
+-- avisos duplicados). Es la mitad del "todo sale doble" cuando el usuario pega
+-- el archivo nuevo sin borrar el viejo. Se avisa y esta copia se apaga.
+local playerGui = player:WaitForChild("PlayerGui", 10)
+if playerGui and playerGui:FindFirstChild("SpiceEmpireUI") then
+	warn("[SpiceEmpire] HAY 2 ClientUI PEGADOS en StarterPlayerScripts: se ve todo doble." ..
+		" Borra el que sobra en el Explorer y vuelve a dar Play. Ver docs/09-SI-SALE-DOBLE.md")
+	pcall(cartelDeError, {
+		"HAY 2 ClientUI PEGADOS (por eso sale todo doble)",
+		"En el Explorer: StarterPlayer > StarterPlayerScripts -> deja UN solo 'ClientUI'.",
+		"Tambien revisa que no haya 2 'Main' en ServerScriptService.",
+		"Guia con dibujos: docs/09-SI-SALE-DOBLE.md",
+	})
+	return
+end
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "SpiceEmpireUI"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
+gui.Parent = playerGui or player:WaitForChild("PlayerGui")
 
 ----------------------------------------------------------------------
 -- ADAPTACION A CELULAR

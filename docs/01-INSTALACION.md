@@ -85,6 +85,8 @@ El repo es **público**, así que puedes copiar sin iniciar sesión:
 | La línea `IMPERIO DE ESPECIAS vNN` no sale en Output | El `Main.luau` pegado no es el de esta ronda | Pega `Main.luau` |
 | `remotes creados: 9` (o menos de 11) | Igual: `Main.luau` viejo | Pega `Main.luau` |
 | No pasa nada al acercarme a la computadora | Algún script no corrió | Revisa Output y el cartel rojo |
+| **Todo sale doble** (dos bodegas, dos barras de botones, dos avisos) | Hay **copias pegadas** en Studio: quedó el archivo viejo y el nuevo | [`09-SI-SALE-DOBLE.md`](09-SI-SALE-DOBLE.md): deja 1 `Main`, 1 `ClientUI`, 1 `GameConfig`, 1 `CityGenerator`, 1 `DataService` |
+| Sale un `warn` con *"HAY COPIAS PEGADAS EN STUDIO"* | Igual: sobra una copia de un script | Idem |
 
 ---
 

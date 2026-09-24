@@ -251,6 +251,42 @@ en los 5 archivos:
 ```
 
 ---
+## 👯 "Me sale todo doble" (dos bodegas, dos interfaces)
+
+**Otra vez no es el repo: son copias pegadas en Studio.** Si al pegar los archivos
+quedó el viejo **y** el nuevo, entonces hay **dos programas** corriendo:
+
+| Síntoma | Causa exacta |
+|---|---|
+| **Una bodega al lado de otra** | Cada `Main` construye la bodega del jugador. El viejo, al ser de otra ronda, calculaba **otras coordenadas** (antes de la v28 los lotes se sembraban cada 140 studs; ahora es una rejilla de 340) → aparece una al lado de la otra |
+| Dos barras de botones / dos paneles | Hay dos `ClientUI` (LocalScript) pegados |
+| Dos avisos, dos letreros, dinero doble | Dos `Main` mandando cada uno lo suyo |
+| *"Faltan remotes"* otra vez | Dos carpetas `Remotes`, y el cliente se enganchó a la vieja |
+
+**Ya no hay que adivinar: la v28 lo detecta y lo dice.**
+
+| Blindaje nuevo | Dónde se ve |
+|---|---|
+| Cuenta copias al arrancar (`Main`, `CityGenerator`, `DataService`, `GameConfig`, `Remotes`) | **Output**: *"*** HAY COPIAS PEGADAS EN STUDIO: 2 x ServerScriptService.Main ***"* |
+| Dos carpetas `Remotes` | **Cartel rojo**: *"HAY COPIAS PEGADAS EN STUDIO (todo sale doble)"* |
+| Dos `ClientUI` | El segundo **se apaga solo** y avisa (no se dibuja la interfaz dos veces) |
+| Limpieza automática | Borra carpetas `Remotes` viejas y bodegas huérfanas que hayan quedado **guardadas dentro del lugar** |
+| Una sola bodega por jugador | Antes de construir, borra cualquier `Warehouse_<ID>` previo; un vigilante revisa cada 6 s y borra las extra |
+| Lote fijo | La bodega guarda su número de lote: al mejorarla te quedas en el mismo lugar |
+
+📄 Guía con la lista exacta de qué revisar en el Explorer:
+[`docs/09-SI-SALE-DOBLE.md`](docs/09-SI-SALE-DOBLE.md)
+
+### 🕳️ Y el simulador de pruebas también mentía (arreglado)
+
+Para probar todo esto hacía falta que el simulador **sí borrara** lo que el juego
+borra… y resulta que su `Destroy()` era **una función vacía**: nunca se podía detectar
+si el juego limpiaba o no (justo el bug de "todo doble"). Ya borra de verdad, y con eso
+se comprobó que: avisa de las copias, limpia el `Remotes` viejo y borra las bodegas
+huérfanas. **Cuarto agujero de validación de la ronda** — todos de la misma familia:
+"algo dice que todo está bien sin comprobarlo".
+
+---
 ## 🧪 Cómo probar
 
 1. Pega **los 5 archivos** y dale **Play**.

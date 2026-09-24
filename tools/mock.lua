@@ -48,7 +48,17 @@ function Instance_.new(cls,parent)
   o.FindFirstChildWhichIsA=function(s) return s._children[1] end
   o.FindFirstChildOfClass=function(s,c) for _,x in ipairs(s._children) do if x.ClassName==c then return x end end end
   o.IsA=function(s,t) return s.ClassName==t end
-  o.Destroy=function() end
+  -- Destroy de verdad: antes era una funcion vacia, asi que el simulador
+  -- nunca podia detectar si el juego limpiaba o no lo que ya no sirve
+  -- (justo el bug de "todo sale doble"). Ahora desparenta como Roblox.
+  o.Destroy=function(s)
+    local pc = s._parentChildren
+    if pc then
+      for i = #pc, 1, -1 do if pc[i] == s then table.remove(pc, i) end end
+    end
+    s._parentChildren = nil
+    o.Parent = nil
+  end
   o.SetAttribute=function(s,k,v) s._attrs[k]=v end
   o.GetAttribute=function(s,k) return s._attrs[k] end
   o.PivotTo=function(s,cf) s._cf=cf end
@@ -71,7 +81,10 @@ function Instance_.new(cls,parent)
     __newindex=function(_,k,v)
       if k=="Parent" and v~=nil then
         local ch=rawget(v,"_children") or (getmetatable(v) and v._children)
-        if ch then table.insert(ch,proxy) end
+        if ch then
+          table.insert(ch,proxy)
+          o._parentChildren = ch      -- para que Destroy pueda desparentar
+        end
       end
       o[k]=v end})
   if parent then proxy.Parent=parent end

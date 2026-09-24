@@ -29,6 +29,7 @@
 | "El botón sale pero me rebota" | Cliente 16 studs, servidor 14 en la prensa | ✅ v28 (radios desde `GameConfig.Interact` y los ya existentes) |
 | El panel no se reabría al revivir | El detector guarda "ya estabas cerca" para no abrir el panel cada 0.3 s; si morías junto a la máquina ese `true` quedaba pegado y el cruce nunca volvía a disparar. Solo se arreglaba alejándose y regresando | ✅ v28 (al morir se limpia `near` y se cierran los paneles) |
 | Cartel "FALTAN SCRIPTS/REMOTES" con N=2 | El usuario tenía un `Main.luau` VIEJO pegado en Studio. La v28 se sumó al final del juego: todo remote que el cliente pide ya existía desde la v21/v24, así que la única causa posible era un archivo de otra ronda | ✅ v28 (sello de versión + cartel que dice cuál archivo quedó viejo + `tools/remotes.py`) |
+| "Todo sale doble": una bodega al lado de otra, dos interfaces, dos avisos | **Copias de scripts pegadas en Studio.** Dos `Main` = dos programas: cada uno construye la bodega del jugador, y el viejo la calcula en OTRAS coordenadas (antes de la v28: fila cada 140; ahora: rejilla de 340) -> queda una al lado de la otra. Dos `ClientUI` = dos interfaces encima | OK v28 (se detecta, se avisa en Output y en cartel, y se limpia solo: `Remotes` viejo, bodegas huerfanas, y el 2o ClientUI se apaga) |
 | Zona segura con esquinas fuera | Radio fijo 14 vs tapete de 28×11 | ✅ v28 (mide contra el tapete real) |
 
 ### 🔖 Regla de las VERSIONES (nueva en la v28)
@@ -48,6 +49,21 @@ un archivo de otra ronda pegado en Studio. Para que el usuario no tenga que adiv
 `MI_VERSION`, `README`, `CONTINUACION.md`, y crea `CAMBIOS-vN.md`): `tools/remotes.py`
 (etapa 9) falla si se te olvida alguno. Detalle completo en
 `docs/08-SI-SALE-FALTAN-REMOTES.md`.
+
+### 🧩 Regla anti-duplicados (nueva en la v28)
+
+**Un Script pegado en Studio es un programa que corre.** Si se pega el archivo nuevo
+**sin borrar el viejo**, quedan DOS programas haciendo lo mismo: dos ciudades, dos
+bodegas (en coordenadas distintas si son de rondas distintas), dos interfaces y avisos
+por duplicado. Y **nada truena**, que es lo peor: funciona dos veces.
+
+- Al **pegar**: `Ctrl+A` + `Ctrl+V` **encima** del script que ya existe. Nunca crear un
+  objeto nuevo con el mismo nombre, y mucho menos dejar el viejo.
+- Revisar en el Explorer que haya **exactamente uno** de: `Main`, `CityGenerator`,
+  `DataService`, `GameConfig`, `ClientUI`, y **una** carpeta `Remotes`. Guia para el
+  usuario: `docs/09-SI-SALE-DOBLE.md`.
+- El juego desde la v28 **lo detecta y se defiende** (tabla de arriba), pero eso es una
+  red de seguridad, no una excusa para no borrar la copia.
 
 ### ⚠️ Reglas que NO puedes romper
 
@@ -112,6 +128,10 @@ CAMBIOS-v2.md … CAMBIOS-v17.md        Changelog de cada ronda
 LEEME.md                              Instrucciones de instalación (para el usuario)
 docs/                                 Documentación técnica (para ti)
 tools/                                Validadores. Corre bash tools/validate.sh
+tools/mock.lua                        Simulador de la API de Roblox. Su Destroy()
+                                      AHORA borra de verdad; antes era una funcion
+                                      vacia y no se podia detectar si el juego
+                                      limpiaba lo que ya no sirve (bug "todo doble")
 ```
 
 **Ubicación en Studio** (esto es lo que le dices al usuario):
