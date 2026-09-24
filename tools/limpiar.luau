@@ -1,4 +1,4 @@
--- LIMPIADOR DE COPIAS  (ronda v44)
+-- LIMPIADOR DE COPIAS  (ronda v45)
 ----------------------------------------------------------------------
 -- PARA QUE SIRVE
 --   Tu juego avisa "HAY COPIAS PEGADAS EN STUDIO". Esto las borra SOLO,
@@ -16,14 +16,17 @@
 --      GameConfig y ClientUI (deja UNA de cada: la de la ronda nueva).
 --   2) Borra TODAS las carpetas Remotes: el juego crea la suya solito al
 --      dar Play, asi que dejarlas pegadas solo causa problemas.
---   3) Te dice QUE ARCHIVO hay que volver a pegar (los que son de otra
+--   3) Las OBRAS VIEJAS de los lotes de bodega: las bodegas vecinas y su cinta
+--      amarilla de clausura que quedaron guardadas en el lugar. Eso era lo que
+--      se seguia viendo aunque el mapa nuevo ya estuviera bien.
+--   4) Te dice QUE ARCHIVO hay que volver a pegar (los que son de otra
 --      ronda, o los que faltan).
 --
 -- No toca nada mas (ni el mapa, ni BuildCar, ni tus cosas). Si algo no te
 -- gusta, Ctrl+Z lo deshace.
 ----------------------------------------------------------------------
 
-local RONDA = "v44"          -- esta ronda de archivos (lo revisa tools/remotes.py)
+local RONDA = "v45"          -- esta ronda de archivos (lo revisa tools/remotes.py)
 
 local SALIDA: {string} = {}
 local borrados: {string} = {}
@@ -220,7 +223,44 @@ else
 	di("carpetas Remotes: no habia ninguna pegada (bien)")
 end
 
--- 9) resumen
+-- 9) v45: OBRAS VIEJAS DE LOS LOTES (el bug que el usuario seguia viendo)
+--    El lugar guarda lo que se construyo en partidas anteriores: bodegas vecinas,
+--    su CINTA AMARILLA de clausura, postes, basura y bodegas clausuradas. El
+--    servidor las borra solo al arrancar (version v45), pero si el lugar tiene
+--    muchas, aqui se van de un tiron y sin dar Play.
+do
+	local lotesBorrados = 0
+	local basuraLotes = {}
+	local PREFIJOS = {"BodegaVecina_", "BodegaClausurada_", "Warehouse_"}
+	for _, o in ipairs(workspace:GetChildren()) do
+		local n = o.Name or ""
+		local esLote = false
+		for _, pre in ipairs(PREFIJOS) do
+			if string.sub(n, 1, #pre) == pre then esLote = true break end
+		end
+		if not esLote then
+			local ok1, v = pcall(function() return o:GetAttribute("Vecina") end)
+			local ok2, c = pcall(function() return o:GetAttribute("Clausurada") end)
+			local ok3, l = pcall(function() return o:GetAttribute("Lote") end)
+			esLote = (ok1 and v == true) or (ok2 and c == true) or (ok3 and l ~= nil)
+		end
+		if not esLote and n == "Oficiales" then esLote = true end
+		if esLote then table.insert(basuraLotes, o) end
+	end
+	for _, o in ipairs(basuraLotes) do
+		table.insert(borrados, "'" .. o.Name .. "' (obra vieja de los lotes de bodega)")
+		pcall(function() o:Destroy() end)
+		lotesBorrados += 1
+	end
+	if lotesBorrados > 0 then
+		di("obras viejas de los lotes: borre " .. lotesBorrados ..
+			" (bodegas vecinas y cintas que quedaron guardadas en el lugar)")
+	else
+		di("obras viejas de los lotes: no habia ninguna (bien)")
+	end
+end
+
+-- 10) resumen
 print("----- que borre -----")
 if #borrados == 0 then
 	print("  (nada: ya estaba limpio)")

@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v44** · 24 sep 2026
+> Última actualización: **v45** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v44 |
+| **Versión actual** | v45 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,19 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v45 (captura de las 7:19)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "siguen los mismos bugs" (bodega vecina con cinta amarilla CRUZADA sobre su patio, tablillas viejas) | **El lugar guarda el Workspace**: las bodegas vecinas, su cinta de clausura y los `Oficiales` de partidas anteriores se quedaban pegados en el mapa y `CityGenerator.Build` solo borraba la carpeta `City` | `Main.limpiarObrasViejas()` los borra al arrancar (por nombre `BodegaVecina_`/`BodegaClausurada_`/`Warehouse_`/`Oficiales` **y** por atributos `Vecina`/`Clausurada`/`Lote`); el **limpiador** (`tools/limpiar.luau`, paso 9) tambien; `docs/11` explica **guardar el lugar sin la ciudad** |
+| "sale muy pequeño en los letreros" | los tableros negros median poco y el texto iba chico | GarageSign **17x3.6 @70 px**, BayPlate **6x2.6 @75**, TALLER/OFICINA **65**, lintel **62**, placa **48**; `GARAJE DE <NOMBRE>` en **dos renglones** |
+| "la escuadra la pistola se sigue viendo asi" (tubito gris flotando delante) | el cañon estaba puesto **a mano** en (0, 0.78, -1.28): 0.30 studs arriba y 0.58 adelante de la corredera; ademas el cilindro llevaba el largo en Z (en Roblox el largo de un cilindro va en **X**) | cañon **calculado** desde la corredera (`canonTope`), boca pegada (hueco 0.000), `Size = (largo, 0.13, 0.13)` acostado con la rotacion; miras, cachas y cargador mas grandes; `GripPos (0, -0.06, 0.16)` |
+
+> OJO con el simulador (`tools/mock.lua`): v45 le enseño que **toda parte nace con
+> `CFrame`/`Size`** (antes eran `nil`) y que `CFrame * CFrame` y `CFrame + Vector3`
+> **si mueven** (antes devolvian el mismo CFrame). Sin eso, el arma no se podia
+> probar: el cañon flotando pasaba como si estuviera bien.
 
 ### 🆕 Qué se cerró en la v44 (las 4 cosas de las capturas)
 
@@ -357,8 +370,8 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v44 (arrancando...)` -> `RONDA v44  OK`; se encoge a un letrerito `v44` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v44` |
+| **Placa verde** arriba al centro | el cliente | `RONDA v45 (arrancando...)` -> `RONDA v45  OK`; se encoge a un letrerito `v45` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v45` |
 | **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v44]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);

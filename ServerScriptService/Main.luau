@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v44 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v45 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -664,6 +664,45 @@ end
 --     te acercas ("esta area esta clausurada" / "...te voy a llevar a la
 --     carcel" si reincides).
 local vecinas: {[number]: Model} = {}
+
+-- ===== v45: BORRAR LAS OBRAS VIEJAS QUE QUEDARON GUARDADAS EN EL LUGAR =====
+-- ESTE ERA EL "siguen los mismos bugs" DEL USUARIO. El lugar de Studio guarda lo
+-- que se construyo en partidas anteriores (bodegas vecinas, su cinta policial,
+-- postes, basura y hasta bodegas clausuradas). El servidor volvia a construir el
+-- mapa encima, pero esas obras viejas se quedaban ahi PARA SIEMPRE: en la captura
+-- se veia la cinta amarilla cruzada sobre el patio del jugador y bodegas viejas
+-- encima de la calle... aunque el mapa nuevo ya estuviera bien.
+-- Se borran al arrancar (antes de construir los lotes de esta partida) y se dice
+-- en la consola cuantas se borraron, como con las carpetas Remotes de mas.
+local function limpiarObrasViejas()
+	local basura = {}
+	for _, c in ipairs(Workspace:GetChildren()) do
+		local n = c.Name or ""
+		-- OJO con contar letras a mano: "BodegaClausurada_" tiene 17, no 18 (si
+		-- te equivocas, ESA obra vieja no se borra y el bug sigue). Se compara
+		-- con el largo del propio prefijo.
+		local esLote = false
+		for _, pre in ipairs({"BodegaVecina_", "BodegaClausurada_", "Warehouse_"}) do
+			if string.sub(n, 1, #pre) == pre then esLote = true break end
+		end
+		esLote = esLote
+			or (n == "Oficiales")
+			or (c:GetAttribute("Vecina") == true)
+			or (c:GetAttribute("Clausurada") == true)
+			or (c:GetAttribute("Lote") ~= nil)
+		if esLote then table.insert(basura, c) end
+	end
+	for _, c in ipairs(basura) do pcall(function() c:Destroy() end) end
+	if #basura > 0 then
+		print("[SpiceEmpire] Borre " .. #basura .. " obra(s) vieja(s) de los lotes que " ..
+			"habian quedado guardadas en el lugar (bodegas vecinas, cintas, oficiales). " ..
+			"Si vuelven a salir: en Studio corre el LIMPIADOR (tools/limpiar.luau) " ..
+			"y guarda el lugar sin la ciudad. Ver docs/11-QUE-HAGO-SI-NO-CAMBIA.md")
+	end
+	return #basura
+end
+
+limpiarObrasViejas()
 
 local oficialesFolder = Instance.new("Folder")
 oficialesFolder.Name = "Oficiales"
@@ -2030,11 +2069,18 @@ local function makeWeapon(): Tool
 	tool.ToolTip = "Clic para disparar"
 	-- La pistola se veia enorme junto al personaje; todo el modelo se
 	-- redujo al 62% y el agarre se reacomodo.
-	tool.GripPos = Vector3.new(0, -0.15, 0.25)
+	-- v45: el agarre. La cacha (GripL/GripR) esta centrada en el origen del
+	-- Handle, asi que con GripPos en cero la mano cae DENTRO de la cacha (como
+	-- debe). Se empuja un pelo hacia adelante y abajo para que el brazo no se
+	-- meta en la corredera.
+	tool.GripPos = Vector3.new(0, -0.06, 0.16)
 
 	-- El Handle es la CACHA (lo que agarra la mano). Todo lo demas se le
 	-- suelda encima. OJO: hay que colocar cada pieza ANTES de soldarla;
 	-- el WeldConstraint congela el offset en el momento de crearse.
+	--
+	-- v45: ADEMAS se mide el arma ya armada y el agarre se calcula solo (mas
+	-- abajo), para que quede centrada en la mano y no "flotando" al lado.
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
 	handle.Size = Vector3.new(0.211, 0.713, 0.384)
@@ -2068,15 +2114,29 @@ local function makeWeapon(): Tool
 	local steel = Color3.fromRGB(58, 60, 66)
 	local dark  = Color3.fromRGB(26, 26, 30)
 
-	-- corredera y cañon
-	piece("Slide",     Vector3.new(0.223, 0.26, 1.023), Vector3.new(0.0, 0.484, -0.186), steel)
-	piece("SlideTop",  Vector3.new(0.186, 0.087, 0.961), Vector3.new(0.0, 0.639, -0.186), Color3.fromRGB(72, 74, 80))
-	piece("Barrel",    Vector3.new(0.105, 0.105, 0.248), Vector3.new(0.0, 0.484, -0.794), dark,
-		Enum.Material.Metal, Enum.PartType.Cylinder)
-	-- el cilindro trae el eje en X: hay que acostarlo sobre Z
-	local bar = tool:FindFirstChild("Barrel")
+	-- ===== v45: LA PISTOLA (el usuario: "se sigue viendo asi") =====
+	-- EL BUG: el cañon se colocaba a mano en (0, 0.78, -1.28), o sea 0.30 studs
+	-- ARRIBA de la corredera y 0.58 ADELANTE del arma: quedaba un tubito GRIS
+	-- FLOTANDO en el aire delante de la mano (justo lo de la captura).
+	-- Ahora el cañon se calcula a partir de la corredera, asi que sale pegado.
+	local slideY, slideZ, slideLargo = 0.484, -0.186, 1.023
+	local canonTope = slideZ - slideLargo * 0.5        -- donde termina la corredera
+	local canonLargo = 0.3
+
+	piece("Slide",     Vector3.new(0.223, 0.26, slideLargo), Vector3.new(0.0, slideY, slideZ), steel)
+	piece("SlideTop",  Vector3.new(0.186, 0.087, 0.961), Vector3.new(0.0, 0.639, slideZ), Color3.fromRGB(72, 74, 80))
+	-- la boca tiene que QUEDAR PEGADA al frente de la corredera
+	-- OJO: un Part cilindrico tiene su LARGO en el eje X del Size. Si se pone el
+	-- largo en Z, al acostarlo queda un DISCO chato (eso se veia como un tubito
+	-- raro). Va (largo, calibre, calibre) y luego se acuesta con la rotacion.
+	local bar = piece("Barrel", Vector3.new(canonLargo, 0.13, 0.13),
+		Vector3.new(0.0, slideY, canonTope - canonLargo * 0.5),
+		dark, Enum.Material.Metal, Enum.PartType.Cylinder)
+	-- el cilindro trae el eje en X: hay que acostarlo sobre Z (rotando sobre Y)
 	if bar then
-		bar.CFrame = handle.CFrame * CFrame.new(0, 0.78, -1.28) * CFrame.Angles(0, math.rad(90), 0)
+		bar.CFrame = handle.CFrame
+			* CFrame.new(0, slideY, canonTope - canonLargo * 0.5)
+			* CFrame.Angles(0, math.rad(90), 0)
 	end
 
 	-- armazon, guardamonte y gatillo
@@ -2087,20 +2147,21 @@ local function makeWeapon(): Tool
 		Color3.fromRGB(96, 98, 104))
 
 	-- miras
-	piece("SightRear",  Vector3.new(0.136, 0.062, 0.05), Vector3.new(0.0, 0.713, 0.236), Color3.fromRGB(180, 180, 190))
-	piece("SightFront", Vector3.new(0.043, 0.068, 0.043), Vector3.new(0.0, 0.713, -0.632), Color3.fromRGB(180, 180, 190))
+	piece("SightRear",  Vector3.new(0.15, 0.07, 0.06), Vector3.new(0.0, 0.72, 0.236), Color3.fromRGB(180, 180, 190))
+	piece("SightFront", Vector3.new(0.05, 0.078, 0.05), Vector3.new(0.0, 0.72, -0.632), Color3.fromRGB(180, 180, 190))
 
 	-- cachas texturizadas y base del cargador
-	piece("GripL", Vector3.new(0.037, 0.527, 0.31), Vector3.new(-0.118, -0.031, 0.019),
+	piece("GripL", Vector3.new(0.05, 0.6, 0.36), Vector3.new(-0.125, -0.06, 0.019),
 		Color3.fromRGB(62, 48, 40), Enum.Material.Wood)
-	piece("GripR", Vector3.new(0.037, 0.527, 0.31), Vector3.new(0.118, -0.031, 0.019),
+	piece("GripR", Vector3.new(0.05, 0.6, 0.36), Vector3.new(0.125, -0.06, 0.019),
 		Color3.fromRGB(62, 48, 40), Enum.Material.Wood)
-	piece("MagBase", Vector3.new(0.236, 0.056, 0.409), Vector3.new(0.0, -0.372, 0.012),
+	piece("MagBase", Vector3.new(0.26, 0.07, 0.43), Vector3.new(0.0, -0.39, 0.012),
 		Color3.fromRGB(44, 44, 50))
 
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
-	muzzle.Position = Vector3.new(0, 0.48, -0.93)
+	-- la boca, en la punta REAL del cañon (antes estaba en un numero a ojo)
+	muzzle.Position = Vector3.new(0, slideY, canonTope - canonLargo - 0.02)
 	muzzle.Parent = handle
 
 	-- fogonazo, apagado hasta que disparas

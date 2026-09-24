@@ -47,8 +47,30 @@ CFmt.__index=function(t,k)
   if k=="Inverse" then return function(a) return mkCF(Vector3.new()) end end
   if k=="LookVector" then return Vector3.new(0,0,1) end
   return nil end
-CFmt.__mul=function(a,b) return a end
-CFmt.__add=function(a,b) return a end ; CFmt.__sub=function(a,b) return a end
+-- v45: multiplicar CFrames ANTES devolvia el mismo CFrame (el simulador no
+-- componia nada), asi que colocar una pieza "respecto al mango" no movia nada y
+-- posiciones como la boca del cañon no se podian probar. Ahora compone posiciones
+-- (la rotacion se ignora: para lo que se prueba aqui alcanza).
+CFmt.__mul=function(a,b)
+  if type(b)=="table" and b.p then
+    return mkCF(Vector3.new(a.p.X+b.p.X, a.p.Y+b.p.Y, a.p.Z+b.p.Z))
+  end
+  if type(b)=="table" and b.X then
+    return Vector3.new(a.p.X+b.X, a.p.Y+b.Y, a.p.Z+b.Z)
+  end
+  return a end
+-- v45: sumarle/restarle un Vector3 a un CFrame ANTES devolvia el mismo CFrame
+-- (mover una parte "funcionaba" sin mover nada). Ahora si desplaza.
+CFmt.__add=function(a,b)
+  if type(b)=="table" and b.X then
+    return mkCF(Vector3.new(a.p.X+b.X, a.p.Y+b.Y, a.p.Z+b.Z))
+  end
+  return a end
+CFmt.__sub=function(a,b)
+  if type(b)=="table" and b.X then
+    return mkCF(Vector3.new(a.p.X-b.X, a.p.Y-b.Y, a.p.Z-b.Z))
+  end
+  return a end
 function mkCF(p) return setmetatable({p=p or Vector3.new()},CFmt) end
 CFrame={new=function(x,y,z) if type(x)=="table" then return mkCF(x) end return mkCF(Vector3.new(x,y,z)) end,
   lookAt=function(a,b) return mkCF(a) end, Angles=function() return mkCF() end}
@@ -90,6 +112,19 @@ function Instance_.new(cls,parent)
   -- number with nil" — un error que en Roblox NUNCA pasa (ahi LayoutOrder nace
   -- en 0). Aqui se imita a Roblox para que las pruebas sean de verdad.
   o.LayoutOrder = 0
+  -- v45: en Roblox TODA parte nace con CFrame y Size. El mock los dejaba en nil,
+  -- asi que armar el arma (que coloca cada pieza tomando como base el CFrame del
+  -- mango) tronaba aqui y no se podia probar. Se imita a Roblox.
+  do
+    local BASEPART = {Part=true, MeshPart=true, WedgePart=true, CornerWedgePart=true,
+      TrussPart=true, SpawnLocation=true, Seat=true, VehicleSeat=true,
+      UnionOperation=true, PartOperation=true}
+    if BASEPART[cls] then
+      o.CFrame = mkCF(Vector3.new(0, 0, 0))
+      o.Size = Vector3.new(1, 1, 1)
+      o.Position = Vector3.new(0, 0, 0)
+    end
+  end
   o.Visible = true
   o.Enabled = true
   o.Text = ""

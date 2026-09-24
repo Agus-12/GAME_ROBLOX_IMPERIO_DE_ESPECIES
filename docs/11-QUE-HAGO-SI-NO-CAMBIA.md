@@ -11,14 +11,14 @@ Dale **Play** y mira **arriba al centro** de la pantalla.
 
 | Lo que sale | Que pasa | Que hacer |
 |---|---|---|
-| **`RONDA v41  OK`** | el archivo nuevo SI corre | el juego esta al dia: lo que falte es otro archivo, no la ClientUI |
-| **`RONDA v41` + "borre N tablero(s) viejo(s)"** | encontro y borro una copia vieja que se veia encima | perfecto: mira que ya no quede el tablero ancho |
-| **`RONDA v41  (arrancando...)`** y no cambia | la ClientUI corre pero **truena** a medio camino | paso 3 (mira el Output) |
+| **`RONDA v45  OK`** | el archivo nuevo SI corre | el juego esta al dia: lo que falte es otro archivo, no la ClientUI |
+| **`RONDA v45` + "borre N tablero(s) viejo(s)"** | encontro y borro una copia vieja que se veia encima | perfecto: mira que ya no quede el tablero ancho |
+| **`RONDA v45  (arrancando...)`** y no cambia | la ClientUI corre pero **truena** a medio camino | paso 3 (mira el Output) |
 | **no sale placa** | esa ClientUI **no corre** | pasos 2 y 4 |
 | sale **otra** ronda (v32, v36...) | estas corriendo un archivo **viejo** | paso 2 |
 
 Tambien mira el **letrero del spawn** (arriba de donde apareces): dice
-`SERVIDOR v41`. Si el letrero es viejo y la placa nueva, el problema esta del lado
+`SERVIDOR v45`. Si el letrero es viejo y la placa nueva, el problema esta del lado
 del servidor; si el letrero es nuevo y la placa no sale, el problema es la ClientUI.
 
 ## Paso 2. ¿La ClientUI es LocalScript y esta prendida?
@@ -83,6 +83,36 @@ remotes). **No es un error: puedes jugar normal** (el juego usa la suya). Para q
 vuelva: pega el **LIMPIADOR** (pestana 0) en la Command Bar, o borra a mano todas las
 carpetas `Remotes` de `ReplicatedStorage` y deja **un solo `Main`** en
 `ServerScriptService` (el que diga `RONDA: v41`). Mas detalle: `docs/09`.
+
+## Paso 4-bis. Siguen saliendo cosas que ya no deberian: el LUGAR guarda lo viejo (v45)
+
+Si ves, **pegado al piso**, algo de partidas anteriores — una **bodega vecina** con su
+**cinta amarilla y negra** cruzada, tablillas viejas, basura, postes — esa no es
+una cosa que el juego acabe de crear: **esta GUARDADA dentro de tu lugar**.
+
+El lugar (el archivo .rbxl) guarda TODO el **Workspace**, y eso incluye todo lo
+que el servidor construyo en partidas anteriores. Por eso "los mismos bugs"
+seguian apareciendo aunque los archivos ya tuvieran el arreglo: el mapa viejo
+estaba **encima**.
+
+**Desde la v45 el servidor las borra solito** al dar Play (en el Output sale
+`[SpiceEmpire] Borre N obra(s) vieja(s) de los lotes...`). Si quieres hacerlo
+SIN dar Play, corre el **limpiador** (`tools/limpiar.luau`) en la Command Bar:
+el paso 9 borra justo esas obras viejas.
+
+### Que tu lugar ya no guarde la ciudad (recomendado)
+
+La ciudad se **reconstruye sola** cada vez que se da Play, asi que no hace falta
+tenerla guardada:
+
+1. En Studio, sin dar Play, abre el **Explorer** y busca la carpeta **`City`**
+   dentro de **`Workspace`**.
+2. Click en **`City`** y dale **Suprimir** (o clic derecho > Delete).
+3. Ahora si, **guarda el lugar** (`Ctrl+S` / `File > Save`).
+
+De ahi en adelante el lugar arranca **pelon** y la ciudad (con sus lotes, sus
+garajes y sus bodegas vecinas) la arma el servidor al dar Play. Asi nunca mas se
+te queda pegada una obra vieja.
 
 ## Paso 5. Si sigue igual, mandame esto
 

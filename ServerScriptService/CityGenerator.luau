@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v44 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v45 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -175,13 +175,26 @@ CityGenerator.TextoPlano = textoPlano
 function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 	local sign = model:FindFirstChild("GarageSign", true)
 	if not sign or not sign:IsA("BasePart") then return false end
+	-- si viene "GARAJE DE PEPE", se parte en dos renglones ("GARAJE DE" arriba y
+	-- el nombre abajo): en un letrero angosto, dos renglones se leen mucho mejor
+	-- que una linea larga con la letra chiquita.
+	local dos = texto
+	local a, b = string.match(texto, "^(.-) DE (.*)$")
+	if a and b then dos = a .. " DE\n" .. string.upper(b) end
+
 	local sg = sign:FindFirstChild("Rotulo")
 	if not sg then
-		return textoPlano(sign, texto, Color3.fromRGB(255, 205, 120), { pixels = 55 }) ~= nil
+		local nuevo = textoPlano(sign, dos, Color3.fromRGB(255, 205, 120), { pixels = 70 })
+		if nuevo then
+			local lbl = nuevo:FindFirstChild("Texto")
+			if lbl and lbl:IsA("TextLabel") then lbl.TextWrapped = true end
+		end
+		return nuevo ~= nil
 	end
 	local lbl = sg:FindFirstChild("Texto")
 	if lbl and lbl:IsA("TextLabel") then
-		lbl.Text = texto
+		lbl.Text = dos
+		lbl.TextWrapped = true
 		return true
 	end
 	return false
@@ -1587,7 +1600,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		head2.Parent = model
-		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120), { pixels = 50 })
+		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120), { pixels = 65 })
 	end
 
 	-- La pared DERECHA va en tramos, para dejar el hueco por donde se pasa
@@ -1647,7 +1660,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		head.Parent = model
-		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255), { pixels = 50 })
+		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255), { pixels = 65 })
 	end
 
 	-- ===== FACHADA DEL FRENTE con hueco de porton =====
@@ -1754,7 +1767,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	gateSensor.Parent = model
 
 	-- letrero arriba del porton
-	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), { pixels = 50 })
+	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), { pixels = 62 })
 
 	-- luces del porton
 	for _, sx in ipairs({-1, 1}) do
@@ -2646,7 +2659,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		-- numero del cajon (al reverso, adentro del taller)
 		local plate = part({
 			Name = "BayPlate",
-			Size = Vector3.new(4, 2, 0.2),
+			Size = Vector3.new(6, 2.6, 0.2),
 			Position = Vector3.new(bx, 12, GAR_Z - GAR_D / 2 + 0.7),
 			Color = Color3.fromRGB(44, 46, 54),
 			Material = Enum.Material.Metal,
@@ -2655,7 +2668,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		plate.Parent = model
 		-- v44: el usuario pidio justo esto: "vi un letrero flotante de caja 1;
 		-- ahi ya hay uno negro, poner ahi caja 1 pero en texto plano"
-		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228), { pixels = 60 })
+		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228), { pixels = 75 })
 
 		-- lampara del techo del cajon (se prende de noche)
 		local gl = part({
@@ -2771,9 +2784,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	exit.Parent = model
 
+	-- v45: el tablero era de 12 x 2.4 y ahi tiene que caber "GARAJE DE <NOMBRE>":
+	-- el texto salia chiquito. Ahora es mas grande y son DOS renglones.
 	local garSign = part({
 		Name = "GarageSign",
-		Size = Vector3.new(12, 2.4, 0.3),
+		Size = Vector3.new(17, 3.6, 0.3),
 		Position = Vector3.new(GAR_X, 14.5, GAR_Z + GAR_D / 2 - 0.7),
 		Color = Color3.fromRGB(38, 42, 50),
 		Material = Enum.Material.Metal,
@@ -2784,7 +2799,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- (el usuario lo reporto como "textos en grandote muy estorboso"). Ahora el
 	-- texto va PINTADO en el tablero negro que ya estaba ahi. Main lo reescribe
 	-- con "GARAJE DE <dueno>" o "SIN PROPIETARIO" (funcion RotularGaraje).
-	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 55 })
+	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 70 })
 
 	-- ===== LAMPARAS DE TECHO =====
 	local lampCount = math.max(3, math.floor(W / 45))
@@ -3380,7 +3395,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		gSign.Parent = model
-		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), { pixels = 42 })
+		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), { pixels = 48 })
 		local signGlow = part({
 			Name = "GateSignGlow",
 			Size = Vector3.new(math.min(26, W * 0.5) + 1.2, 0.35, 0.35),

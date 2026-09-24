@@ -170,10 +170,15 @@ for _, d in ipairs(wh:GetDescendants()) do
   end
 end
 -- el texto del tablero del garaje y el de los cajones
+local function sinSaltos(t)
+  if type(t) ~= "string" then return tostring(t) end
+  return (string.gsub(t, string.char(10), " / "))
+end
+
 local function textoDe(parte)
   local g = parte and parte:FindFirstChild("Rotulo")
   local l = g and g:FindFirstChild("Texto")
-  return l and l.Text or "(sin texto)"
+  return sinSaltos(l and l.Text or "(sin texto)")
 end
 local garaje = wh:FindFirstChild("GarageSign", true)
 local cajas = {}
@@ -215,7 +220,7 @@ end
 local textoClaus = tablilla and (function()
   local g3 = tablilla:FindFirstChild("Rotulo")
   local l3 = g3 and g3:FindFirstChild("Texto")
-  return l3 and l3.Text or "(sin texto)"
+  return sinSaltos(l3 and l3.Text or "(sin texto)")
 end)() or "(no hay tablilla)"
 print("__RES2__ flotantes=" .. table.concat(flotantes, ",") ..
   "|pintados=" .. table.concat(pintados, ",") ..
@@ -253,8 +258,9 @@ else:
         prob.append("los cajones no dicen 'CAJA n' en texto plano (dicen \"%s\")" % d2.get("cajas"))
     if d2.get("cambio") != "true":
         prob.append("RotularGaraje no pudo escribir en el tablero")
-    if d2.get("tras") != "GARAJE DE PEPE":
-        prob.append("RotularGaraje no cambio el texto (quedo \"%s\")" % d2.get("tras"))
+    tras = (d2.get("tras") or "").replace("\\n", " / ")
+    if tras != "GARAJE DE / PEPE":
+        prob.append("RotularGaraje no cambio el texto (quedo \"%s\")" % tras)
     if d2.get("sinDueno") != "si":
         prob.append("el lote sin dueno no dice 'SIN PROPIETARIO' en su tablero")
     if d2.get("clausura") != "CLAUSURADA":
@@ -294,8 +300,173 @@ print("  %s  el servidor: %s" % ("OK   " if not prob2 else "FALLA",
 if prob2:
     fallas += 1
 
+# ============================================ 5) OBRAS VIEJAS + LA PISTOLA (v45)
+print()
+print("=== 20. OBRAS VIEJAS GUARDADAS Y LA PISTOLA (v45) ===")
+
+# --- 5a) el servidor borra las obras viejas que quedaron guardadas en el lugar
+guion3 = 'dofile("%s/mock.lua")\n' % HERE
+guion3 += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+guion3 += '''
+local _city,_data
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+local sss=game:GetService("ServerScriptService")
+sss.WaitForChild=function(s,n)
+  if n=="CityGenerator" then return "__CITY__" end
+  if n=="DataService" then return "__DATA__" end end
+require=function(x)
+  if x=="__CFG__" then return _cfg end
+  if x=="__CITY__" then return _city end
+  if x=="__DATA__" then return _data end
+  return {} end
+-- LO QUE EL USUARIO VEIA: obras de partidas anteriores GUARDADAS en el lugar
+local viejas = {}
+local function obra(nombre, attrs)
+  local m = Instance.new("Model") ; m.Name = nombre
+  for k, v in pairs(attrs or {}) do m:SetAttribute(k, v) end
+  m.Parent = workspace ; table.insert(viejas, m)
+  return m
+end
+obra("BodegaVecina_1", {Vecina = true})
+obra("BodegaVecina_2", {Vecina = true, Clausurada = true})
+obra("BodegaClausurada_3", {Slot = 3})
+local cartelViejo = Instance.new("Folder") ; cartelViejo.Name = "Oficiales" ; cartelViejo.Parent = workspace
+local ajeno = Instance.new("Model") ; ajeno.Name = "MiCasita" ; ajeno.Parent = workspace
+_city=(function()
+'''
+guion3 += L("ServerScriptService/CityGenerator.luau")
+guion3 += '''
+end)()
+_data=(function()
+'''
+guion3 += L("ServerScriptService/DataService.luau")
+guion3 += '''
+end)()
+local ok, err = pcall(function()
+'''
+guion3 += L("ServerScriptService/Main.luau")
+guion3 += '''
+end)
+task.__sched.advance(2)
+local quedan, seQuedo = 0, 0
+for _, v in ipairs(viejas) do if v.Parent then quedan = quedan + 1 end end
+if ajeno.Parent then seQuedo = 1 end
+print("__VIEJAS__ ok=" .. tostring(ok) .. "|quedan=" .. quedan .. "|ajeno=" .. seQuedo ..
+  "|oficiales=" .. tostring(workspace:FindFirstChild("Oficiales") ~= nil))
+'''
+sal3 = lua(guion3)
+m3 = re.search(r"__VIEJAS__ (.*)", sal3.stdout + sal3.stderr)
+if not m3:
+    fallas += 1
+    print("  FALLA  el servidor no arranco con las obras viejas puestas")
+    for linea in (sal3.stdout + sal3.stderr).strip().splitlines()[-6:]:
+        print("         | " + linea[:150])
+else:
+    d3 = dict(kv.split("=") for kv in m3.group(1).split("|"))
+    prob3 = []
+    if d3.get("ok") != "true":
+        prob3.append("el Main trono con obras viejas en el lugar")
+    if d3.get("quedan") != "0":
+        prob3.append("quedaron %s obra(s) vieja(s) en el mapa" % d3.get("quedan"))
+    if d3.get("ajeno") != "1":
+        prob3.append("se borro algo que NO era de los lotes (no debe tocar lo demas)")
+    if prob3:
+        fallas += 1
+        print("  FALLA  (obras viejas)")
+        for x in prob3:
+            print("         - " + x)
+    else:
+        print("  OK     el servidor borra las obras viejas de los lotes (3 modelos + la")
+        print("         carpeta Oficiales) y NO toca lo demas del lugar")
+
+# --- 5b) la pistola: nada flotando
+guion4 = 'dofile("%s/mock.lua")\n' % HERE
+guion4 += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+# el pedazo del arma se saca de Main.luau YA LIMPIO (sin anotaciones de tipo de
+# Luau, que Lua 5.4 no entiende) y se inyecta como texto entre corchetes
+_fuente = L("ServerScriptService/Main.luau")
+_i = _fuente.index("local function makeWeapon")
+_j = _fuente.index("function giveWeapon")
+_arma_src = _fuente[_i:_j]
+guion4 += """
+local TEXTO_ARMA = [==[
+""" + _arma_src + """
+]==]
+local env = setmetatable({
+  Instance = Instance, Vector3 = Vector3, CFrame = CFrame, Color3 = Color3,
+  Enum = Enum, math = math, string = string, table = table, pcall = pcall,
+  Config = _cfg,
+}, {__index = _G})
+local f, err = load(TEXTO_ARMA .. string.char(10) .. "return makeWeapon()", "arma", "t", env)
+if not f then print("__ARMA__ trono: " .. tostring(err)) return end
+local armada, arma = pcall(f)
+if not armada then print("__ARMA__ trono: " .. tostring(arma)) return end
+-- se miden las piezas: ninguna puede quedar despegada del cuerpo del arma
+local minY, maxY, minZ, maxZ = 1e9, -1e9, 1e9, -1e9
+local total = 0
+for _, d in ipairs(arma:GetChildren()) do
+  if d.ClassName == "Part" and d.Name ~= "Handle" then
+    total = total + 1
+    minY = math.min(minY, d.CFrame.p.Y - d.Size.Y * 0.5)
+    maxY = math.max(maxY, d.CFrame.p.Y + d.Size.Y * 0.5)
+    minZ = math.min(minZ, d.CFrame.p.Z - d.Size.Z * 0.5)
+    maxZ = math.max(maxZ, d.CFrame.p.Z + d.Size.Z * 0.5)
+  end
+end
+-- el cañon: ¿toca la corredera?
+local slide = arma:FindFirstChild("Slide")
+local canon = arma:FindFirstChild("Barrel")
+local hueco = 999
+if slide and canon then
+  local frenteSlide = slide.CFrame.p.Z - slide.Size.Z * 0.5
+  -- el cañon va ACOSTADO (rotado 90 grados en Y): su largo corre sobre Z y su
+  -- largo es Size.X (asi funciona un cilindro en Roblox)
+  local atrasCanon = canon.CFrame.p.Z + canon.Size.X * 0.5
+  hueco = math.abs(frenteSlide - atrasCanon)
+end
+print("__ARMA__ piezas=" .. total .. "|hueco=" .. string.format("%.3f", hueco) ..
+  "|largo=" .. string.format("%.2f", maxZ - minZ) ..
+  "|alto=" .. string.format("%.2f", maxY - minY) ..
+  "|grip=" .. tostring(arma.GripPos ~= nil))
+"""
+sal4 = subprocess.run([LUA, "-"], input=guion4, capture_output=True, text=True,
+                      env=dict(os.environ, TOOLS=HERE), cwd=ROOT, timeout=600)
+sal4 = subprocess.run([LUA, "-"], input=guion4, capture_output=True, text=True,
+                      env=dict(os.environ, TOOLS=HERE), cwd=ROOT, timeout=600)
+m4 = re.search(r"__ARMA__ (.*)", sal4.stdout + sal4.stderr)
+if not m4:
+    fallas += 1
+    print("  FALLA  no se pudo armar la pistola")
+    for linea in (sal4.stdout + sal4.stderr).strip().splitlines()[-6:]:
+        print("         | " + linea[:150])
+else:
+    d4 = dict(kv.split("=") for kv in m4.group(1).split("|"))
+    prob4 = []
+    if int(d4.get("piezas", "0")) < 12:
+        prob4.append("faltan piezas del arma (%s)" % d4.get("piezas"))
+    try:
+        hueco = float(d4.get("hueco", "99"))
+    except ValueError:
+        hueco = 99.0
+    if hueco > 0.02:
+        prob4.append("el CAÑON esta separado de la corredera por %.3f studs "
+                     "(eso es el tubito gris flotando)" % hueco)
+    if d4.get("grip") != "true":
+        prob4.append("el arma no tiene agarre (GripPos)")
+    if prob4:
+        fallas += 1
+        print("  FALLA  (la pistola)")
+        for x in prob4:
+            print("         - " + x)
+    else:
+        print("  OK     la pistola: %s piezas, el cañon pegado a la corredera "
+              "(hueco %.3f)" % (d4.get("piezas"), hueco))
+        print("         arma de %s de largo x %s de alto, con agarre propio"
+              % (d4.get("largo"), d4.get("alto")))
+
 print()
 if fallas:
     print("FALLA: %d problema(s) de los reportes de las capturas" % fallas)
     sys.exit(1)
-print("OK: calles fuera de los lotes y rotulos pintados (nada flotando)")
+print("OK: calles fuera de los lotes, rotulos pintados y obras viejas borradas")

@@ -52,3 +52,4 @@ para revisar que nada se pierda.
 4. **v41**: el tablero viejo se caza **por contenido** (dice "Hojas"/"HEAT"/"Espacio"),
    aunque su nombre no sea el esperado o este dentro de una carpeta.
 | 29 | **Bodegas vecinas encima de la calle**, nombres en **texto grandote** flotando, sin decir de quien es cada garaje, y el numero de cajon flotando | calles limitadas a la ciudad; rotulos **pintados** en los tableros negros (nada flotante); **GARAJE DE <nombre>** / **SIN PROPIETARIO**; **CAJA n** en texto plano | **v44** |
+| 30 | **"Siguen los mismos bugs"** (bodega vecina con cinta amarilla encima, tablillas viejas), los **letreros salen muy chicos** y la **pistola sigue viendose mal** (tubito gris flotando) | el **lugar guardaba** las obras viejas -> se borran al arrancar (`limpiarObrasViejas`) y el limpiador tambien; letreros mas grandes y `GARAJE DE <nombre>` en dos renglones; cañon **pegado** a la corredera y armas mas grandes | **v45** |
