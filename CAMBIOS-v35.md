@@ -101,3 +101,30 @@ inventario salia vacio en las pruebas (falso verde). Ahora el simulador si recor
 
 > Lo importante de esta ronda: **debe quedar UNA sola `ClientUI`** y tiene que estar en
 > `StarterPlayer > StarterPlayerScripts` (no en `StarterGui`).
+
+---
+
+## 🐛 Correccion (mismo dia): la pestaña del ClientUI mostraba la pantalla en blanco
+
+El usuario reporto: *"el ClientUI, el 5 en el archivo, le pico y no sale nada"*.
+
+**Era un bug de la pagina de copiar (mio), no del juego.** El cambio de pestaña tenia el
+numero de paneles **escrito a mano**:
+
+```js
+for (var k=0;k<5;k++){    // MAL: son 6 pestanas desde que se agrego el PASO 0
+```
+
+Al picarle a la **pestaña 5 (ClientUI)**, el bucle ocultaba las otras cinco y **nunca
+mostraba la sexta**: pantalla en blanco, sin ningun error. Por eso el ClientUI del usuario
+se quedo viejo (v32) y era el que le salia con el cartel.
+
+**Arreglado**: ahora el numero de paneles se **cuenta solo**
+(`document.querySelectorAll('.panel').length`), y la herramienta **se verifica al
+generarse**: si las pestañas, los paneles y los botones de copiar no cuadran, `pegar.py`
+falla en vez de entregar una pagina rota.
+
+**Y hay prueba real** (etapa 13 del validador): `tools/pestanas.js` corre el JavaScript de
+la pagina TAL CUAL sobre un DOM de mentiras y **da clic en cada pestaña**, comprobando que
+se vea solo su panel. Con la pagina vieja **falla** ("al picar la pestaña 5: el panel 5
+quedo oculto", justo lo que le paso al usuario); con la nueva pasa.

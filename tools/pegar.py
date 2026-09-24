@@ -94,7 +94,12 @@ function activar(){
   mostrar(0);
 }
 function mostrar(i){
-  for (var k=0;k<5;k++){
+  // OJO: el numero de paneles NO se escribe a mano. Estaba en 5 y al agregar el
+  // PASO 0 (limpiador) quedaron 6 pestañas: al picarle a la ultima (ClientUI) el
+  // bucle ocultaba las otras 5 y nunca mostraba la 6 -> PANTALLA EN BLANCO. El
+  // usuario no podia copiar el ClientUI y por eso se le quedo viejo. Se cuenta solo.
+  var total = document.querySelectorAll('.panel').length;
+  for (var k=0;k<total;k++){
     document.getElementById('tab-'+k).className = 'tab' + (k===i ? ' activo' : '');
     document.getElementById('panel-'+k).className = 'panel' + (k===i ? ' activo' : '');
   }
@@ -205,8 +210,42 @@ try{ document.body.className='js'; mostrar(0); }catch(e){ document.body.classNam
 
     with open(out, "w", encoding="utf-8") as f:
         f.write(doc)
+
+    # ---- SE VERIFICA SOLO ----
+    # Paso de verdad: la pagina tuvo un bug donde el JavaScript del cambio de
+    # pestaña tenia el numero escrito a mano (5) y, al agregar el PASO 0, quedo
+    # una pestaña que NUNCA se mostraba (pantalla en blanco). El usuario no pudo
+    # copiar el ClientUI. Ahora la generacion falla si algo no cuadra.
+    tabs = len(re.findall(r'<button id="tab-\d+"', doc))
+    paneles = len(re.findall(r'<section id="panel-\d+"', doc))
+    esperado = len(FILES)
+    problemas = []
+    if tabs != esperado:
+        problemas.append("hay %d pestañas y %d archivos" % (tabs, esperado))
+    if paneles != esperado:
+        problemas.append("hay %d paneles y %d archivos" % (paneles, esperado))
+    if "k<5" in doc or "k < 5" in doc:
+        problemas.append("el cambio de pestaña tiene el numero escrito a mano (k<5)")
+    if "querySelectorAll('.panel').length" not in doc:
+        problemas.append("el cambio de pestaña no cuenta los paneles solo")
+    # cada panel tiene que traer su boton de copiar y su codigo
+    for i, (titulo, rel, _, _) in enumerate(FILES):
+        if ('<section id="panel-%d"' % i) not in doc:
+            problemas.append("falta el panel %d (%s)" % (i, titulo))
+        if ('onclick="copiar(%d)"' % i) not in doc:
+            problemas.append("el panel %d (%s) no tiene boton de copiar" % (i, titulo))
+    if problemas:
+        print("FALLA  la pagina quedo mal armada:")
+        for x in problemas:
+            print("   - " + x)
+        return 1
+
     print("listo: %s  (%.0f KB)" % (out, len(doc.encode("utf-8")) / 1024.0))
+    print("  verificado: %d archivos = %d pestanas = %d paneles, cada uno con su boton de copiar"
+          % (esperado, tabs, paneles))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    _sys.exit(main())

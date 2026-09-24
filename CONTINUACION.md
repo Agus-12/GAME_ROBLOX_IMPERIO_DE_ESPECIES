@@ -199,6 +199,20 @@ cartel viejo decia cosas falsas ("hay 2 Scripts Main pegados").
 | Cartel cuando el atrasado es ESTE archivo | lista neutra de diferencias | **"*** ESTA ClientUI ES LA VIEJA: el servidor ya es vNN y esta copia dice vMM ***"** + que hay mas de una ClientUI pegada |
 | Simulador | no tenia `game:GetDescendants()` -> el inventario salia vacio (**falso verde**) | lo tiene, y `tools/copias.py` escenario 7 prueba las dos `ClientUI` |
 
+### 🐛 La pestaña en blanco (misma ronda v35, reportada por el usuario)
+
+*"el ClientUI, el 5 en el archivo, le pico y no sale nada"*. Era **la pagina de copiar**,
+no el juego: el cambio de pestaña tenia el numero de paneles escrito a mano (`k<5`) y con la
+pestaña nueva del PASO 0 quedaron **6**. Al picarle a la ultima, ocultaba las otras y nunca
+mostraba esa: **pantalla en blanco**. Por eso el `ClientUI` del usuario se quedo viejo (v32).
+
+Arreglado (cuenta los paneles solo), `pegar.py` ahora **se verifica al generarse** y la
+**etapa 13** (`tools/pestanas.js`, con `node`) corre el JavaScript de la pagina y **da clic
+en cada pestaña**; con la pagina vieja **falla** y con la nueva pasa.
+
+**Regla dura nueva:** lo que se puede **contar** no se escribe a mano, y las herramientas
+del usuario (la pagina de copiar) tambien se prueban.
+
 **Regla dura nueva (v35):** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`
 y debe haber **una sola**. Si hay otra (aunque sea en `StarterGui`), corre y confunde.
 

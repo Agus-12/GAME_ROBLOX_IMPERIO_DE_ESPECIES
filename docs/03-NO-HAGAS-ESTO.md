@@ -479,3 +479,24 @@ esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes mu
 crea su carpeta 0.6 s despues) y **cuenta las conexiones por carpeta**. No basta con que
 "no salga un error": hay que ver que los remotes esten vivos (`Remotes#true=10`) y que la
 vieja quede desconectada (`Remotes#false=0`).
+
+---
+
+## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v35)
+
+```js
+for (var k = 0; k < 5; k++) {        // MAL: cuantos paneles hay, escrito a mano
+  document.getElementById('panel-' + k).className = ...;
+}
+```
+
+Al agregarle un panel nuevo (el PASO 0 del limpiador) quedaron **6**. El bucle seguia
+recorriendo 5: al picarle a la ultima pestaña, **ocultaba las otras cinco y nunca mostraba
+la sexta**. Pantalla en blanco, sin ningun error. El usuario no pudo copiar el `ClientUI`
+y ese archivo se le quedo de una ronda vieja durante varias rondas — y encima le salia
+con un cartel que culpaba a otro archivo.
+
+**Regla:** lo que se puede **contar**, no se escribe a mano
+(`document.querySelectorAll('.panel').length`). Y si la pagina es una herramienta que el
+usuario usa para instalar, **se prueba de verdad**: `tools/pestanas.js` (etapa 13) corre el
+JavaScript de la pagina y **da clic en cada pestaña**.

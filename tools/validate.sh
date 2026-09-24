@@ -39,3 +39,9 @@ echo "=== 11. NADIE BORRA DENTRO DEL BUCLE (se salta elementos) ==="
 python3 tools/loops.py
 echo "=== 12. CARPETAS REMOTES DE MAS (el caso real del usuario) ==="
 python3 tools/copias.py
+echo "=== 13. LA PAGINA DE COPIAR: cada pestana muestra su archivo ==="
+if command -v node >/dev/null 2>&1; then
+  python3 tools/pegar.py /tmp/pagina-pestanas.html && node tools/pestanas.js /tmp/pagina-pestanas.html
+else
+  echo "  (sin node: se brinca esta etapa)"
+fi

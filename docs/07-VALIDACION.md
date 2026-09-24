@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre **doce etapas**. Tienen que salir todas OK.
+Corre **trece etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -30,7 +30,8 @@ Corre **doce etapas**. Tienen que salir todas OK.
 | `remotes.py` | El cliente pide los mismos remotes que el servidor crea, y las versiones cuadran |
 | `intro.py` | **Mide en segundos** cuánto tarda en salir el botón "ENTRAR AL BARRIO" |
 | `loops.py` | Caza `Destroy()` dentro de un bucle de `GetChildren()` (siempre queda uno vivo) |
-| `copias.py` | Simula el caso "carpetas Remotes de mas" (5 escenarios, servidor y cliente) |
+| `copias.py` | Simula el caso "carpetas Remotes de mas" (7 escenarios, servidor y cliente) |
+| `pestanas.js` | Da clic en cada pestaña de la pagina de copiar y comprueba que se vea su archivo |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -345,3 +346,24 @@ print("===== LISTO: ahora dale Play =====")   -- al simulador le llegaba "LISTO 
 Ahora `strip_luau` aparta los literales de texto, limpia tipos solo en el codigo y
 los devuelve intactos. Sin eso, **el simulador probaba un codigo distinto al que se
 entrega** (y un dia el pedazo borrado iba a ser parte de un mensaje que si importa).
+
+## Etapa 13 — la pagina de copiar (`tools/pestanas.js`)
+
+```bash
+python3 tools/pegar.py /tmp/pagina.html
+node tools/pestanas.js /tmp/pagina.html
+```
+
+Corre el **JavaScript de la pagina tal cual viene** sobre un DOM de mentiras y **da clic en
+cada pestaña**, comprobando que se vea **solo** su panel y que la pestaña quede marcada.
+
+Nace de un bug real: el cambio de pestaña tenia el numero de paneles escrito a mano (`k<5`)
+y, al agregar el PASO 0, quedaron 6. Al picarle a la ultima pestaña salia **pantalla en
+blanco** — el usuario no pudo copiar el `ClientUI` y se le quedo viejo varias rondas.
+
+La prueba **caza ese bug**: con la pagina vieja falla con
+`al picar la pestaña 5: el panel 5 quedo oculto y debia estar visible`.
+
+`pegar.py` ademas se verifica solo al generar (pestañas = paneles = botones de copiar) y
+falla en vez de entregar una pagina rota. Si el sandbox no tiene `node`, la etapa se
+brinca sola (no falla el validador por eso).
