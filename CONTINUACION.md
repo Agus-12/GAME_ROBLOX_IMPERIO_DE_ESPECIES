@@ -27,6 +27,7 @@
 | Los últimos lotes caían fuera del suelo | El suelo de la ciudad no llegaba; al salir del portón, vacío | ✅ v28 (`buildGround` estira el suelo con los datos del lote) |
 | El cliente se colgaba en silencio | `WaitForChild` sin timeout + `IncomingCall` creado 1745 líneas después del arranque | ✅ v28 (remotes al arranque + timeout de 10 s + cartel rojo) |
 | "El botón sale pero me rebota" | Cliente 16 studs, servidor 14 en la prensa | ✅ v28 (radios desde `GameConfig.Interact` y los ya existentes) |
+| El panel no se reabría al revivir | El detector guarda "ya estabas cerca" para no abrir el panel cada 0.3 s; si morías junto a la máquina ese `true` quedaba pegado y el cruce nunca volvía a disparar. Solo se arreglaba alejándose y regresando | ✅ v28 (al morir se limpia `near` y se cierran los paneles) |
 | Zona segura con esquinas fuera | Radio fijo 14 vs tapete de 28×11 | ✅ v28 (mide contra el tapete real) |
 
 ### ⚠️ Reglas que NO puedes romper

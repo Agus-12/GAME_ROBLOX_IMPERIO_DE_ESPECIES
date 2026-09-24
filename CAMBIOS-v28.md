@@ -152,6 +152,19 @@ Encontré **dos** formas de que el juego quedara muerto sin decir nada:
   - y el juego **sigue funcionando** con lo que sí hay, en vez de morir.
 - El servidor también avisa con el nombre exacto en vez de esperar eternamente.
 
+### 🧟 Y uno más, del mismo estilo: el panel que no se reabría después de morir
+
+El detector de cercanía guarda en qué máquina **estabas** para abrir el panel justo
+cuando llegas (no cada 0.3 s, que sería un desastre). El detalle: si **te matan
+parado junto a la computadora o a la caja fuerte**, ese "ya estabas ahí" quedaba
+pegado en `true`, y al revivir el cruce **nunca volvía a disparar**: caminabas hasta
+pegado a la máquina y **el panel no se abría** (solo se arreglaba si te alejabas y
+volvías a acercarte). Con las redadas y la policía, esto te iba a pasar seguido.
+
+**Arreglado:** al morir, el estado se limpia y los paneles se cierran solos.
+Fue justo eso: parecía que "ya no abre la computadora ni la bóveda… hasta que
+te alejas y regresas".
+
 ---
 
 ## 📐 7. El botón salía pero te rebotaba (2 studs de zona muerta)

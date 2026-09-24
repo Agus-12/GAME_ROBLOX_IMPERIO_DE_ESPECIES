@@ -1920,7 +1920,15 @@ do
 		if not hrp then
 			for _, c in ipairs({"harvest", "press", "computer", "vault", "sell", "garage"}) do
 				setCtx(c, false)
+				-- OJO: 'near' tambien se resetea. Si no, y te matan PARADO junto
+				-- a la computadora o a la caja fuerte, al revivir 'near' queda
+				-- en true y el detector de cruce nunca vuelve a disparar: el
+				-- panel NO se abre aunque camines hasta pegado a la maquina.
+				-- (Solo se reabria si te alejabas y volvias a acercarte.)
+				near[c] = false
 			end
+			shop.Visible = false
+			vault.Visible = false
 			return
 		end
 		local pos = hrp.Position
