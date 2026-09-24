@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v32 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v33 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.DataService
 -- Guardado con DataStore + perfil en memoria.

@@ -130,6 +130,18 @@ def main():
             if not tiene:
                 errores.append("%s no tiene el sello 'RONDA: %s' arriba" % (nombre, esperado))
 
+        # el LIMPIADOR tambien lleva la ronda (es el que le dice al usuario que
+        # archivo volver a pegar, asi que si se queda atras manda a pegar mal)
+        ruta_lim = os.path.join(HERE, "limpiar.luau")
+        if os.path.exists(ruta_lim):
+            cabe = "\n".join(read(ruta_lim).splitlines()[:40])
+            tiene = re.search(r'RONDA\s*=\s*"%s"' % re.escape(esperado), cabe) is not None
+            print("  %s %-14s %s" % ("OK    " if tiene else "FALLA ", "limpiar.luau",
+                                     "RONDA = '%s'" % esperado if tiene
+                                     else "SIN la ronda '%s' (el limpiador manda a pegar mal)" % esperado))
+            if not tiene:
+                errores.append("tools/limpiar.luau dice otra ronda (debe decir %s)" % esperado)
+
     def show(etiqueta, valor, esperado):
         marca = "OK    " if valor == esperado else "FALLA "
         print("  %s %-28s %s" % (marca, etiqueta, valor))

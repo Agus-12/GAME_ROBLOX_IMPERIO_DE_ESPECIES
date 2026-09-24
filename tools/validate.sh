@@ -37,3 +37,5 @@ echo "=== 10. LA PORTADA ABRE RAPIDO? (no trabarse en 'cargando la ciudad') ==="
 python3 tools/intro.py
 echo "=== 11. NADIE BORRA DENTRO DEL BUCLE (se salta elementos) ==="
 python3 tools/loops.py
+echo "=== 12. CARPETAS REMOTES DE MAS (el caso real del usuario) ==="
+python3 tools/copias.py

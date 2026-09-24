@@ -426,3 +426,28 @@ de efectos de iluminación.
 
 **Regla:** junta en una lista y borra **después** del bucle. Lo vigila la **etapa 11**
 (`tools/loops.py`), que está probada inyectando el bug.
+
+---
+
+## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
+
+En la v33, el cliente quedo asi:
+
+```lua
+local function carpetaRemotes()
+    ...
+    if tostring(todas[1]:GetAttribute("Build") or "") == MI_VERSION then  -- <- MI_VERSION todavia NO existe aqui
+        copiasLeves = true
+    end
+end
+
+local MI_VERSION = "v33"    -- se declara 60 lineas mas abajo
+```
+
+En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
+vale nil**. Entonces la comparacion era `"v33" == nil` -> siempre falso, el avisito
+no salia nunca, y en la consola no habia ni un error. Un bug invisible.
+
+**Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
+validador lo revisa: `tools/globals.py` (etapa 4) lista los nombres que el script
+toca como globales; si sale uno que deberia ser local, ahi esta el bug.

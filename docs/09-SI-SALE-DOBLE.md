@@ -109,3 +109,25 @@ para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.m
 1. **Doble = copias pegadas en Studio.** No hay que tocar el repo.
 2. El Explorer: 1 `Main`, 1 `ClientUI`, 1 `GameConfig`, 1 `CityGenerator`, 1 `DataService`, 1 `Remotes`.
 3. Desde la v28, si se te cuela una copia, **el juego te avisa** (Output + cartel rojo).
+
+---
+
+## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v33)
+
+Todo lo de arriba se hace a mano en el Explorer. Si quieres que se haga solo:
+
+1. En Studio, **sin dar Play**, abre `View > Command Bar` (la barrita de abajo).
+2. Pega el codigo del **PASO 0** del HTML de la ronda y dale Enter.
+
+Hace esto:
+
+* borra las copias repetidas de los 5 archivos y se queda con la de la ronda (la
+  del sello `RONDA: vNN`), aunque la copia este escondida en un lugar raro (un
+  `Main` dentro de `Workspace` **tambien corre**, por eso tambien se revisa);
+* borra **todas** las carpetas `Remotes` (el juego crea la suya al dar Play);
+* te dice **que archivo hay que volver a pegar** si el que tienes es de otra ronda.
+
+**Y desde la v33 el cartel rojo ya no sale cuando el juego en realidad si
+funciona** (la carpeta buena es de esta ronda y tiene los 11 remotes): en ese caso
+sale un **avisito azul chiquito** abajo durante 14 segundos y puedes jugar normal.
+El cartel rojo queda solo para cuando de verdad hay que arreglar algo.

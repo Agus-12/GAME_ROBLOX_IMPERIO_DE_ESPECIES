@@ -5,7 +5,7 @@ Juego de Roblox: **mundo abierto estilo GTA + tycoon empresarial**.
 Produces hojas de especia, las prensas en bloques, las vendes por la ciudad, evitas a la
 Unidad de Aduanas, defiendes tu bodega de asaltos y armas crew con tus amigos.
 
-> **Versión actual: v32**
+> **Versión actual: v33**
 
 ---
 
@@ -25,7 +25,10 @@ volver a intentar, y las reglas que no se pueden romper.
 > 🚨 ¿Te sale un cartel rojo *"FALTAN SCRIPTS/REMOTES"* en el juego? Son archivos de
 > rondas distintas pegados en Studio: [`docs/08-SI-SALE-FALTAN-REMOTES.md`](docs/08-SI-SALE-FALTAN-REMOTES.md)
 >
-> 👯 ¿"Sale todo doble" (dos bodegas, dos interfaces)? Son **copias pegadas**:
+> 👯 ¿"Sale todo doble" (dos bodegas, dos interfaces) o hay **copias pegadas**?
+> Desde la **v33** no las caces a mano: pega el **PASO 0 (LIMPIADOR)** del HTML de la
+> ronda en la **Command Bar** de Studio (View > Command Bar, sin dar Play) y las borra
+> solo, avisandote que archivo te falta pegar. Guia:
 > [`docs/09-SI-SALE-DOBLE.md`](docs/09-SI-SALE-DOBLE.md)
 >
 > 📋 ¿Quieres los 5 archivos con link directo para copiar y pegar?

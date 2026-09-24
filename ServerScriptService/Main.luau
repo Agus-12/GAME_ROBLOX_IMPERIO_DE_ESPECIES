@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v32 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v33 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -79,11 +79,29 @@ buscaRepetidos(ReplicatedStorage, "Remotes", "ReplicatedStorage")
 if #copias > 0 then
 	warn("[SpiceEmpire] *** HAY COPIAS PEGADAS EN STUDIO: " .. table.concat(copias, " , ") ..
 		" *** Eso hace que TODO salga doble (dos ciudades, dos bodegas, dos avisos).")
-	warn("[SpiceEmpire] COMO ARREGLARLO: en el Explorer, clic derecho en la copia y 'Delete'." ..
-		" Tiene que quedar UNO de cada: Main, CityGenerator, DataService, GameConfig, ClientUI," ..
-		" y UNA carpeta Remotes.")
-	warn("[SpiceEmpire] Para saber cual conservar: abre cada uno y busca con Ctrl+F el texto" ..
-		" 'RONDA: " .. tostring(Config.Build) .. "' (el que lo tenga es el de esta ronda)." ..
+	-- Detalle de CADA carpeta Remotes: cuantos remotes tiene y si trae etiqueta.
+	-- Con esto se ve en la consola cual es la del juego y cual es basura vieja.
+	local detalle = {}
+	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+		if string.sub(c.Name, 1, 7) == "Remotes" then
+			local et = c:GetAttribute("Build")
+			table.insert(detalle, "'" .. c.Name .. "' (" .. #c:GetChildren() .. " remotes, " ..
+				(et and ("etiqueta Build=" .. tostring(et)) or "SIN etiqueta = VIEJA") .. ")")
+		end
+	end
+	if #detalle > 0 then
+		warn("[SpiceEmpire] carpetas Remotes que encontre: " .. table.concat(detalle, " y ") ..
+			". La BUENA es la que dice etiqueta Build; borra las que dicen SIN etiqueta.")
+	end
+	warn("[SpiceEmpire] OJO: varias carpetas Remotes casi siempre significa que hay MAS DE UN" ..
+		" Script 'Main' (dos copias pegadas, o una en un lugar raro del Explorer).")
+	warn("[SpiceEmpire] COMO ARREGLARLO (2 minutos): en Studio, View > Command Bar (la barrita" ..
+		" de abajo), pega el LIMPIADOR de la ronda " .. tostring(Config.Build) .. " y Enter:" ..
+		" el solo borra las copias y te dice que archivo hay que volver a pegar.")
+	warn("[SpiceEmpire] A mano tambien se puede: clic derecho en la copia > Delete. Tiene que" ..
+		" quedar UNO de cada: Main, CityGenerator, DataService, GameConfig, ClientUI," ..
+		" y UNA carpeta Remotes. Cual conservar: abre cada uno y Ctrl+F 'RONDA: " ..
+		tostring(Config.Build) .. "' (el que lo tenga es el de esta ronda)." ..
 		" Guia: docs/09-SI-SALE-DOBLE.md")
 end
 
@@ -93,6 +111,25 @@ end
 -- OJO: NO borrar dentro del mismo bucle que itera GetChildren(): al quitar un
 -- hijo, ipairs se salta al siguiente y SIEMPRE queda uno vivo. Se junta la
 -- basura en una lista y se borra despues.
+local function limpiarRemotesAjenas(momento: string, yo: Instance?): number
+	local basura: {Instance} = {}
+	local nombres: {string} = {}
+	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+		if string.sub(c.Name, 1, 7) == "Remotes" and c ~= yo then
+			table.insert(basura, c)
+			table.insert(nombres, "'" .. c.Name .. "'")
+		end
+	end
+	for _, c in ipairs(basura) do c:Destroy() end
+	if #nombres > 0 then
+		print("[SpiceEmpire] limpie " .. #nombres .. " carpeta(s) Remotes vieja(s) (" .. momento ..
+			"): " .. table.concat(nombres, " + "))
+	end
+	return #nombres
+end
+
+-- a) al arrancar: se borra TODO lo que se llame Remotes* (el juego crea la suya
+--    enseguida). Se juntan primero porque borrar dentro del bucle se salta uno.
 do
 	local basura = {}
 	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
@@ -157,6 +194,26 @@ local RE_Call    = mkEvent("IncomingCall")    -- server -> client, te llama un c
 -- quedo viejo. Paso de verdad: cliente v28 con un Main.luau de la v20 pegado
 -- -> el usuario solo veia "faltan remotes" y no sabia que pegar.
 Remotes:SetAttribute("Build", Config.Build or "?")
+
+-- b) verificacion en 3 tiempos: si ALGUIEN crea otra carpeta Remotes DESPUES de
+--    arrancar, se borra y se avisa fuerte. Eso solo puede pasar si hay mas de un
+--    Script 'Main' corriendo (es justo el caso del usuario que veia 2 carpetas).
+local function revisarRemotes(momento: string)
+	local n = limpiarRemotesAjenas(momento, Remotes)
+	if n > 0 then
+		warn("[SpiceEmpire] *** APARECIO OTRA CARPETA Remotes DESPUES DE ARRANCAR (" .. momento ..
+			"): hay MAS DE UN Script 'Main' corriendo. Abre el Explorer y borra las copias" ..
+			" (docs/09-SI-SALE-DOBLE.md) o pega el LIMPIADOR en la Command Bar.")
+	end
+	local cuantas = 0
+	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
+		if string.sub(c.Name, 1, 7) == "Remotes" then cuantas += 1 end
+	end
+	print("[SpiceEmpire] carpetas Remotes en ReplicatedStorage: " .. cuantas .. " (debe ser 1)")
+end
+revisarRemotes("al arrancar")
+task.delay(5, function() revisarRemotes("a los 5 segundos") end)
+task.delay(15, function() revisarRemotes("a los 15 segundos") end)
 print("========== IMPERIO DE ESPECIAS " .. tostring(Config.Build) .. " ==========")
 print("  remotes creados: " .. #Remotes:GetChildren())
 if Config.Build == nil then

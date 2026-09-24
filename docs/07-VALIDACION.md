@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre **once etapas**. Tienen que salir todas OK.
+Corre **doce etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -30,6 +30,7 @@ Corre **once etapas**. Tienen que salir todas OK.
 | `remotes.py` | El cliente pide los mismos remotes que el servidor crea, y las versiones cuadran |
 | `intro.py` | **Mide en segundos** cuánto tarda en salir el botón "ENTRAR AL BARRIO" |
 | `loops.py` | Caza `Destroy()` dentro de un bucle de `GetChildren()` (siempre queda uno vivo) |
+| `copias.py` | Simula el caso "carpetas Remotes de mas" (5 escenarios, servidor y cliente) |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -308,3 +309,36 @@ tienda). Detectores: `for ... in ipairs/pairs(...GetChildren()/GetDescendants())
 `:Destroy()` adentro del cuerpo (el borrado **después** del `end` no se marca: es correcto).
 
 **Probado inyectando el bug**: lo caza.
+
+## Etapa 12 — carpetas `Remotes` de mas (`tools/copias.py`)
+
+```bash
+python3 tools/copias.py
+```
+
+Simula **el caso real del usuario** (captura con el cartel "HAY COPIAS PEGADAS"):
+3 carpetas `Remotes` viejas, 2 Scripts `Main` y 2 bodegas guardadas dentro del lugar.
+
+| Escenario | Esperado |
+|---|---|
+| 1. servidor | queda **1** carpeta `Remotes`, **0** bodegas viejas, y `Main` corre completo |
+| 2. la buena (con etiqueta `Build`) + vieja llena | **avisito**, **sin** cartel rojo |
+| 3. la buena esta incompleta (le faltan 2 remotes) | **cartel rojo** (hay que arreglar) |
+| 4. dos carpetas viejas, ninguna con etiqueta | **cartel rojo**, con los nombres exactos |
+| 5. la buena + una carpeta vieja vacia | **avisito**, **sin** cartel rojo |
+
+Probado quitando el arreglo a proposito (el avisito convertido en `if false`): los
+escenarios 2 y 5 **fallan**. No da falsos verdes.
+
+### Ojo con `check.py`: los textos
+
+`tools/check.py` quita los tipos de Luau antes de correr el codigo bajo Lua 5.4.
+La primera version tambien le borraba trozos a los **textos** que llevan dos puntos:
+
+```lua
+print("===== LISTO: ahora dale Play =====")   -- al simulador le llegaba "LISTO dale Play"
+```
+
+Ahora `strip_luau` aparta los literales de texto, limpia tipos solo en el codigo y
+los devuelve intactos. Sin eso, **el simulador probaba un codigo distinto al que se
+entrega** (y un dia el pedazo borrado iba a ser parte de un mensaje que si importa).

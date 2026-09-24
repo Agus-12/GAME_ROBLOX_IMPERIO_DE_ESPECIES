@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v32** · 24 sep 2026
+> Última actualización: **v33** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v32 |
+| **Versión actual** | v33 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -169,6 +169,36 @@ Estaba en **5 lugares**: limpieza de `Remotes`, limpieza de bodegas guardadas,
 basura en una lista y borrando despues.
 
 **Etapa 11 del validador**: `tools/loops.py` caza ese patron (probado inyectando el bug).
+
+### ✅ Qué se cerró en la v33 (el juego limpia solo y deja de asustar)
+
+El usuario mando captura nueva: **sigue saliendo el cartel**, pero al leerlo bien ya **no
+reportaba ningun `Main` duplicado**: solo **2 carpetas `Remotes`**. O sea que el duplicado
+de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres problemas:
+
+| Problema | Arreglo v33 |
+|---|---|
+| Habia que cazar copias a mano en el Explorer | **`tools/limpiar.luau`**: se pega en la **Command Bar** (View > Command Bar, sin dar Play) y borra las copias solo, dice que borro y **que archivo volver a pegar**. Va como **PASO 0** del HTML |
+| El cartel rojo salia aunque el juego SI funcionara (2 carpetas pero con la buena completa) | **avisito azul chiquito** 14 s en vez de cartel; el cartel rojo queda solo si de verdad hay que arreglar algo |
+| El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
+| El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
+| No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🐛 Dos bugs silenciosos que cazaron las herramientas (v33)
+
+1. **El simulador mentia**: `strip_luau` (en `tools/check.py`) limpiaba tipos de Luau con
+   regex y de paso le borraba pedazos a los **textos con dos puntos**:
+   `"===== LISTO: ahora dale Play ====="` llegaba al simulador como `"===== LISTO dale
+   Play ====="`. Ahora los literales se apartan antes de limpiar y se devuelven intactos:
+   el simulador corre **el codigo de verdad**.
+2. **`MI_VERSION` leido antes de existir**: el cliente comparaba contra `MI_VERSION` desde
+   una funcion definida arriba de su `local`. En Lua eso es un **global nil**: comparacion
+   siempre falsa, avisito que nunca salia y **cero errores en consola**. Lo cazo
+   `tools/globals.py` (etapa 4).
+
+**Regla dura nueva (v33):** lo que usan las funciones de arriba se **declara arriba**
+(`globals.py` lo revisa), y no se confia en el simulador hasta comprobar que corre el
+codigo tal cual se entrega.
 
 **Regla dura nueva:** al subir de ronda, **los 5 archivos llevan el sello**
 `-- ===== RONDA: vNN =====` en las primeras lineas (ademas de `GameConfig.Build`,

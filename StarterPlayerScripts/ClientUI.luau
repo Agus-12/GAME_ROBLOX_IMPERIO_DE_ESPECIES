@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v32 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v33 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -87,7 +87,20 @@ local Config = require(cfgModule)
 --    Ojo: si hay DOS carpetas 'Remotes' es que tienes DOS Main pegados. Se usa
 --    la mas completa, porque la vieja puede tener menos remotes y el juego
 --    se queda sin la mitad de las funciones.
+-- QUE RONDA SON ESTOS ARCHIVOS.
+-- OJO: esto TIENE que estar declarado ARRIBA, antes de cualquier funcion que
+-- lo use. La primera version lo puso mas abajo (junto a la comparacion) y las
+-- funciones de mas arriba leian un global que valia nil: comparaban contra
+-- nada, nunca salia el aviso y no tronaba nada. Lo cazo tools/globals.py.
+local MI_VERSION = "v33"
+-- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
+local DESDE = {
+	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
+	IncomingCall = "v28",   -- en la v28 se crea al arranque del servidor
+}
+
 local PROBLEMAS: {string} = {}
+local copiasLeves = false      -- hay carpetas Remotes viejas, pero la buena sirve
 local function carpetaRemotes(): any
 	local todas = {}
 	for _, c in ipairs(ReplicatedStorage:GetChildren()) do
@@ -96,11 +109,36 @@ local function carpetaRemotes(): any
 	end
 	if #todas == 0 then return need(ReplicatedStorage, "Remotes") end
 	if #todas > 1 then
-		local nombres = {}
-		for _, c in ipairs(todas) do table.insert(nombres, "'" .. c.Name .. "'") end
-		table.insert(PROBLEMAS, #todas .. " carpetas Remotes (" .. table.concat(nombres, " + ") ..
-			"): eso significa que hay " .. #todas .. " Scripts Main pegados")
-		table.sort(todas, function(a, b) return #a:GetChildren() > #b:GetChildren() end)
+		-- Cual es la buena: la que el servidor marco con la etiqueta "Build" (esa
+		-- la acaba de crear ESTE arranque). Las que no la traen son carpetas viejas
+		-- que quedaron pegadas en el lugar. Se ordena: etiqueta > nombre exacto > mas grande.
+		local funcion = function(c: any): number
+			local et = c:GetAttribute("Build")
+			if et then return 3 end
+			if c.Name == "Remotes" then return 2 end
+			return 1
+		end
+		table.sort(todas, function(a, b)
+			local fa, fb = funcion(a), funcion(b)
+			if fa ~= fb then return fa > fb end
+			return #a:GetChildren() > #b:GetChildren()
+		end)
+		local detalles = {}
+		for _, c in ipairs(todas) do
+			local et = c:GetAttribute("Build")
+			table.insert(detalles, "'" .. c.Name .. "' (" ..
+				(et and ("etiqueta " .. tostring(et)) or "SIN etiqueta = vieja") .. ")")
+		end
+		table.insert(PROBLEMAS, #todas .. " carpetas Remotes en ReplicatedStorage: " ..
+			table.concat(detalles, " + "))
+		table.insert(PROBLEMAS, "el juego esta usando la de etiqueta " ..
+			tostring(todas[1]:GetAttribute("Build") or "?") ..
+			"; las que NO tienen etiqueta son viejas y se pueden borrar")
+		-- si la buena tiene TODO y es de esta ronda, no hay nada que arreglar a mano:
+		-- solo hay basura de sobra. Ese caso se avisa chiquito, no con cartel rojo.
+		if tostring(todas[1]:GetAttribute("Build") or "") == MI_VERSION then
+			copiasLeves = true
+		end
 	end
 	return todas[1]
 end
@@ -122,13 +160,6 @@ local RF_Action  = need(Remotes, "Action")
 -- era "faltan 2 remotes", sin decir cual de los 5 archivos pegar ni por que.
 -- Ahora el servidor estampa su version en la carpeta Remotes, GameConfig trae
 -- la suya, y aqui se comparan las tres cosas.
-local MI_VERSION = "v32"
--- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
-local DESDE = {
-	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
-	IncomingCall = "v28",   -- en la v28 se crea al arranque del servidor
-}
-
 local servidor = (typeof(Remotes) == "Instance") and Remotes:GetAttribute("Build") or nil
 local lineas: {string} = {}
 local viejo = false
@@ -159,11 +190,56 @@ for _, p in ipairs(PROBLEMAS) do
 	table.insert(lineas, " - " .. p)
 end
 
+-- Avisito chiquito (no tapa el juego): hay carpetas Remotes viejas pero la buena
+-- es la de esta ronda y tiene todo. No hay nada que arreglar para jugar; el
+-- servidor borra las viejas solo.
+local function avisoChiquito(texto: string)
+	local pg = player:FindFirstChild("PlayerGui")
+	if not pg then return end
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "SpiceEmpire_Avisito"
+	sg.ResetOnSpawn = false
+	sg.DisplayOrder = 90            -- por debajo del cartel rojo (999)
+	sg.Parent = pg
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(1, -24, 0, 46)
+	box.Position = UDim2.new(0, 12, 1, -58)
+	box.BackgroundColor3 = Color3.fromRGB(28, 60, 96)
+	box.BackgroundTransparency = 0.15
+	box.BorderSizePixel = 0
+	box.Parent = sg
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = box
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.new(1, -16, 1, -8)
+	t.Position = UDim2.new(0, 8, 0, 4)
+	t.BackgroundTransparency = 1
+	t.Font = Enum.Font.Gotham
+	t.TextSize = 13
+	t.TextWrapped = true
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.TextYAlignment = Enum.TextYAlignment.Center
+	t.TextColor3 = Color3.fromRGB(225, 240, 255)
+	t.Text = texto
+	t.Parent = box
+	task.delay(14, function()
+		if box and box.Parent then box:Destroy() end
+	end)
+end
+
+if copiasLeves and not viejo and #AVISOS == 0 then
+	pcall(avisoChiquito, "Encontre carpetas 'Remotes' viejas pegadas en Studio (" ..
+		table.concat(PROBLEMAS, "; ") .. "). El juego ya esta usando la buena y el servidor" ..
+		" borra las viejas solo: puedes jugar normal. Si quieres, borralas en el Explorer.")
+	PROBLEMAS = {}   -- ya no hace falta el cartel rojo
+end
+
 -- si falta algo O los archivos son de otra ronda: cartel explicando que pegar
 if viejo or #AVISOS > 0 or #PROBLEMAS > 0 then
 	local titulo
 	if #PROBLEMAS > 0 and not viejo and #AVISOS == 0 then
-		titulo = "HAY COPIAS PEGADAS EN STUDIO (todo sale doble)"
+		titulo = "HAY CARPETAS 'Remotes' DE MAS EN STUDIO"
 	elseif viejo then
 		titulo = "ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es " .. MI_VERSION
 	else
@@ -172,12 +248,14 @@ if viejo or #AVISOS > 0 or #PROBLEMAS > 0 then
 	local box = { titulo }
 	for _, l in ipairs(lineas) do table.insert(box, l) end
 	if #PROBLEMAS > 0 then
-		table.insert(box, "COMO ARREGLARLO: en el Explorer, clic derecho en la copia > Delete.")
-		table.insert(box, "Tiene que quedar UNO de cada: Main, CityGenerator, DataService,")
-		table.insert(box, "GameConfig, ClientUI, y UNA carpeta Remotes.")
-		table.insert(box, "Para saber cual conservar: abre cada uno y busca con Ctrl+F")
+		table.insert(box, "Arreglo facil (2 min): en Studio abre View > Command Bar (la barrita")
+		table.insert(box, "de abajo), pega el LIMPIADOR de la ronda " .. MI_VERSION .. " y Enter:")
+		table.insert(box, "el borra las copias solo y te dice que archivo volver a pegar.")
+		table.insert(box, "A mano: clic derecho en la copia > Delete. Tiene que quedar UNO de")
+		table.insert(box, "cada: Main, CityGenerator, DataService, GameConfig, ClientUI, y UNA")
+		table.insert(box, "carpeta Remotes. Cual conservar: abre cada uno y Ctrl+F")
 		table.insert(box, "el texto 'RONDA: " .. MI_VERSION .. "' (el que lo tenga es el bueno).")
-		table.insert(box, "Guia con dibujos: docs/09-SI-SALE-DOBLE.md")
+		table.insert(box, "Guia: docs/09-SI-SALE-DOBLE.md")
 	else
 		table.insert(box, "Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.")
 		table.insert(box, "Si ya los pegaste: revisa que no haya archivos REPETIDOS (docs/09-SI-SALE-DOBLE.md)")

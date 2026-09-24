@@ -22,6 +22,8 @@ ROOT = os.path.dirname(HERE)
 
 # (titulo de la pestana, archivo, donde va en Studio, tipo de objeto)
 FILES = [
+    ("0. LIMPIADOR (Command Bar)", "tools/limpiar.luau",
+     "NO va en el juego: Command Bar (View > Command Bar, SIN dar Play)", "pegar y Enter"),
     ("1. GameConfig", "ReplicatedStorage/GameConfig.luau",
      "ReplicatedStorage  >  GameConfig", "ModuleScript"),
     ("2. CityGenerator", "ServerScriptService/CityGenerator.luau",
@@ -52,6 +54,8 @@ h1{margin:0 0 4px;font-size:19px;color:#f5c45c}
 header p{margin:3px 0;font-size:13px;color:#a9a9bd}
 .pasos{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .paso{background:#22222e;border:1px solid #33334a;border-radius:8px;padding:4px 8px;font-size:12px}
+.destacado{background:#3a2a12;border:1px solid #f5c45c;border-radius:8px;padding:7px 9px;
+  font-size:13px;color:#ffe6b3;margin:8px 0 2px}
 /* Sin JS: se ven los 5 archivos uno tras otro (nada se pierde).
    Con JS: se convierte en pestanas, que es mas comodo en el telefono. */
 .tabs{display:none;position:sticky;top:74px;z-index:19;gap:6px;overflow-x:auto;
@@ -170,12 +174,15 @@ def main():
 </head>
 <body>
 <header>
-  <h1>&#127798;&#65039; IMPERIO DE ESPECIAS %(ver)s - los 5 archivos</h1>
+  <h1>&#127798;&#65039; IMPERIO DE ESPECIAS %(ver)s</h1>
   <div class="pasos">
     <span class="paso">1&#65039;&#8419; elige la pestana</span>
     <span class="paso">2&#65039;&#8419; COPIAR TODO</span>
     <span class="paso">3&#65039;&#8419; en Studio: Ctrl+A y Ctrl+V</span>
   </div>
+  <p class="destacado">&#129529; <b>&iquest;Te sale el cartel de COPIAS PEGADAS o "faltan remotes"?</b>
+  Empieza por la pestana <b>0. LIMPIADOR</b>: se pega en la <b>Command Bar</b> de Studio
+  (View &gt; Command Bar, <b>sin</b> dar Play) y borra las copias solo.</p>
   <p>&#9888;&#65039; Pega SIEMPRE <b>encima</b> del script que ya existe (nunca "Insert Object" con el mismo
   nombre: eso crea copias y sale todo doble).</p>
 </header>
