@@ -35,7 +35,7 @@ para revisar que nada se pierda.
 | 25 | La lámpara de afuera "**parece despegada del tubo**" | farol rearmado: poste + brazo + cabeza de luz + visor, todo pegado | v42 |
 | 26 | La cochera tiene "**muy baja la iluminación por dentro**" | luz del techo encendida **siempre** en `1.15 / 24` (antes `0.55` y se apagaba de día) | v42 |
 | 27 | El dashboard "**se mira raro**": abajo de la hoja el almacenamiento/bloques y la **"sirenita"** del nivel de búsqueda | columna ordenada y explicada; la caja fuerte en **dos renglones**; el nivel de búsqueda son **5 estrellas bajo el reloj** que se prenden con el heat y **se apagan solas** en zona segura | v42 |
-| 28 | El dashboard de abajo "**no funciona en celular**": iconos de auto (spawnear donde estés), teléfono y bodega, y menús por proximidad (computadora/caja fuerte) | botón **Auto** (trae tu auto donde estés) + Teléfono, Bodega; computadora y caja fuerte abren solas al acercarte | v42 |
+| 28 | El dashboard de abajo "**no funciona en celular**": iconos de auto (spawnear donde estés), teléfono y bodega, y menús por proximidad (computadora/caja fuerte) | botón **Auto** (trae tu auto donde estés) + Teléfono, Bodega; computadora y caja fuerte abren solas al acercarte | v42 (**v43 lo termina**: iconos grandes, `Active` y menu al llegar a la bodega) |
 
 ## Lo que todavia NO esta hecho (y que nunca pediste, pero anoto)
 

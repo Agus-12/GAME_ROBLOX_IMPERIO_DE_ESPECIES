@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v43 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v42"
+local MI_VERSION = "v43"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -1434,25 +1434,31 @@ toggleBtn.Visible = false
 -- EN TACTIL: botones de 112x52 (el minimo comodo para un dedo es ~48 px;
 -- abajo de eso se fallan los toques) y la rejilla pegada al costado derecho,
 -- donde no estorban ni el joystick ni el boton de saltar.
-local BTN_W = IS_MOBILE and 112 or 100
-local BTN_H = IS_MOBILE and 52 or 38
+local BTN_W = IS_MOBILE and 78 or 100
+local BTN_H = IS_MOBILE and 62 or 38
 
 local dock
 if IS_MOBILE then
+	-- v43: el usuario dijo "el dashboard de abajo no funciona en celular". El
+	-- cuadro estaba a media altura del costado derecho, pero con botones de puro
+	-- texto chiquito (14) y de 112x52 pegados con 6 de separacion: se veian
+	-- apretados y no se entendian. Ahora son ICONOS grandes (78x62) en 2 columnas
+	-- x 3 renglones, con el nombre chiquito abajo de cada icono.
 	dock = frame(gui, {
-		Size = UDim2.new(0, BTN_W * 2 + 18, 0, BTN_H * 4 + 26),
-		Position = UDim2.new(1, -(BTN_W * 2 + 26), 0.5, -(BTN_H * 4 + 26) / 2),
+		Size = UDim2.new(0, BTN_W * 2 + 20, 0, BTN_H * 3 + 24),
+		Position = UDim2.new(1, -(BTN_W * 2 + 30), 0.42, -(BTN_H * 3 + 24) / 2),
 		BackgroundColor3 = BG,
-		BackgroundTransparency = 0.18,
+		BackgroundTransparency = 0.2,
 	})
 	corner(dock, 14)
 	stroke(dock, ACCENT)
 
 	local grid = Instance.new("UIGridLayout")
 	grid.CellSize = UDim2.new(0, BTN_W, 0, BTN_H)
-	grid.CellPadding = UDim2.new(0, 6, 0, 6)
+	grid.CellPadding = UDim2.new(0, 8, 0, 8)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.VerticalAlignment = Enum.VerticalAlignment.Center
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = dock
 else
 	dock = frame(gui, {
@@ -1477,10 +1483,21 @@ end
 -- los ocho siempre encendidos y tapaban media pantalla.
 local ctxButtons: {[string]: {GuiObject}} = {}
 
-local function dockBtn(name: string, key: string, cb: () -> (), ctx: string?)
+local function dockBtn(name: string, key: string, cb: () -> (), ctx: string?, icon: string?)
 	local text = IS_MOBILE and name or (name .. " [" .. key .. "]")
 	local b = button(dock, text, {Size = UDim2.new(0, BTN_W, 0, BTN_H)})
-	if IS_MOBILE then b.TextSize = 14 end
+	if IS_MOBILE then
+		-- icono grande arriba y el nombre chiquito abajo
+		b.TextSize = 11
+		b.TextYAlignment = Enum.TextYAlignment.Bottom
+		b.Text = (icon or "") .. "\n" .. name
+		b.LineHeight = 1.05
+	end
+	-- v43: Active y no-Selectable. Sin esto, un toque puede caer en el marco del
+	-- cuadro en vez del boton (y en celular el tap se pierde); y con Selectable un
+	-- control/mando selecciona el boton sin querer.
+	b.Active = true
+	b.Selectable = false
 	b.MouseButton1Click:Connect(cb)
 	if ctx then
 		b.Visible = false
@@ -1495,8 +1512,8 @@ local function setCtx(ctx: string, on: boolean)
 	for _, b in ipairs(ctxButtons[ctx] or {}) do b.Visible = on end
 end
 
-dockBtn("Cosechar", "E", function() act("harvest") end, "harvest")
-dockBtn("Prensar", "R", function() act("press") end, "press")
+dockBtn("Cosechar", "E", function() act("harvest") end, "harvest", "🌿")
+dockBtn("Prensar", "R", function() act("press") end, "press", "⚙️")
 dockBtn("Vender", "F", function()
 	-- vende en el comprador mas cercano
 	local char = player.Character
@@ -1510,14 +1527,14 @@ dockBtn("Vender", "F", function()
 		if d < bestD then best, bestD = pad, d end
 	end
 	if best then act("sell", best.Name) end
-end, "sell")
+end, "sell", "💰")
 
-local shopBtn = dockBtn("Tienda", "B", function() end)
-local phoneBtn = dockBtn("Telefono", "T", function() end)
-dockBtn("Bodega", "H", function() act("teleportHome") end)
+local shopBtn = dockBtn("Tienda", "B", function() end, nil, "🛒")
+local phoneBtn = dockBtn("Telefono", "T", function() end, nil, "📱")
+dockBtn("Bodega", "H", function() act("teleportHome") end, nil, "🏠")
 -- v42: boton para traer tu auto donde estas (lo pidio el usuario para celular:
 -- "un icono de un auto para spawnear el auto donde estes")
-dockBtn("Auto", "Y", function() act("summonCar") end)
+dockBtn("Auto", "Y", function() act("summonCar") end, nil, "🚗")
 
 ----------------------------------------------------------------------
 -- PANEL TIENDA
@@ -1912,12 +1929,12 @@ end)
 dockBtn("Caja", "C", function()
 	vault.Visible = not vault.Visible
 	if vault.Visible then refreshVault() end
-end, "vault")
+end, "vault", "🔐")
 
 dockBtn("Garaje", "V", function()
 	shop.Visible = true
 	renderTab("autos")
-end, "garage")
+end, "garage", "🅿️")
 
 -- El servidor avisa cuando te paras en el tapete del escritorio:
 -- la computadora abre sola el panel de mejoras.
@@ -2889,6 +2906,17 @@ do
 						refreshVault()
 					else
 						vault.Visible = false
+					end
+				elseif k == "garage" then
+					-- v43: el usuario pidio que al acercarse a la bodega se abra el
+					-- menu solo, igual que la computadora. Al llegar al porton se
+					-- abre la pestana de AUTOS (es lo que vas a querer ahi: sacar o
+					-- guardar un vehiculo). Al salir NO se cierra: te quedarias sin
+					-- poder moverte de la lista mientras estas adentro.
+					if v and not shop.Visible then
+						sound("Gate")
+						shop.Visible = true
+						renderTab("autos")
 					end
 				end
 			end

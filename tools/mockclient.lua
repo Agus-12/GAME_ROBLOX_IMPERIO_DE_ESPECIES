@@ -36,6 +36,7 @@ local pg = Instance.new("PlayerGui") ; pg.Name="PlayerGui" ; pg.Parent=plr
 game:GetService("Players").LocalPlayer = plr
 local rs = game:GetService("ReplicatedStorage")
 local cfgSrc = dofile(TOOLS .. "/cfgload.lua")
+LLAMADAS = LLAMADAS or {}
 local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Shoot","TerritoryUpdate","Action"}
 
 -- El juego de verdad: el SERVIDOR borra las carpetas Remotes viejas y crea la
@@ -74,7 +75,14 @@ local function crearRemotes(cualSello)
       -- regresa. Es el caso que dejaba la portada en "Cargando la ciudad..."
       e.InvokeServer=function() while true do task.wait(1) end end
     else
-      e.InvokeServer=function() return {ok=true} end
+      -- v43: ademas de "si funciona", se ANOTA que accion mando el cliente.
+      -- Sin esto, las pruebas de la interfaz solo miraban que el boton EXISTIERA:
+      -- que el boton mandara la accion correcta no se probaba nunca (el remoto no
+      -- existia en el simulador y `act()` moria dentro de su pcall).
+      e.InvokeServer=function(_, ...)
+        table.insert(LLAMADAS, {rem = e.Name, args = {...}})
+        return {ok = true}
+      end
     end
     e.Parent=f end
   if cualSello then f:SetAttribute("Build", tostring(cfgSrc.Build or "?")) end

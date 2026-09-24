@@ -1,4 +1,4 @@
--- LIMPIADOR DE COPIAS  (ronda v42)
+-- LIMPIADOR DE COPIAS  (ronda v43)
 ----------------------------------------------------------------------
 -- PARA QUE SIRVE
 --   Tu juego avisa "HAY COPIAS PEGADAS EN STUDIO". Esto las borra SOLO,
@@ -23,7 +23,7 @@
 -- gusta, Ctrl+Z lo deshace.
 ----------------------------------------------------------------------
 
-local RONDA = "v42"          -- esta ronda de archivos (lo revisa tools/remotes.py)
+local RONDA = "v43"          -- esta ronda de archivos (lo revisa tools/remotes.py)
 
 local SALIDA: {string} = {}
 local borrados: {string} = {}

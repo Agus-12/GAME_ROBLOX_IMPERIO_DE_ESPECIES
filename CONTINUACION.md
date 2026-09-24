@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v42** · 24 sep 2026
+> Última actualización: **v43** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v42 |
+| **Versión actual** | v43 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -184,6 +184,29 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
 
+### 🆕 Qué se cerró en la v43 (el dock de celular, terminado)
+
+La v42 ya traia el boton **Auto**, pero el usuario reporto **"el dashboard de abajo no
+funciona en celular"**: los botones eran **puro texto chiquito** (14 px) de 112x52
+apretados, y **no traian `Active`**, asi que en tactil un toque que cae en el marco del
+cuadro **se pierde** (parece que el boton no responde).
+
+| Que | Como queda (v43) |
+|---|---|
+| Los botones del dock en celular | Rejilla de **ICONOS grandes** (78x62) en 2 columnas x 3 renglones, con el nombre chiquito abajo de cada icono |
+| El toque se perdia | Todos con `Active = true` y `Selectable = false` |
+| Menu al llegar a la **bodega** | Se abre la pestana **Autos** (la computadora ya lo hacia); al salir **no** se cierra para que te muevas en la lista |
+
+**Etapa 18 nueva** (`tools/dock43.py`): arranca la interfaz **en modo tactil**
+(`MOCK_TOUCH=1`), **busca los botones y les da clic**, y revisa **que accion llego al
+servidor** (`summonCar`, `teleportHome`) y que el **Telefono abra su pantalla**. Antes
+esto era **imposible de probar**: los remotos no existian en el simulador, asi que
+`act()` moria dentro de un `pcall` y un boton roto pasaba las pruebas. Ya no.
+
+**Probado al reves:** se le quito el icono al boton Auto, se apago el `Active` y se
+desconecto el menu de la bodega -> la etapa cazo los tres y volvio a pasar al
+restaurarlos.
+
 ### 🆕 Qué se cerró en la v42 (los 8 pedidos del usuario)
 
 El usuario confirmó la v41 ("okay ya todo jalo bien") y mandó 8 quejas nuevas + capturas
@@ -318,9 +341,9 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v42 (arrancando...)` -> `RONDA v42  OK`; se encoge a un letrerito `v42` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v42` |
-| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v42]`, `VIEJO [v32]`...) |
+| **Placa verde** arriba al centro | el cliente | `RONDA v43 (arrancando...)` -> `RONDA v43  OK`; se encoge a un letrerito `v43` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v43` |
+| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v43]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);
 **placa atorada en "arrancando..."** = corre pero truena; **letrero viejo con placa nueva**
