@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v43** · 24 sep 2026
+> Última actualización: **v44** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v43 |
+| **Versión actual** | v44 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -184,6 +184,22 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
 
+### 🆕 Qué se cerró en la v44 (las 4 cosas de las capturas)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "algunas de las otras parcelas: las bodegas **encima de la calle**" | El suelo se estira para cubrir los lotes, pero **las calles se dibujaban del tamano del suelo**: se estiraban con el y cruzaban los lotes | Ciudad y pasto son **dos rectangulos**: las calles viven dentro de la rejilla de cuadras (X -502..308, Z -502..308) y los lotes arrancan en Z -660 |
+| "los nombres asi en **grandote muy estorboso**" | Los rotulos eran `BillboardGui` de 200x50 (el tamano de un billboard es en **pixeles fijos**: se ven igual de enormes a 1 m que a 100 m) y encima flotaba el "BODEGA DE ..." de 260x50 | Rotulos **pintados en el tablero negro** que ya existia (`SurfaceGui` pegado a la parte); el letrero gigante **se quito**; los que si flotan (compradores, PRENSA) van mas chicos |
+| "poner '**garaje de** <usuario>' o '**sin propietario**'" | El tablero solo decia "GARAJE" | `RotularGaraje`: **GARAJE DE <NOMBRE>** y **SIN PROPIETARIO** en los lotes vacios |
+| "vi un letrero **flotante de caja 1**... poner ahi 'caja 1' pero en **texto plano**" | El numero del cajon era otro billboard | **CAJA 1, CAJA 2...** pintado en su tablero negro |
+
+**Etapa 19 nueva** (`tools/reportes44.py`): mide el rectangulo de las 10 calles contra
+la posicion de los lotes, revisa que no quede rotulo flotante en el garaje/cajones/
+taller/oficina/porton, que `RotularGaraje` reescriba el tablero, y corre el **camino
+real del lote sin dueno** (`VarianteVecina` + `Clausurar` + rotulo). Probada al reves:
+se regresaron las calles al tamano del suelo y se volvieron a poner billboards -> caza
+los cuatro.
+
 ### 🆕 Qué se cerró en la v43 (el dock de celular, terminado)
 
 La v42 ya traia el boton **Auto**, pero el usuario reporto **"el dashboard de abajo no
@@ -341,9 +357,9 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v43 (arrancando...)` -> `RONDA v43  OK`; se encoge a un letrerito `v43` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v43` |
-| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v43]`, `VIEJO [v32]`...) |
+| **Placa verde** arriba al centro | el cliente | `RONDA v44 (arrancando...)` -> `RONDA v44  OK`; se encoge a un letrerito `v44` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v44` |
+| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v44]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);
 **placa atorada en "arrancando..."** = corre pero truena; **letrero viejo con placa nueva**

@@ -47,6 +47,8 @@ echo "=== 16. HUD: columna ordenada, estrellas de busqueda y boton Auto ==="
 python3 tools/hud42.py
 echo "=== 17. BICICLETA Y AUTO DEL GARAJE (bici que rueda, auto que sale) ==="
 python3 tools/vehiculos42.py
+echo "=== 19. LOS REPORTES DE LAS CAPTURAS (calles y rotulos) ==="
+python3 tools/reportes44.py
 echo "=== 18. EL DOCK DE CELULAR (los botones responden al toque) ==="
 python3 tools/dock43.py
 echo "=== 14. LA PAGINA DE COPIAR: cada pestana muestra su archivo ==="

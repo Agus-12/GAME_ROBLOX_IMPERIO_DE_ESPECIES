@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v43 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v44 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -71,9 +71,15 @@ function CityGenerator.CellToWorld(cx: number, cz: number): Vector3
 	return Vector3.new(cx * CELL - offX, 0, cz * CELL - offZ)
 end
 
-local function makeBillboard(parent: BasePart, text: string, color: Color3, height: number?)
+-- OJO (v44): el tamano de un BillboardGui es en PIXELES FIJOS: se ve igual de
+-- grandote a un metro que a cien, y con varios juntos tapaban la pantalla (fue el
+-- reporte del usuario: "los nombres asi en grandote muy estorboso"). Por eso los
+-- rotulos de los edificios ahora van con textoPlano (pegados a la parte) y aqui
+-- se les puede pedir un tamano mas chico.
+local function makeBillboard(parent: BasePart, text: string, color: Color3,
+	height: number?, ancho: number?, alto: number?)
 	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.new(0, 200, 0, 50)
+	bb.Size = UDim2.new(0, ancho or 150, 0, alto or 38)
 	bb.StudsOffset = Vector3.new(0, height or 6, 0)
 	bb.AlwaysOnTop = false
 	bb.MaxDistance = 250
@@ -90,6 +96,95 @@ local function makeBillboard(parent: BasePart, text: string, color: Color3, heig
 	lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
 	lbl.Text = text
 	lbl.Parent = bb
+end
+
+-- ===== v44: TEXTO PLANO PEGADO A LA PARTE (lo pidio el usuario) =====
+-- El usuario: "en lugar de tener esos textos ahi arriba de los garages, miro como
+-- un letrero negro: ahi podemos poner 'garaje de <nombre>' o 'sin propietario'...
+-- en el garage vi un letrero flotante de 'caja 1': ahi ya hay uno negro, poner
+-- ahi 'caja 1' pero en TEXTO PLANO".
+--
+-- El problema de fondo: los avisos se hacian con BillboardGui, que se dibuja
+-- SIEMPRE del mismo tamano en pantalla (200x50 pixeles, a cualquier distancia):
+-- con varios letreros juntos tapaban media pantalla y se encimaban entre si.
+-- Un SurfaceGui, en cambio, va PEGADO a la cara de la parte: crece y se encoge
+-- con la distancia, como un letrero de verdad. Y sobre el tablero negro que ya
+-- existe, se ve igualito a un rotulo pintado.
+local function textoPlano(parte: BasePart, texto: string, color: Color3?, opts: {[string]: any}?): SurfaceGui?
+	local o = opts or {}
+
+	-- En una parte ALTA (mas alta que ancha, como la torre de Aduanas) el texto no
+	-- se estira a lo alto: va en una BANDA a media altura, como los rotulos de los
+	-- edificios de verdad.
+	local alto = 1
+	if o.banda == nil then
+		local sz = parte.Size
+		if sz.Y > sz.X and sz.Y > sz.Z then alto = 0.16 end
+	else
+		alto = o.banda
+	end
+
+	-- caras: por defecto se pinta en las DOS caras grandes (asi se lee vengas de
+	-- donde vengas). En partes planas de una sola cara (un piso, un letrero
+	-- clavado) se pide  unaCara = true.
+	local caras = o.unaCara and { o.face or Enum.NormalId.Back }
+		or { Enum.NormalId.Back, Enum.NormalId.Front }
+
+	local primero
+	for i, cara in ipairs(caras) do
+		local ok, g = pcall(function()
+			local sg = Instance.new("SurfaceGui")
+			sg.Name = (i == 1) and (o.name or "Rotulo") or ((o.name or "Rotulo") .. "Rev")
+			sg.Face = cara
+			sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			sg.PixelsPerStud = o.pixels or 45
+			sg.LightInfluence = o.light or 0
+			sg.AlwaysOnTop = false
+			sg.ZOffset = 0.5
+			local lbl = Instance.new("TextLabel")
+			lbl.BackgroundTransparency = 1
+			if alto >= 1 then
+				lbl.Size = UDim2.fromScale(1, 1)
+				lbl.Position = UDim2.fromScale(0, 0)
+			else
+				lbl.Size = UDim2.fromScale(1, alto)
+				lbl.Position = UDim2.fromScale(0, 0.5 - alto * 0.5)
+			end
+			lbl.Font = o.font or Enum.Font.GothamBold
+			lbl.TextScaled = true
+			lbl.TextWrapped = false
+			lbl.TextColor3 = color or Color3.fromRGB(236, 232, 222)
+			lbl.TextStrokeTransparency = o.stroke or 0.75
+			lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
+			lbl.Text = texto
+			lbl.Name = "Texto"
+			lbl.Parent = sg
+			sg.Parent = parte
+			return sg
+		end)
+		if ok and g and not primero then primero = g end
+	end
+	return primero
+end
+CityGenerator.TextoPlano = textoPlano
+
+-- ===== v44: EL ROTULO DEL GARAJE =====
+-- El usuario: "tal vez ahi podemos poner 'garaje de' y el nombre del usuario, o
+-- 'sin propietario' los que no tienen". Escribe (o reescribe) el texto PINTADO en
+-- el tablero negro que ya esta arriba de los portones del garaje.
+function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
+	local sign = model:FindFirstChild("GarageSign", true)
+	if not sign or not sign:IsA("BasePart") then return false end
+	local sg = sign:FindFirstChild("Rotulo")
+	if not sg then
+		return textoPlano(sign, texto, Color3.fromRGB(255, 205, 120), { pixels = 55 }) ~= nil
+	end
+	local lbl = sg:FindFirstChild("Texto")
+	if lbl and lbl:IsA("TextLabel") then
+		lbl.Text = texto
+		return true
+	end
+	return false
 end
 
 -- Poste de luz para iluminar la ciudad de noche
@@ -153,9 +248,33 @@ end
 -- TERRENO Y CALLES
 ----------------------------------------------------------------------
 local function buildGround(folder: Folder)
-	-- el suelo se extiende MAS ALLA de la ciudad para que se vea pasto alrededor
-	local w = C.GridX * CELL + CELL * 3
-	local d = C.GridZ * CELL + CELL * 3
+	-- ===== v44: LA CIUDAD Y EL PASTO SON DOS COSAS DISTINTAS =====
+	-- BUG del usuario: "algunas de las otras parcelas tienen las bodegas ENCIMA
+	-- DE LA CALLE". Pasaba esto: el suelo se estira para cubrir los LOTES DE
+	-- BODEGA (mas abajo), pero las CALLES se dibujaban del mismo tamano que el
+	-- suelo. O sea que al estirar el pasto hacia los lotes, las calles tambien se
+	-- estiraban y cruzaban por encima de los lotes: la bodega del lote 3+ quedaba
+	-- parada sobre la calle.
+	-- Ahora son dos rectangulos separados: la CIUDAD (donde van las calles) y el
+	-- SUELO (que puede ser mas grande). Las calles solo existen dentro de la
+	-- ciudad y las banquetas tambien.
+	local cityW = C.GridX * CELL + CELL * 3
+	local cityD = C.GridZ * CELL + CELL * 3
+	local w, d = cityW, cityD
+
+	-- ... y las calles ni siquiera llegan hasta el borde del pasto: viven
+	-- DENTRO de la rejilla de cuadras. Se sacan de donde caen las calles de las
+	-- orillas (la primera y la ultima) para que el asfalto cubra los cruceros
+	-- completos y no se pase ni un centimetro hacia los lotes de bodega.
+	local rd = C.RoadWidth * 0.5
+	local ejeX0 = CityGenerator.CellToWorld(0, 0).X - CELL * 0.5 - rd
+	local ejeX1 = CityGenerator.CellToWorld(C.GridX - 1, 0).X - CELL * 0.5 + rd
+	local ejeZ0 = CityGenerator.CellToWorld(0, 0).Z - CELL * 0.5 - rd
+	local ejeZ1 = CityGenerator.CellToWorld(0, C.GridZ - 1).Z - CELL * 0.5 + rd
+	local calleW = ejeX1 - ejeX0          -- largo de las calles horizontales
+	local calleD = ejeZ1 - ejeZ0          -- largo de las verticales
+	local calleCX = (ejeX0 + ejeX1) * 0.5
+	local calleCZ = (ejeZ0 + ejeZ1) * 0.5
 	local gx0, gx1 = -w * 0.5, w * 0.5
 	local gz0, gz1 = -d * 0.5, d * 0.5
 
@@ -200,8 +319,8 @@ local function buildGround(folder: Folder)
 		local z = CityGenerator.CellToWorld(0, cz).Z
 		local r = part({
 			Name = "RoadZ" .. cz,
-			Size = Vector3.new(w, 1, C.RoadWidth),
-			Position = Vector3.new(0, 0.55, z - CELL * 0.5),
+			Size = Vector3.new(calleW, 1, C.RoadWidth),
+			Position = Vector3.new(calleCX, 0.55, z - CELL * 0.5),
 			Color = Color3.fromRGB(48, 48, 52),
 			Material = Enum.Material.Asphalt,
 		})
@@ -210,8 +329,8 @@ local function buildGround(folder: Folder)
 		-- raya amarilla
 		local line = part({
 			Name = "Line",
-			Size = Vector3.new(w, 0.2, 1.2),
-			Position = Vector3.new(0, 1.12, z - CELL * 0.5),
+			Size = Vector3.new(calleW, 0.2, 1.2),
+			Position = Vector3.new(calleCX, 1.12, z - CELL * 0.5),
 			Color = Color3.fromRGB(220, 190, 70),
 			Material = Enum.Material.SmoothPlastic,
 		})
@@ -222,8 +341,8 @@ local function buildGround(folder: Folder)
 		local x = CityGenerator.CellToWorld(cx, 0).X
 		local r = part({
 			Name = "RoadX" .. cx,
-			Size = Vector3.new(C.RoadWidth, 1, d),
-			Position = Vector3.new(x - CELL * 0.5, 0.55, 0),
+			Size = Vector3.new(C.RoadWidth, 1, calleD),
+			Position = Vector3.new(x - CELL * 0.5, 0.55, calleCZ),
 			Color = Color3.fromRGB(48, 48, 52),
 			Material = Enum.Material.Asphalt,
 		})
@@ -231,8 +350,8 @@ local function buildGround(folder: Folder)
 
 		local line = part({
 			Name = "Line",
-			Size = Vector3.new(1.2, 0.2, d),
-			Position = Vector3.new(x - CELL * 0.5, 1.12, 0),
+			Size = Vector3.new(1.2, 0.2, calleD),
+			Position = Vector3.new(x - CELL * 0.5, 1.12, calleCZ),
 			Color = Color3.fromRGB(220, 190, 70),
 			Material = Enum.Material.SmoothPlastic,
 		})
@@ -1324,8 +1443,9 @@ local function buildBuyers(folder: Folder)
 		})
 		signBoard.Parent = props
 
-		makeBillboard(signBoard, string.format("%s\nx%.2f precio", info.Name, info.PriceMult),
-			Color3.fromRGB(255, 214, 130), 2)
+		-- v44: chico (el letrero de 200x50 estorbaba al caminar por el mercado)
+		makeBillboard(signBoard, string.format("%s x%.2f", info.Name, info.PriceMult),
+			Color3.fromRGB(255, 214, 130), 2, 120, 30)
 	end
 end
 
@@ -1467,7 +1587,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		head2.Parent = model
-		makeBillboard(head2, "TALLER", Color3.fromRGB(255, 205, 120), 2)
+		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120), { pixels = 50 })
 	end
 
 	-- La pared DERECHA va en tramos, para dejar el hueco por donde se pasa
@@ -1527,7 +1647,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		head.Parent = model
-		makeBillboard(head, "OFICINA", Color3.fromRGB(150, 230, 255), 2)
+		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255), { pixels = 50 })
 	end
 
 	-- ===== FACHADA DEL FRENTE con hueco de porton =====
@@ -1634,7 +1754,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	gateSensor.Parent = model
 
 	-- letrero arriba del porton
-	makeBillboard(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), 3)
+	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), { pixels = 50 })
 
 	-- luces del porton
 	for _, sx in ipairs({-1, 1}) do
@@ -1862,7 +1982,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		edge.Parent = model
 	end
 	press.Parent = model
-	makeBillboard(press, "PRENSA [R]", Color3.fromRGB(255, 170, 110), 11)
+	makeBillboard(press, "PRENSA [R]", Color3.fromRGB(255, 170, 110), 11, 110, 30)
 
 	-- ===== MAQUINA DE PRENSA (industrial, no un cubo) =====
 	local pmZ = -D * 0.5 + 14
@@ -2241,8 +2361,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		Material = Enum.Material.DiamondPlate,
 	})
 	vaultBody.Parent = model
-	makeBillboard(vaultBody, "CAJA FUERTE [C] - aqui no te la quita Aduanas",
-		Color3.fromRGB(130, 255, 190), 7)
+	-- v44: pintado en la cara de la caja (antes flotaba encima y tapaba la bodega)
+	textoPlano(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190), { pixels = 32 })
 
 	local vaultFrame = part({
 		Name = "VaultFrame",
@@ -2533,7 +2653,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		plate.Parent = model
-		makeBillboard(plate, "CAJON " .. i, Color3.fromRGB(200, 205, 215), 1)
+		-- v44: el usuario pidio justo esto: "vi un letrero flotante de caja 1;
+		-- ahi ya hay uno negro, poner ahi caja 1 pero en texto plano"
+		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228), { pixels = 60 })
 
 		-- lampara del techo del cajon (se prende de noche)
 		local gl = part({
@@ -2658,7 +2780,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		CanCollide = false,
 	})
 	garSign.Parent = model
-	makeBillboard(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), 2)
+	-- v44: era un letrero FLOTANTE de 200x50 pixeles encima del tablero negro
+	-- (el usuario lo reporto como "textos en grandote muy estorboso"). Ahora el
+	-- texto va PINTADO en el tablero negro que ya estaba ahi. Main lo reescribe
+	-- con "GARAJE DE <dueno>" o "SIN PROPIETARIO" (funcion RotularGaraje).
+	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 55 })
 
 	-- ===== LAMPARAS DE TECHO =====
 	local lampCount = math.max(3, math.floor(W / 45))
@@ -3105,11 +3231,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	deskLight.Range = 14
 	deskLight.Parent = screen
 
-	-- letrero flotante
+	-- v44: pintado en la pantalla del monitor (antes flotaba encima)
 	if nextTier then
-		makeBillboard(monitor, "MEJORAS [G]", Color3.fromRGB(160, 200, 255), 3)
+		textoPlano(monitor, "MEJORAS [G]", Color3.fromRGB(160, 200, 255), { pixels = 34 })
 	else
-		makeBillboard(monitor, "NIVEL MAXIMO", Color3.fromRGB(160, 200, 255), 3)
+		textoPlano(monitor, "NIVEL MAXIMO", Color3.fromRGB(160, 200, 255), { pixels = 34 })
 	end
 
 	-- ===== VIGILANTE junto a la entrada, mirando a la calle =====
@@ -3254,7 +3380,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		gSign.Parent = model
-		makeBillboard(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), 2)
+		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), { pixels = 42 })
 		local signGlow = part({
 			Name = "GateSignGlow",
 			Size = Vector3.new(math.min(26, W * 0.5) + 1.2, 0.35, 0.35),
@@ -3847,7 +3973,10 @@ local function buildPoliceStation(folder: Folder)
 	})
 	tower.Parent = station
 
-	makeBillboard(tower, "UNIDAD DE ADUANAS", Color3.fromRGB(150, 190, 255))
+	-- v44: pintado en la torre (dos caras: se lee desde cualquier lado)
+	textoPlano(tower, "UNIDAD DE ADUANAS", Color3.fromRGB(150, 190, 255), { pixels = 30 })
+	textoPlano(tower, "UNIDAD DE ADUANAS", Color3.fromRGB(150, 190, 255),
+		{ pixels = 30, face = Enum.NormalId.Left, name = "RotuloIzq" })
 
 	-- celda (donde apareces si te agarran)
 	local jail = part({
@@ -4002,7 +4131,7 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 		cpart("TablillaPata", Vector3.new(0.4, 4.2, 0.4), Vector3.new(sx * 3.7, 2.2, tapeZ + 1.4),
 			Color3.fromRGB(110, 84, 58), Enum.Material.Wood)
 	end
-	makeBillboard(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), 3)
+	textoPlano(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), { pixels = 55 })
 
 	-- donde se plantan los DOS oficiales: afuera, a los lados del porton.
 	-- OJO: aqui afuera el piso esta en y ~ 0.6 (la rampa baja del anden), no en 2.

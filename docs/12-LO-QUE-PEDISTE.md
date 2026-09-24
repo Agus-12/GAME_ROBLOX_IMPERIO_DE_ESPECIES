@@ -51,3 +51,4 @@ para revisar que nada se pierda.
 3. **v38**: habia que **poder ver** que ronda corre -> placa + letrero + inventario.
 4. **v41**: el tablero viejo se caza **por contenido** (dice "Hojas"/"HEAT"/"Espacio"),
    aunque su nombre no sea el esperado o este dentro de una carpeta.
+| 29 | **Bodegas vecinas encima de la calle**, nombres en **texto grandote** flotando, sin decir de quien es cada garaje, y el numero de cajon flotando | calles limitadas a la ciudad; rotulos **pintados** en los tableros negros (nada flotante); **GARAJE DE <nombre>** / **SIN PROPIETARIO**; **CAJA n** en texto plano | **v44** |

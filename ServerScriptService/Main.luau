@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v43 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v44 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -623,23 +623,15 @@ local function assignWarehouse(player: Player): Model
 		warn("[SpiceEmpire] CityGenerator VIEJO: la bodega no trae la rampa GateApron. Pega el CityGenerator de esta ronda.")
 	end
 
-	-- letrero con el nombre
-	local sign = Instance.new("BillboardGui")
-	sign.Size = UDim2.new(0, 260, 0, 50)
-	sign.StudsOffset = Vector3.new(0, 30, 0)
-	sign.AlwaysOnTop = false
-	sign.MaxDistance = 500
-	sign.LightInfluence = 0
-	sign.Parent = clone.PrimaryPart
-	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.fromScale(1, 1)
-	lbl.BackgroundTransparency = 1
-	lbl.Font = Enum.Font.GothamBold
-	lbl.TextScaled = true
-	lbl.TextColor3 = Color3.fromRGB(255, 220, 140)
-	lbl.TextStrokeTransparency = 0.3
-	lbl.Text = "BODEGA DE " .. string.upper(player.Name)
-	lbl.Parent = sign
+	-- ===== v44: EL ROTULO VA PINTADO EN EL TABLERO NEGRO DEL GARAJE =====
+	-- El usuario: "me salen los nombres asi en grandote muy estorboso... tal vez
+	-- en lugar de tener esos textos ahi arriba de los garages, miro como un
+	-- letrero negro, ahi podemos poner 'garaje de <usuario>'".
+	-- Antes esto era un BillboardGui de 260x50 pixeles FLOTANDO a 30 studs sobre
+	-- la bodega: se veia igual de grande a cualquier distancia y se encimaba con
+	-- los de los vecinos. Ahora es texto pintado en el tablero negro que ya
+	-- existe arriba de los portones del garaje.
+	pcall(CityGenerator.RotularGaraje, clone, "GARAJE DE " .. string.upper(player.Name))
 
 	warehouses[player] = clone
 	if initPlants then pcall(initPlants, clone) end
@@ -786,6 +778,9 @@ local function ponerVecina(slot: number)
 		if d:IsA("ProximityPrompt") then d.Enabled = false end
 	end
 	local puestos = CityGenerator.Clausurar(m)
+	-- v44: el lote sin dueno lo dice en el tablero del garaje (lo pidio el usuario:
+	-- "o 'sin propietario' los que no tienen")
+	pcall(CityGenerator.RotularGaraje, m, "SIN PROPIETARIO")
 	m.Parent = Workspace
 	vecinas[slot] = m
 
