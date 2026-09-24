@@ -92,6 +92,12 @@ def main():
     bad = 0
     for f in FILES:
         src = strip_luau(open(os.path.join(ROOT, f)).read())
+        # v42: quitar los COMENTARIOS antes de buscar. El arreglo del bug de la
+        # interfaz dejo un comentario que dice  -- Antes decia: Instance.new("AutomaticSize")
+        # y este chequeo lo tomaba como codigo real (falso positivo). En Lua, "--"
+        # comenta hasta el fin de la linea, asi que quitarlos es seguro.
+        src = re.sub(r"--\[\[.*?\]\]", "", src, flags=re.S)
+        src = re.sub(r"--[^\n]*", "", src)
         lines = src.split("\n")
         problems = []
 

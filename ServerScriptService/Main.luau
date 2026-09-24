@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -560,6 +560,146 @@ local syncGarage
 local applyOfflineProduction
 local giveWeapon
 local territoryBonus
+-- v42: los lotes sin dueno se ven como nave clausurada (se declaran aqui porque
+-- assignWarehouse, que va mas arriba, tiene que quitar la clausurada del lote
+-- que acaba de ocupar).
+local ponerClausurada
+local quitarClausurada
+
+-- ===== v42: LAS NAVES CLAUSURADAS (lo que pidio el usuario) =====
+-- Antes, un lote sin dueno era un cuadro de pasto vacio: parecia que faltaba
+-- algo en el mapa. Ahora se levanta una nave chica gris, con el porton tapado
+-- con tablas y cadena, letrero de CLAUSURADA / EN VENTA, basura afuera y un
+-- OFICIAL parado en la puerta que te habla cuando te acercas.
+do
+	local clausuradas: {[number]: Model} = {}
+	local textos = {
+		"Esta nave esta CLAUSURADA, joven. Sigale.",
+		"Se renta, pero primero ponte a jalar y compra tu licencia.",
+		"Aqui no se estaciona. Muevase, por favor.",
+		"Yo nada mas cuido que nadie se meta.",
+		"Vuelvo con la llave... creo que se me perdio.",
+		"Si la quieres, habla con el agente de la aduana.",
+	}
+
+	-- prende el globo de dialogo del oficial con un texto
+	local function hablar(modelo: Model, texto: string?)
+		local ofi = modelo:FindFirstChild("OficialMunicipal", true)
+		local head = ofi and (ofi:FindFirstChild("Head") or ofi:FindFirstChild("Torso"))
+		local bb = head and head:FindFirstChild("Dialogo")
+		if not bb then return end
+		if texto then
+			local lbl = bb:FindFirstChild("Texto")
+			if lbl then lbl.Text = texto end
+		end
+		bb.Enabled = true
+	end
+
+	quitarClausurada = function(slot: number)
+		local m = clausuradas[slot]
+		if m then
+			pcall(function() m:Destroy() end)
+		end
+		clausuradas[slot] = nil
+	end
+
+	ponerClausurada = function(slot: number)
+		if clausuradas[slot] or warehouseSlots[slot] ~= nil then return end
+		local ok, m = pcall(function() return CityGenerator.BuildClosedWarehouse() end)
+		if not ok or not m then return end
+		m.Name = "BodegaClausurada_" .. slot
+		m:SetAttribute("Slot", slot)
+		m:PivotTo(CFrame.new(warehouseSlotPos(slot)))
+		m.Parent = Workspace
+		clausuradas[slot] = m
+
+		-- en computadora tambien se puede apretar E sobre el oficial
+		local ofi = m:FindFirstChild("OficialMunicipal", true)
+		local pr = ofi and ofi:FindFirstChild("PromptOficial", true)
+		if pr then
+			pr.Triggered:Connect(function(pl)
+				hablar(m, "Andele, " .. pl.Name .. ". " .. textos[1])
+			end)
+		end
+	end
+
+	-- OJO: no se levantan las 20 naves clausuradas de golpe (son ~60 piezas
+	-- cada una = 1200 piezas tiradas). Se levantan cuando alguien ronda la zona
+	-- de lotes, de a una por segundo, en el bucle de abajo. Asi el mapa arranca
+	-- igual de rapido que antes y las naves aparecen cuando hacen falta.
+
+	-- ===== EL OFICIAL TE HABLA AL ACERCARTE =====
+	-- Se revisa cada segundo: si hay alguien a menos de 17 studs se abre el
+	-- globo (y cada 7 s cambia de frase). En celular esto es LO que importa:
+	-- no hay tecla E, pero el globo se lee perfecto. De paso, el foco de la
+	-- nave parpadea como luz vieja.
+	task.spawn(function()
+		local cual: {[number]: number} = {}
+		local t = 0
+		while true do
+			task.wait(1)
+			t += 1
+			pcall(function()
+				local jugadores = Players:GetPlayers()
+
+				-- ¿alguien anda cerca de la zona de lotes? entonces se levanta la
+				-- nave clausurada que falte (una por segundo, para no dar tirones)
+				for _, pl in ipairs(jugadores) do
+					local char = pl.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart")
+					if hrp then
+						local levante = false
+						for slot = 1, WAREHOUSE_MAX_SLOTS do
+							if clausuradas[slot] == nil and warehouseSlots[slot] == nil then
+								if (hrp.Position - warehouseSlotPos(slot)).Magnitude <= 420 then
+									ponerClausurada(slot)
+									levante = true
+									break
+								end
+							end
+						end
+						if levante then break end
+					end
+				end
+
+				for slot, m in pairs(clausuradas) do
+					if m.Parent then
+						local ofi = m:FindFirstChild("OficialMunicipal", true)
+						local head = ofi and (ofi:FindFirstChild("Head") or ofi:FindFirstChild("Torso"))
+						local bb = head and head:FindFirstChild("Dialogo")
+						local cerca = false
+						if head then
+							for _, pl in ipairs(jugadores) do
+								local char = pl.Character
+								local hrp = char and char:FindFirstChild("HumanoidRootPart")
+								if hrp and (hrp.Position - head.Position).Magnitude <= 17 then
+									cerca = true
+									break
+								end
+							end
+						end
+						if bb then
+							bb.Enabled = cerca
+							if cerca and t % 7 == 0 then
+								local i = (cual[slot] or 0) + 1
+								if i > #textos then i = 1 end
+								cual[slot] = i
+								local lbl = bb:FindFirstChild("Texto")
+								if lbl then lbl.Text = textos[i] end
+							end
+						end
+						local foco = m:FindFirstChild("Foco", true)
+						local luz = foco and foco:FindFirstChild("LuzFoco")
+						if luz then
+							-- parpadeo de lampara vieja (a cada rato se baja)
+							luz.Brightness = ((t % 11) < 8) and 1.5 or 0.25
+						end
+					end
+				end
+			end)
+		end
+	end)
+end
 
 -- estado de encargos y llamadas (se declara aqui arriba porque
 -- PlayerRemoving lo limpia antes de que se definan las funciones)
@@ -593,6 +733,7 @@ local function assignWarehouse(player: Player): Model
 	slot = slot or 1
 	warehouseSlots[slot] = player
 	if vieja then vieja:Destroy() end
+	if quitarClausurada then quitarClausurada(slot) end
 
 	local profile = DataService.Get(player)
 	local tier = (profile and profile.WarehouseTier) or 1
@@ -640,7 +781,11 @@ local function releaseWarehouse(player: Player)
 	if w then w:Destroy() end
 	warehouses[player] = nil
 	for i, p in pairs(warehouseSlots) do
-		if p == player then warehouseSlots[i] = nil end
+		if p == player then
+			warehouseSlots[i] = nil
+			-- el lote queda otra vez vacio: se ve la nave clausurada, no un hoyo
+			if ponerClausurada then ponerClausurada(i) end
+		end
 	end
 end
 
@@ -2867,8 +3012,12 @@ function spawnBike(player: Player)
 	seat.Size = Vector3.new(1.3, 0.35, 1.7)
 	seat.CFrame = spawnCF * CFrame.new(0, 1.85, 1.5)
 	seat.MaxSpeed = B.Speed
-	seat.Torque = 0
-	seat.TurnSpeed = 0
+	-- v42: estaban en 0 y Roblox NO muestra los controles de manejo (en celular
+	-- ni aparece el volante, y el jugador se sube y no puede andar). El movimiento
+	-- sigue siendo el del bucle (la bici esta ANCLADA: la fisica no la toca),
+	-- estos numeros solo habilitan los controles.
+	seat.Torque = 20
+	seat.TurnSpeed = 12
 	seat.Color = Color3.fromRGB(28, 28, 32)
 	seat.Material = Enum.Material.Fabric
 	seat.HeadsUpDisplay = false
@@ -2881,22 +3030,31 @@ function spawnBike(player: Player)
 	-- CINEMATICO (sin fisica): caminando encima NO pasaba nada, y en un celular
 	-- menos. Ahora hay un boton de verdad: te acercas y le picas "Manejar"
 	-- (en compu tambien sirve la tecla E). Es la forma que SI funciona en telefono.
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "Subirse"
-	prompt.ActionText = "Manejar"
-	prompt.ObjectText = "Bicicleta"
-	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.HoldDuration = 0
-	prompt.MaxActivationDistance = 12
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = seat
-	prompt.Triggered:Connect(function(quien)
-		local c = quien and quien.Character
-		local hum = c and c:FindFirstChildOfClass("Humanoid")
-		if hum and not seat.Occupant then
-			seat:Sit(hum)
-		end
-	end)
+	-- v42: en CELULAR nada de letrero ("E Manejar"): te acercas y te subes solo.
+	-- En computadora se queda el boton con la tecla E, pero mas cerca (9) para
+	-- que no salga de lejos.
+	local UIS = game:GetService("UserInputService")
+	local esCelular = UIS.TouchEnabled and not UIS.KeyboardEnabled
+	if esCelular then
+		seat:SetAttribute("AutoSubir", true)
+	else
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "Subirse"
+		prompt.ActionText = "Manejar"
+		prompt.ObjectText = "Bicicleta"
+		prompt.KeyboardKeyCode = Enum.KeyCode.E
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 9
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = seat
+		prompt.Triggered:Connect(function(quien)
+			local c = quien and quien.Character
+			local hum = c and c:FindFirstChildOfClass("Humanoid")
+			if hum and not seat.Occupant then
+				seat:Sit(hum)
+			end
+		end)
+	end
 
 	-- ===== MANUBRIO =====
 	bp("Stem", Vector3.new(0.25, 0.25, 0.9),
@@ -3086,12 +3244,22 @@ function spawnBike(player: Player)
 		end
 
 		-- 6) las ruedas ademas giran
+		-- >>> BUG ARREGLADO (v42): los RINES se quedaban atras <<<
+		-- Aqui solo se movian la llanta y el aro. La MAZA y los RAYOS se quedaban
+		-- clavados donde nacio la bici: al arrancar, el jugador veia los rines
+		-- flotando en el aire ("los rines se quedan ahi") y la rueda parecia un
+		-- plato vacio. Ahora se mueven las 4 piezas y los rayos giran con la
+		-- rueda (cada uno con su angulo original, si no se encimarian todos).
 		spin = spin + speed * dt * 0.75
 		for _, w in ipairs(wheelParts) do
 			local wcf = chassis.CFrame * CFrame.new(w.offset)
 				* CFrame.Angles(spin, 0, 0)
 			w.wheel.CFrame = wcf
 			w.rim.CFrame = wcf
+			w.hub.CFrame = wcf
+			for k, sp in ipairs(w.spokes or {}) do
+				sp.CFrame = wcf * CFrame.Angles(math.rad(k * 30), 0, 0)
+			end
 		end
 	end)
 
@@ -3199,10 +3367,30 @@ local function buyBackpack(player: Player, id: string)
 	return false, "mochila invalida"
 end
 
+-- v42: el garaje tiene 1 cajon en el nivel 1 y crece con la bodega. Si no hay
+-- cajon libre, no se puede comprar: antes comprabas los 4 autos con el garaje
+-- chico y no cabian (ni podias maniobrar entre ellos).
+local function cajonesLibres(player: Player): number
+	local profile = DataService.Get(player)
+	if not profile then return 0 end
+	local G = Config.Garage or {}
+	local nivel = math.max(1, math.min(4, profile.WarehouseTier or 1))
+	local cajones = 1
+	if type(G.Bays) == "table" then cajones = G.Bays[nivel] or 1
+	elseif type(G.Bays) == "number" then cajones = G.Bays end
+	local usados = 0
+	for _, _ in pairs(profile.Vehicles) do usados += 1 end
+	return math.max(0, cajones - usados)
+end
+
 local function buyVehicle(player: Player, id: string)
 	local profile = DataService.Get(player)
 	if not profile then return false, "sin perfil" end
 	if profile.Vehicles[id] then return false, "Ya tienes ese vehiculo" end
+	if cajonesLibres(player) <= 0 then
+		return false, "Tu garaje esta lleno (bodega nivel " .. tostring(profile.WarehouseTier or 1) ..
+			"): mejora la bodega para tener mas cajones"
+	end
 
 	for _, v in ipairs(Config.Vehicles) do
 		if v.Id == id then
@@ -3291,7 +3479,7 @@ function syncGarage(player: Player)
 	end
 end
 
-local function spawnVehicle(player: Player, id: string)
+local function spawnVehicle(player: Player, id: string, cfForzada: CFrame?)
 	local profile = DataService.Get(player)
 	if not profile or not profile.Vehicles[id] then return false, "No tienes ese vehiculo" end
 
@@ -3309,10 +3497,15 @@ local function spawnVehicle(player: Player, id: string)
 	-- Sale por la puerta del garaje, no de la nada junto a ti.
 	-- OJO: la 'cf' que recibe BuildCar va a NIVEL DEL PISO (ahi se apoyan las
 	-- ruedas), por eso y = 2 (el piso de la bodega esta en y=2).
-	local wh0 = warehouses[player]
-	local exit = wh0 and wh0:FindFirstChild("GarageExit", true)
-	local sp = exit and exit.Position or (hrp.Position + Vector3.new(0, 0, -14))
-	local baseCF = CFrame.new(sp.X, 2.05, sp.Z)
+	local baseCF
+	if cfForzada then
+		baseCF = cfForzada          -- el boton 🚗 lo pide junto al jugador
+	else
+		local wh0 = warehouses[player]
+		local exit = wh0 and wh0:FindFirstChild("GarageExit", true)
+		local sp = exit and exit.Position or (hrp.Position + Vector3.new(0, 0, -14))
+		baseCF = CFrame.new(sp.X, 2.05, sp.Z)
+	end
 
 	-- el modelo completo (carroceria por tipo, vidrios, faros, rines) lo arma
 	-- CityGenerator.BuildCar; aqui solo se posiciona y se ajusta el asiento.
@@ -3336,16 +3529,130 @@ local function spawnVehicle(player: Player, id: string)
 	return true, "Sacaste tu " .. info.Name .. " del garaje"
 end
 
+-- v42: "mi auto aqui" (boton 🚗 del celular). Si ya tienes tu vehiculo afuera,
+-- se trae junto a ti; si no, se crea a tu lado. Antes no habia forma de tener el
+-- auto contigo sin caminar hasta el garaje.
+local function carAqui(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then return false, "sin perfil" end
+	local cual = nil
+	for _, v in ipairs(Config.Vehicles) do
+		if profile.Vehicles[v.Id] then cual = v.Id break end
+	end
+	if not cual then return false, "Todavia no tienes auto: compralo en el panel Autos" end
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false, "sin personaje" end
+
+	-- donde va: a un lado tuyo, mirando hacia donde miras, sobre el piso
+	local look = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z)
+	if look.Magnitude < 0.01 then look = Vector3.new(0, 0, 1) end
+	local lado = Vector3.new(-look.Z, 0, look.X)
+	local destino = hrp.Position + lado * 10
+	local baseCF = CFrame.lookAt(Vector3.new(destino.X, 2.05, destino.Z),
+		Vector3.new(destino.X, 2.05, destino.Z) + look)
+
+	local actual = Workspace:FindFirstChild("Car_" .. player.UserId)
+	if actual and actual.PrimaryPart then
+		-- ya anda afuera: se trae aqui (teletransporte, no copia)
+		local ocupado = false
+		for _, d in ipairs(actual:GetDescendants()) do
+			if d:IsA("VehicleSeat") and d.Occupant then ocupado = true end
+		end
+		if ocupado then return false, "Bajate del vehiculo primero" end
+		local delta = baseCF.Position - actual.PrimaryPart.Position
+		for _, d in ipairs(actual:GetDescendants()) do
+			if d:IsA("BasePart") then d.CFrame = d.CFrame + delta end
+		end
+		return true, "Traje tu vehiculo aqui"
+	end
+
+	return spawnVehicle(player, cual, baseCF)
+end
+
+
 ----------------------------------------------------------------------
 -- PORTONES DEL GARAJE (se abren solos)
 ----------------------------------------------------------------------
+----------------------------------------------------------------------
+-- AUTO-SENTIDO EN CELULAR (v42)
+----------------------------------------------------------------------
+-- El usuario lo pidio asi: "en celular el letrero de E para conducir no tiene
+-- sentido: solo me acerco y se sube". En computadora se queda el boton (con la
+-- tecla E), pero en CELULAR los asientos llevan el atributo "AutoSubir" y aqui
+-- se sienta al jugador solito cuando se acerca.
+-- OJO: solo si acaba de bajarse (4 s) NO se vuelve a subir, si no el jugador se
+-- queda atrapado arriba del vehiculo cada vez que se quiere bajar.
+local ultimaBajada: {[Player]: number} = {}
+local estabaSentado: {[Player]: boolean} = {}
+
+task.spawn(function()
+	local UIS = game:GetService("UserInputService")
+	local esCelular = UIS.TouchEnabled and not UIS.KeyboardEnabled
+	if not esCelular then return end   -- en compu nada de auto-sentido (usaria el boton)
+
+	local R_CARRO = 7    -- distancia para subirse a un auto
+	local R_BICI  = 8    -- distancia para subirse a la bici
+
+	while true do
+		task.wait(0.35)
+		pcall(function()
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local char = pl.Character
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				-- ¿se acaba de bajar? (estaba sentado y ya no): dejarlo libre 4 s.
+				-- Si no, en cuanto se baja el juego lo vuelve a subir y se queda
+				-- atrapado arriba del vehiculo.
+				if hum and not hum.SeatPart and estabaSentado[pl] then
+					estabaSentado[pl] = false
+					ultimaBajada[pl] = os.clock()
+				elseif hum and hum.SeatPart then
+					estabaSentado[pl] = true
+				end
+
+				if hum and hrp and not hum.SeatPart then
+					if (os.clock() - (ultimaBajada[pl] or -99)) < 4 then
+						-- acaba de bajarse: dejarlo libre un rato
+					else
+						local mejor, mejorD = nil, math.huge
+						for _, o in ipairs(Workspace:GetChildren()) do
+							local esCarro = string.sub(o.Name, 1, 4) == "Car_"
+							local esBici = string.sub(o.Name, 1, 5) == "Bike_"
+							if esCarro or esBici then
+								local asiento = o:FindFirstChild("Seat", true)
+								if asiento and asiento:IsA("VehicleSeat")
+									and asiento:GetAttribute("AutoSubir")
+									and not asiento.Occupant then
+									local d = (asiento.Position - hrp.Position).Magnitude
+									if d <= (esBici and R_BICI or R_CARRO) and d < mejorD then
+										mejor, mejorD = asiento, d
+									end
+								end
+							end
+						end
+						if mejor then
+							mejor:Sit(hum)
+						end
+					end
+				end
+			end
+		end)
+	end
+end)
+
 -- Cada cajon tiene su porton de cortina (Model 'GarageDoor'). Aqui se abre
 -- cuando TU o TU COCHE estan cerca del frente del taller, y se cierra cuando
 -- ambos se alejan. Antes el garaje era una caja sellada: no habia puerta.
-local garageOpen: {[Player]: boolean} = {}
+-- v42: ahora se mide la distancia a CADA PUERTA (no a un punto al centro del
+-- garaje). Con eso pasa lo que pidio el usuario: se abre SOLO el porton por el
+-- que vas entrando (con 4 cajones y 68 de ancho, el punto central quedaba
+-- lejisimos del cajon 1 y ese porton no abria nunca).
+local puertaAbierta: {[Player]: {[any]: boolean}} = {}
 
 task.spawn(function()
-	local R = (Config.Garage and Config.Garage.OpenRadius) or 20
+	local R = (Config.Garage and Config.Garage.OpenRadius) or 9
 	local info = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	while true do
 		task.wait(0.4)
@@ -3353,28 +3660,29 @@ task.spawn(function()
 			for _, pl in ipairs(Players:GetPlayers()) do
 				local wh = warehouses[pl]
 				if wh and wh.Parent then
-					local trig = wh:FindFirstChild("GarageTrigger", true)
-					local doors = wh:FindFirstChild("GarageDoor", true)
-					if trig and doors then
-						local char = pl.Character
-						local hrp = char and char:FindFirstChild("HumanoidRootPart")
-						local car = Workspace:FindFirstChild("Car_" .. pl.UserId)
-						local pts = {}
-						if hrp then table.insert(pts, hrp.Position) end
-						if car and car.PrimaryPart then table.insert(pts, car.PrimaryPart.Position) end
-
-						local best = math.huge
-						for _, p in ipairs(pts) do
-							local d = (Vector3.new(p.X, 0, p.Z) - Vector3.new(trig.Position.X, 0, trig.Position.Z)).Magnitude
-							if d < best then best = d end
-						end
-						local shouldOpen = best <= R
-						if garageOpen[pl] ~= shouldOpen then
-							garageOpen[pl] = shouldOpen
-							if sfx then sfx(pl, "Gate") end
-							for _, d in ipairs(wh:GetDescendants()) do
-								if d:IsA("Model") and d.Name == "GarageDoor" then
-									local dh = d:GetAttribute("DoorHeight") or 11
+					local char = pl.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart")
+					local car = Workspace:FindFirstChild("Car_" .. pl.UserId)
+					local estado = puertaAbierta[pl]
+					if not estado then estado = {}; puertaAbierta[pl] = estado end
+					for _, d in ipairs(wh:GetDescendants()) do
+						if d:IsA("Model") and d.Name == "GarageDoor" then
+							local slab = d.PrimaryPart or d:FindFirstChild("DoorSlab")
+							if slab then
+								local best = math.huge
+								local puntos = {}
+								if hrp then table.insert(puntos, hrp.Position) end
+								if car and car.PrimaryPart then table.insert(puntos, car.PrimaryPart.Position) end
+								for _, p in ipairs(puntos) do
+									local dist = (Vector3.new(p.X, 0, p.Z)
+										- Vector3.new(slab.Position.X, 0, slab.Position.Z)).Magnitude
+									if dist < best then best = dist end
+								end
+								local shouldOpen = best <= R
+								if estado[d] ~= shouldOpen then
+									estado[d] = shouldOpen
+									if sfx then sfx(pl, "Gate") end
+									local dh = d:GetAttribute("DoorHeight") or 10
 									for _, piece in ipairs(d:GetChildren()) do
 										if piece:IsA("BasePart") then
 											local home = piece:GetAttribute("HomeCF") or piece.CFrame
@@ -3392,7 +3700,7 @@ task.spawn(function()
 	end
 end)
 
-Players.PlayerRemoving:Connect(function(pl) garageOpen[pl] = nil end)
+Players.PlayerRemoving:Connect(function(pl) puertaAbierta[pl] = nil end)
 
 ----------------------------------------------------------------------
 -- ROUTER DE ACCIONES
@@ -3439,6 +3747,7 @@ RF_Action.OnServerInvoke = function(player: Player, action: string, arg1: any, a
 	elseif action == "buyVehicle" then ok, msg = buyVehicle(player, tostring(arg1))
 	elseif action == "buyProperty" then ok, msg = buyProperty(player, tostring(arg1))
 	elseif action == "spawnVehicle" then ok, msg = spawnVehicle(player, tostring(arg1))
+	elseif action == "carAqui" then ok, msg = carAqui(player)
 	elseif action == "upgradeWarehouse" then ok, msg = upgradeWarehouse(player)
 	elseif action == "spawnBike" then ok, msg = spawnBike(player)
 	elseif action == "withdraw" then ok, msg = vaultWithdraw(player, arg1, arg2)
@@ -3480,6 +3789,7 @@ RF_Action.OnServerInvoke = function(player: Player, action: string, arg1: any, a
 			upgradePress = "Buy",
 			hire = "Buy",
 			buyVehicle = "Buy",
+			carAqui = "Gate",       -- el sonido del porton: se siente como que llega
 			buyProperty = "Buy",
 			buyBackpack = "Buy",
 			withdraw = "Buy",

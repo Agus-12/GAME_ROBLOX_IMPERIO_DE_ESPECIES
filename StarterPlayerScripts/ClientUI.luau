@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v41"
+local MI_VERSION = "v42"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -1262,14 +1262,16 @@ local function row(icon: string, tint: Color3, order: number, wide: boolean?)
 	return txt
 end
 
--- 🌿 hojas que traes  |  🧱 bloques que traes
--- 🎒 espacio de mochila  |  🔒 lo que hay en la caja fuerte  |  🚨 heat
-local chipLeaf  = row("🌿", Color3.fromRGB(150, 235, 140), 2)
-local chipBlock = row("🧱", Color3.fromRGB(238, 216, 160), 3)
-local chipBag   = row("🎒", Color3.fromRGB(170, 195, 235), 4)
--- este va mas alto: trae los dos topes de la caja
-local chipVault = row("🔒", Color3.fromRGB(130, 245, 190), 5, true)
-local chipHeat  = row("🚨", Color3.fromRGB(255, 150, 90), 6)
+-- v42: la columna se reordeno como pidio el usuario:
+--   1) efectivo   2) BODEGA (lo guardado / lo que cabe)
+--   3) hojas (guardadas / tope)   4) bloques (guardados / tope)
+--   5) mochila (lo que traes encima)
+-- El heat (🚨) YA NO va aqui: ahora son ESTRELLAS bajo el reloj (ver mas abajo).
+-- Antes la fila 5 traia "100/100 🌿 10/50 🧱" todo apretado y se veia recorrido.
+local chipBodega = row("🏭", Color3.fromRGB(255, 226, 160), 2)
+local chipLeaf   = row("🌿", Color3.fromRGB(150, 235, 140), 3)
+local chipBlock  = row("🧱", Color3.fromRGB(238, 216, 160), 4)
+local chipBag    = row("🎒", Color3.fromRGB(170, 195, 235), 5)
 
 -- aviso de BUSCADO (antes era un texto larguisimo arriba; ahora es una
 -- etiqueta pegada a la columna para que no tape la pantalla)
@@ -1299,6 +1301,45 @@ local clockLbl = label(gui, {
 	TextXAlignment = Enum.TextXAlignment.Right,
 	TextStrokeTransparency = 0.4,
 })
+
+-- ===== ESTRELLAS DE NIVEL DE BUSQUEDA (v42) =====
+-- El usuario: "la sirenita no se para que es... tal vez unas estrellas abajo del
+-- reloj que se vayan encendiendo segun el nivel de busqueda, y en la zona segura
+-- se vayan apagando". Justo eso: 5 estrellas debajo del reloj. Se prenden con el
+-- HEAT (Aduanas: vender en la ciudad sube el heat, y en tu bodega baja solo).
+local estrellas: {TextLabel} = {}
+for i = 1, 5 do
+	estrellas[i] = label(gui, {
+		Size = UDim2.new(0, 18, 0, 20),
+		Position = UDim2.new(1, IS_MOBILE and (-112 + (i - 1) * 17) or (-124 + (i - 1) * 17),
+			0, IS_MOBILE and 30 or 36),
+		TextSize = IS_MOBILE and 15 or 17,
+		Font = Enum.Font.GothamBold,
+		Text = "★",
+		TextColor3 = Color3.fromRGB(70, 70, 84),      -- apagada
+		TextStrokeTransparency = 0.5,
+		TextXAlignment = Enum.TextXAlignment.Center,
+	})
+end
+
+-- pinta las estrellas segun el heat: 0 = todas apagadas, Max = todas prendidas.
+-- Se va restando de una en una (no de golpe) para que se vea "apagandose poco a
+-- poco" cuando estas en zona segura.
+local function pintarEstrellas(heat: number, maximo: number)
+	local nivel = math.clamp(math.floor((heat / math.max(1, maximo)) * 5 + 0.5), 0, 5)
+	for i, e in ipairs(estrellas) do
+		if i <= nivel then
+			-- encendidas: entre mas alto el nivel, mas roja la ultima
+			e.TextColor3 = (nivel >= 4 and i >= 4) and Color3.fromRGB(255, 90, 90)
+				or (nivel >= 3 and i >= 3) and Color3.fromRGB(255, 170, 80)
+				or Color3.fromRGB(255, 225, 120)
+			e.TextTransparency = 0
+		else
+			e.TextColor3 = Color3.fromRGB(70, 70, 84)
+			e.TextTransparency = 0.25
+		end
+	end
+end
 
 task.spawn(function()
 	local Lighting = game:GetService("Lighting")
@@ -1379,25 +1420,32 @@ toggleBtn.Visible = false
 -- EN TACTIL: botones de 112x52 (el minimo comodo para un dedo es ~48 px;
 -- abajo de eso se fallan los toques) y la rejilla pegada al costado derecho,
 -- donde no estorban ni el joystick ni el boton de saltar.
-local BTN_W = IS_MOBILE and 112 or 100
-local BTN_H = IS_MOBILE and 52 or 38
+local BTN_W = IS_MOBILE and 78 or 100
+local BTN_H = IS_MOBILE and 62 or 38
 
+-- v42: el usuario dijo "el dashboard de abajo no funciona en celular". Eran dos
+-- cosas: (1) el dock estaba pegado al borde de abajo, justo donde Roblox pone el
+-- joystick y el boton de saltar, y esos controles se comen el toque; (2) los
+-- botones eran puro texto chiquito. Ahora en celular es una rejilla de ICONOS
+-- grandes pegada al costado derecho, a media altura (donde no hay controles
+-- tactiles) y con el nombre abajo de cada icono.
 local dock
 if IS_MOBILE then
 	dock = frame(gui, {
-		Size = UDim2.new(0, BTN_W * 2 + 18, 0, BTN_H * 4 + 26),
-		Position = UDim2.new(1, -(BTN_W * 2 + 26), 0.5, -(BTN_H * 4 + 26) / 2),
+		Size = UDim2.new(0, BTN_W * 2 + 20, 0, BTN_H * 3 + 24),
+		Position = UDim2.new(1, -(BTN_W * 2 + 30), 0.42, -(BTN_H * 3 + 24) / 2),
 		BackgroundColor3 = BG,
-		BackgroundTransparency = 0.18,
+		BackgroundTransparency = 0.2,
 	})
 	corner(dock, 14)
 	stroke(dock, ACCENT)
 
 	local grid = Instance.new("UIGridLayout")
 	grid.CellSize = UDim2.new(0, BTN_W, 0, BTN_H)
-	grid.CellPadding = UDim2.new(0, 6, 0, 6)
+	grid.CellPadding = UDim2.new(0, 8, 0, 8)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.VerticalAlignment = Enum.VerticalAlignment.Center
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = dock
 else
 	dock = frame(gui, {
@@ -1422,10 +1470,21 @@ end
 -- los ocho siempre encendidos y tapaban media pantalla.
 local ctxButtons: {[string]: {GuiObject}} = {}
 
-local function dockBtn(name: string, key: string, cb: () -> (), ctx: string?)
+local function dockBtn(name: string, key: string, cb: () -> (), ctx: string?, icon: string?)
 	local text = IS_MOBILE and name or (name .. " [" .. key .. "]")
 	local b = button(dock, text, {Size = UDim2.new(0, BTN_W, 0, BTN_H)})
-	if IS_MOBILE then b.TextSize = 14 end
+	if IS_MOBILE then
+		-- icono grande arriba y el nombre chiquito abajo
+		b.TextSize = 11
+		b.TextYAlignment = Enum.TextYAlignment.Bottom
+		b.Text = (icon or "") .. "\n" .. name
+		b.LineHeight = 1.05
+	end
+	-- Active y no-Selectable: en celular el toque tiene que caer SIEMPRE en el
+	-- boton (si el frame de arriba lo intercepta el tap se pierde) y no queremos
+	-- que un mando lo seleccione sin querer.
+	b.Active = true
+	b.Selectable = false
 	b.MouseButton1Click:Connect(cb)
 	if ctx then
 		b.Visible = false
@@ -1440,8 +1499,8 @@ local function setCtx(ctx: string, on: boolean)
 	for _, b in ipairs(ctxButtons[ctx] or {}) do b.Visible = on end
 end
 
-dockBtn("Cosechar", "E", function() act("harvest") end, "harvest")
-dockBtn("Prensar", "R", function() act("press") end, "press")
+dockBtn("Cosechar", "E", function() act("harvest") end, "harvest", "🌿")
+dockBtn("Prensar", "R", function() act("press") end, "press", "⚙️")
 dockBtn("Vender", "F", function()
 	-- vende en el comprador mas cercano
 	local char = player.Character
@@ -1455,11 +1514,16 @@ dockBtn("Vender", "F", function()
 		if d < bestD then best, bestD = pad, d end
 	end
 	if best then act("sell", best.Name) end
-end, "sell")
+end, "sell", "💰")
 
-local shopBtn = dockBtn("Tienda", "B", function() end)
-local phoneBtn = dockBtn("Telefono", "T", function() end)
-dockBtn("Bodega", "H", function() act("teleportHome") end)
+local shopBtn = dockBtn("Tienda", "B", function() end, nil, "🛒")
+local phoneBtn = dockBtn("Telefono", "T", function() end, nil, "📱")
+dockBtn("Bodega", "H", function() act("teleportHome") end, nil, "🏠")
+
+-- v42: el boton del AUTO en el celular (pidio el usuario: "un icono de un auto
+-- para spawnear el auto donde estes"). Trae tu vehiculo a tu lado; si no lo
+-- tienes afuera, lo saca del garaje ahi mismo.
+dockBtn(IS_MOBILE and "Auto" or "Mi auto", "Y", function() act("carAqui") end, nil, "🚗")
 
 ----------------------------------------------------------------------
 -- PANEL TIENDA
@@ -2015,24 +2079,21 @@ RE_State.OnClientEvent:Connect(function(data)
 
 	refreshVault()
 
-	-- lo que TRAES ENCIMA (lo unico que te puede quitar Aduanas)
-	chipLeaf.Text = Config.Abbrev(cl)
-	chipBlock.Text = Config.Abbrev(cb)
+	-- v42: BODEGA = lo guardado / lo que cabe; hojas y bloques guardados con su tope
+	chipBodega.Text = string.format("%d/%d", used, data.Storage)
+	chipBodega.TextColor3 = (used >= data.Storage) and Color3.fromRGB(255, 150, 120)
+		or Color3.fromRGB(255, 226, 160)
+	chipLeaf.Text = string.format("%d/%d", data.Leaves, data.VaultLeafCap or 0)
+	chipBlock.Text = string.format("%d/%d", data.Blocks, data.VaultBlockCap or 0)
 
 	chipBag.Text = string.format("%d/%d", carrying, data.CarryCap or 0)
 	chipBag.TextColor3 = (carrying >= (data.CarryCap or 0))
 		and Color3.fromRGB(255, 130, 130) or Color3.fromRGB(170, 195, 235)
 
-	-- lo GUARDADO en la caja fuerte, con su tope por producto
-	chipVault.Text = string.format("%d/%d 🌿  %d/%d 🧱",
-		data.Leaves, data.VaultLeafCap or 0, data.Blocks, data.VaultBlockCap or 0)
-
 	local ratio = data.Heat / Config.Heat.Max
 	heatTxt.Text = string.format("HEAT %d%%", math.floor(ratio * 100))
-	chipHeat.Text = string.format("%d%%", math.floor(ratio * 100))
-	chipHeat.TextColor3 = ratio > 0.7 and Color3.fromRGB(255, 110, 110)
-		or ratio > 0.4 and Color3.fromRGB(255, 190, 110)
-		or Color3.fromRGB(150, 230, 160)
+	-- v42: el nivel de busqueda son las ESTRELLAS de abajo del reloj
+	pintarEstrellas(data.Heat, Config.Heat.Max)
 	TweenService:Create(heatFill, TweenInfo.new(0.3), {Size = UDim2.new(ratio, 0, 1, 0)}):Play()
 	heatFill.BackgroundColor3 = ratio > 0.7 and Color3.fromRGB(255, 70, 70)
 		or ratio > 0.4 and Color3.fromRGB(255, 160, 60)
@@ -2823,6 +2884,17 @@ do
 						refreshVault()
 					else
 						vault.Visible = false
+					end
+				elseif k == "garage" then
+					-- v42: el usuario pidio que al acercarse a la bodega se abra el
+					-- menu solo, igual que la computadora. Al llegar al porton se
+					-- abre la pestana de AUTOS (es lo que vas a querer ahi: sacar
+					-- o guardar un vehiculo). Al salir NO se cierra: te quedarias
+					-- sin poder moverte de la lista mientras estas adentro.
+					if v and not shop.Visible then
+						sound("Gate")
+						shop.Visible = true
+						renderTab("autos")
 					end
 				end
 			end

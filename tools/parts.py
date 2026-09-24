@@ -20,7 +20,7 @@ REQUIRED = [
     "OfficeWall", "OfficeDoorJamb",              # puerta de la oficina
     "GarageDoorJamb", "GarageDoorHead",          # puerta del garaje
     "GateApron", "ApronRail",                    # rampa de la entrada
-    "GarageFloor", "GarageExit", "Bay1", "Bay4", # garaje
+    "GarageFloor", "GarageExit",     # garaje (los Bay se revisan por nivel, abajo)
     "GarageDoor", "DoorSlab", "DoorSlat",        # portones que suben (v29)
     "GarageWallLamp", "GarageThreshold",         # luces y umbral del taller
     "GarageTrigger", "GarageSign",               # marcador y letrero
@@ -54,8 +54,18 @@ local function collect(inst, out, depth)
 end
 
 local REQ = {names}
+-- v42: los cajones del garaje dependen del NIVEL de bodega (nivel 1 = 1 cajon).
+-- Se revisa que exista el Bay de cada nivel, ni mas ni menos.
+local function cajones(tier)
+  local G = _cfg.Garage or {{}}
+  local b = G.Bays
+  if type(b) == "table" then return b[tier] or 4 end
+  if type(b) == "number" then return b end
+  return 4
+end
 local bad = 0
 for tier = 1, 4 do
+  table.insert(REQ, "Bay" .. cajones(tier))
   local ok, wh = pcall(function() return _city.BuildWarehouse(tier) end)
   if not ok then
     print("  !! tier "..tier.." trono: "..tostring(wh)); bad = 1

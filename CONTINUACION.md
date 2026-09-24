@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v41** · 24 sep 2026
+> Última actualización: **v42** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v41 |
+| **Versión actual** | v42 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -170,6 +170,35 @@ basura en una lista y borrando despues.
 
 **Etapa 11 del validador**: `tools/loops.py` caza ese patron (probado inyectando el bug).
 
+### ✅ Qué se cerró en la v42 (los 8 pedidos de la ronda + pruebas que antes eran imposibles)
+
+El usuario dio por buena la v41 ("okay ya todo jalo bien") y mando **8 pedidos nuevos**.
+Antes de tocar el juego hubo que **arreglar el simulador**, porque habia tres cosas que las
+pruebas no podian ver y **por eso los bugs llegaban al usuario**:
+
+| Lo que el simulador no tenia | Lo que escondia |
+|---|---|
+| `Players:GetPlayers()` devolvia **vacio** y `PlayerAdded` nunca se disparaba | **Ninguna** accion del servidor se probaba (comprar auto, limite de cajones, sacar el vehiculo) |
+| Los remotes **no existian** (ni `InvokeServer`) | El dock mandaba su accion dentro de un `pcall` que se tragaba el error: "Telefono"/"Tienda" parecian probados y no lo estaban |
+| Las partes nacian **sin `CFrame`** y `CFrame + Vector3` devolvia el mismo CFrame | "Trae tu auto a un lado" parecia funcionar y no movia nada (la prueba decia 50 studs donde son 10) |
+
+| Pedido | Arreglo v42 |
+|---|---|
+| Los **rines** de la bici se quedaban | el bucle ahora mueve **llanta + aro + maza (`hub`) + rayos (`spokes`)** |
+| La bici **no andaba** / en celular el `E` no tiene sentido | `Torque = 20`, `TurnSpeed = 12` y atributo **`AutoSubir`**: en celular te sientas al acercarte (con 4 s de gracia al bajarte) |
+| Bodega nivel 1 con **1 solo auto** | garaje **por nivel** (26x22 con 1 cajon -> 68x34 con 4) y `cajonesLibres()` candando `buyVehicle` |
+| **Portones** del garaje | se mide la distancia a **cada puerta** (antes a un punto al centro: con 68 de ancho el porton del cajon 1 **nunca abria**) y sube **10** studs |
+| **Dashboard** no funciona en celular | rejilla de **iconos** a la derecha (fuera del joystick y del salto), `Active`/`Selectable` correctos, boton **`🚗 Auto`** nuevo y **el menu se abre solo** al llegar a la computadora o a la bodega |
+| **Parcela vacia** | **nave clausurada** (61 piezas): tablas cruzadas, cadena, candado, letreros `CLAUSURADA`/`EN VENTA`, basura, foco que parpadea y **oficial municipal** con globo de dialogo a 17 studs (+ `E` en computadora) |
+| **Mi auto aqui** | saca tu auto del garaje y lo deja a **10 studs** de ti; si ya anda afuera te lo **trae** |
+
+**Pruebas nuevas (16 a 20)** en `tools/copias.py` (antes 15 escenarios): la rueda completa y
+los controles de la bici; cajones/portones por nivel (`1:1  2:2  3:3  4:4`); **tocar** los
+botones del dock y revisar **que accion llego al servidor**; la nave clausurada (61 piezas,
+globo apagado, prompt a 12 studs) y que el servidor la ponga/quite en el lote correcto; y con
+**jugador de verdad**: nivel 1 = 1 auto (el 2do se rechaza), el auto cae a **10.0 studs**,
+pedirlo otra vez te lo trae y al subir a nivel 2 ya deja el segundo.
+
 ### ✅ Qué se cerró en la v33 (el juego limpia solo y deja de asustar)
 
 El usuario mando captura nueva: **sigue saliendo el cartel**, pero al leerlo bien ya **no
@@ -270,9 +299,9 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v41 (arrancando...)` -> `RONDA v41  OK`; se encoge a un letrerito `v41` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v41` |
-| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v41]`, `VIEJO [v32]`...) |
+| **Placa verde** arriba al centro | el cliente | `RONDA v42 (arrancando...)` -> `RONDA v42  OK`; se encoge a un letrerito `v42` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v42` |
+| **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v42]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);
 **placa atorada en "arrancando..."** = corre pero truena; **letrero viejo con placa nueva**

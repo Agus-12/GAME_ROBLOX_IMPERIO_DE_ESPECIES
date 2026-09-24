@@ -61,7 +61,14 @@ local function crearRemotes(cualSello)
       -- regresa. Es el caso que dejaba la portada en "Cargando la ciudad..."
       e.InvokeServer=function() while true do task.wait(1) end end
     else
-      e.InvokeServer=function() return {ok=true} end
+      -- v42: ademas de "si funciona", se ANOTA que accion mando el cliente.
+      -- Sin esto las pruebas de la interfaz solo miraban que el boton existiera:
+      -- que el "Telefono" o la "Tienda" mandaran la accion correcta nunca se
+      -- probaba (el mock no tenia InvokeServer y act() moria en su pcall).
+      e.InvokeServer=function(_, ...)
+        table.insert(LLAMADAS, {rem=e.Name, args={...}})
+        return {ok=true}
+      end
     end
     e.Parent=f end
   if cualSello then f:SetAttribute("Build", tostring(cfgSrc.Build or "?")) end

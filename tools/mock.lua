@@ -48,7 +48,19 @@ CFmt.__index=function(t,k)
   if k=="LookVector" then return Vector3.new(0,0,1) end
   return nil end
 CFmt.__mul=function(a,b) return a end
-CFmt.__add=function(a,b) return a end ; CFmt.__sub=function(a,b) return a end
+-- v42: sumarle/restarle un Vector3 a un CFrame ANTES devolvia el mismo CFrame.
+-- O sea que mover una parte ("trae tu auto aqui": d.CFrame = d.CFrame + delta)
+-- parecia funcionar y no movia nada. Ahora si desplaza.
+CFmt.__add=function(a,b)
+  if type(b)=="table" and b.X then
+    return mkCF(Vector3.new(a.p.X+b.X, a.p.Y+b.Y, a.p.Z+b.Z))
+  end
+  return a end
+CFmt.__sub=function(a,b)
+  if type(b)=="table" and b.X then
+    return mkCF(Vector3.new(a.p.X-b.X, a.p.Y-b.Y, a.p.Z-b.Z))
+  end
+  return a end
 function mkCF(p) return setmetatable({p=p or Vector3.new()},CFmt) end
 CFrame={new=function(x,y,z) if type(x)=="table" then return mkCF(x) end return mkCF(Vector3.new(x,y,z)) end,
   lookAt=function(a,b) return mkCF(a) end, Angles=function() return mkCF() end}
@@ -90,6 +102,18 @@ function Instance_.new(cls,parent)
   -- number with nil" — un error que en Roblox NUNCA pasa (ahi LayoutOrder nace
   -- en 0). Aqui se imita a Roblox para que las pruebas sean de verdad.
   o.LayoutOrder = 0
+  -- v42: en Roblox TODA parte trae CFrame y Size desde que nace. El mock los
+  -- dejaba en nil, asi que tocar d.CFrame de una parte recien creada tronaba
+  -- ("attempt to index a nil value") y eso escondia bugs de verdad.
+  local BASEPART = {Part=true, MeshPart=true, WedgePart=true, CornerWedgePart=true,
+    TrussPart=true, SpawnLocation=true, Seat=true, VehicleSeat=true,
+    UnionOperation=true, NegateOperation=true, PartOperation=true, Ball=true,
+    CylinderShapePart=true}
+  if BASEPART[cls] then
+    o.CFrame = mkCF(Vector3.new(0, 0, 0))
+    o.Size = Vector3.new(1, 1, 1)
+    o.Position = Vector3.new(0, 0, 0)
+  end
   o.Visible = true
   o.Enabled = true
   o.Text = ""
@@ -164,12 +188,28 @@ function Instance_.new(cls,parent)
   o.MouseButton1Click=newSignal() ; o.OnClientEvent=newSignal() ; o.Touched=newSignal()
   o.OnServerEvent=newSignal() ; o.Activated=newSignal() ; o.Equipped=newSignal()
   o.ChildAdded=newSignal() ; o.CharacterAdded=newSignal()
+  -- v42: los ProximityPrompt tambien traen sus eventos. Sin esto, cualquier
+  -- archivo que conecte un prompt tronaba en el simulador (y el auto no se
+  -- podia armar, asi que "trae mi auto aqui" nunca se probo).
+  o.Triggered=newSignal() ; o.PromptShown=newSignal() ; o.PromptHidden=newSignal()
   -- GuiObject: se usan para "toca la pantalla para entrar" y hover
   o.InputBegan=newSignal() ; o.InputEnded=newSignal() ; o.InputChanged=newSignal()
   o.MouseEnter=newSignal() ; o.MouseLeave=newSignal() ; o.SelectionGained=newSignal()
   o.Activated=newSignal() ; o.ChildRemoved=newSignal() ; o.Changed=newSignal()
   o.AttributeChanged=newSignal()
   o.FireClient=function() end
+  -- ===== REMOTES DE VERDAD (v42) =====
+  -- CASO REAL: el cliente manda todo por RemoteFunction (RF_Action:InvokeServer)
+  -- y el mock NO tenia InvokeServer, asi que act() moria dentro de su pcall y
+  -- NADIE probaba nunca que un boton mandara la accion correcta. Por eso el
+  -- "Telefono" y la "Tienda" del dock pasaron varias rondas sin que las pruebas
+  -- dijeran nada. Ahora los remotes existen y ADEMAS se registran las llamadas
+  -- en __LLAMADAS para que las pruebas puedan revisarlas.
+  LLAMADAS = LLAMADAS or {}
+  o.InvokeServer=function(s,...) table.insert(LLAMADAS,{rem=s.Name,args={...}}) return nil end
+  o.FireServer=function(s,...) table.insert(LLAMADAS,{rem=s.Name,args={...}}) end
+  o.InvokeClient=function() end
+  o.OnServerInvoke=nil
   local proxy
   proxy=setmetatable({},{
     __isinstance=true,
@@ -186,6 +226,15 @@ function Instance_.new(cls,parent)
             if sig and sig.Fire then sig:Fire(proxy) end
           end)
         end
+      end
+      -- v42: en Roblox CFrame y Position son LA MISMA COSA. El mock los tenia
+      -- como dos campos sueltos, asi que mover una parte por CFrame y leer
+      -- despues su Position (o al reves) daba resultados inventados: la prueba
+      -- de "el auto queda a tu lado" decia 50 studs cuando en el juego son 10.
+      if k == "CFrame" and type(v) == "table" and v.p then
+        o.Position = v.p
+      elseif k == "Position" and type(v) == "table" and v.X then
+        o.CFrame = mkCF(v)
       end
       if k ~= "_parentChildren" and __ON_SET then pcall(__ON_SET, o, k, v) end
       o[k]=v end})
@@ -208,8 +257,30 @@ local function svc(n)
     local s=Instance_.new(n)
     s.GetTagged=function() return {} end
     s.AddTag=function() end; s.RemoveTag=function() end; s.HasTag=function() return false end
-    s.GetPlayers=function() return {} end
+    -- v42: JUGADORES DE VERDAD. Antes GetPlayers devolvia siempre {} y
+    -- PlayerAdded nunca se disparaba al meter un hijo, asi que era IMPOSIBLE
+    -- probar una accion del servidor (comprar un auto, sacarlo, el limite de
+    -- cajones por nivel de bodega). Todo eso se probaba "a ojo" en Studio.
+    s.GetPlayers=function(ss)
+      local fuera={}
+      for _,c in ipairs(ss:GetChildren()) do
+        if c.ClassName=="Player" then table.insert(fuera,c) end
+      end
+      return fuera
+    end
     s.PlayerAdded=newSignal(); s.PlayerRemoving=newSignal(); s.Heartbeat=newSignal()
+    if n == "Players" then
+      -- al parentar un Player al servicio, Roblox dispara PlayerAdded
+      s.ChildAdded:Connect(function(c)
+        if c.ClassName == "Player" then s.PlayerAdded:Fire(c) end
+      end)
+      s.GetPlayerByUserId=function(ss, uid)
+        for _,c in ipairs(ss:GetChildren()) do
+          if c.ClassName=="Player" and c.UserId==uid then return c end
+        end
+      end
+      s.GetPlayerFromCharacter=function() return nil end
+    end
     s.IsStudio=function() return true end
     -- Lighting: los scripts leen/escriben ClockTime, Brightness, etc.
     if n == "Lighting" then
@@ -341,6 +412,7 @@ function SCHED.advance(hasta)
 end
 
 task.__sched = SCHED
+LLAMADAS = LLAMADAS or {}
 function wait() end
 warn=function(...) print("WARN:",...) end
 math.clamp=function(v,lo,hi) if v<lo then return lo elseif v>hi then return hi end return v end

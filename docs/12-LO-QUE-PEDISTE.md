@@ -19,6 +19,10 @@ para revisar que nada se pierda.
 | 12 | La intro **no** se queda en "Cargando la ciudad...": el boton `ENTRAR AL BARRIO` sale ya | hecho | v31 |
 | 13 | **Revisar exhaustivamente y reparar todos los danos** | cada ronda: `tools/validate.sh` (13 etapas) + las pruebas de `tools/copias.py` | v28+ |
 | 14 | **Poder saber que archivo esta viejo** sin adivinar | **testigos**: placa `RONDA vNN` en pantalla, letrero `SERVIDOR vNN` en el spawn, INVENTARIO en el Output | v38 / v41 |
+| 15 | **Bici**: los **rines se quedan clavados** al moverla; en celular el letrero de `E` no tiene sentido; **no anda** en el garaje | rueda completa (llanta+aro+**maza**+**rayos**), `Torque`/`TurnSpeed` ya no en 0 y `AutoSubir` en celular | **v42** |
+| 16 | **Bodega nivel 1**: solo **un auto** y el garaje **mas chico**; al subir de nivel **todo crece** | tamanos y cajones **por nivel** (`Bays`/`MaxCars` 1-2-3-4) + candado en `buyVehicle` | **v42** |
+| 17 | **Dashboard de abajo no funciona en celular** | rejilla de **iconos** lejos del joystick/salto, `Active=true`, botones que **si** mandan su accion, y **abrir menu** al acercarte a la computadora o a la bodega | **v42** |
+| 18 | **Parcela vacia**: que se vea una **bodega clausurada** (estilo distinto) y **oficiales** con los que puedas **hablar al acercarte** | nave gris con tablas+cadena+candado, letreros `CLAUSURADA`/`EN VENTA`, basura, foco que parpadea y **oficial con globo de dialogo** | **v42** |
 
 ## Lo que todavia NO esta hecho (y que nunca pediste, pero anoto)
 

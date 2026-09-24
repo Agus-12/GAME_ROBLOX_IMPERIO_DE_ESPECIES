@@ -782,6 +782,470 @@ if not ok:
     print("         (AutomaticSize no es clase: tiene que tronar en el chequeo y en el mock)")
     fallas += 1
 
+# ---------- 16) LA BICI: los rines siguen a la bici (v42) ----------
+# El usuario: "cuando la muevo literalmente los rines se quedan ahi". El bucle de
+# movimiento solo movia la llanta y el aro: la MAZA y los RAYOS se quedaban
+# clavados donde nacio la bici (y la rueda parecia un plato vacio).
+#
+# Esta prueba revisa el codigo del bucle: la rueda tiene CUATRO piezas (llanta,
+# aro, maza y rayos) y las cuatro tienen que moverse con la bici. Es la forma
+# honesta de probarlo: el servidor simulado no tiene jugadores, asi que no se
+# puede arrancar la bici de verdad (el mock no tiene Humanoid ni personaje).
+print()
+print("=== 16. la bici: el bucle mueve las 4 piezas de la rueda ===")
+
+MAIN_SRC = open(os.path.join(ROOT, "ServerScriptService/Main.luau"), encoding="utf-8").read()
+
+
+def bloque_bici(src):
+    # desde el comentario "6) las ruedas" hasta el final del bucle for
+    i = src.find("-- 6) las ruedas ademas giran")
+    if i < 0:
+        return ""
+    j = src.find("end)", i)
+    return src[i:j if j > i else i + 2000]
+
+
+bloque = bloque_bici(MAIN_SRC)
+falta = []
+for pieza, aguja in [("llanta", ".wheel.CFrame"), ("aro", ".rim.CFrame"),
+                     ("maza", ".hub.CFrame"), ("rayos", "sp.CFrame")]:
+    if aguja not in bloque:
+        falta.append(pieza)
+# y que la bici tenga controles (si no, en celular no sale el volante)
+if "seat.Torque = 20" not in MAIN_SRC:
+    falta.append("controles (Torque)")
+# y que en celular no salga el letrero de E (se sube acercandose)
+if "AutoSubir" not in MAIN_SRC:
+    falta.append("auto-subir en celular")
+
+if not bloque:
+    print("  FALLA  no encontre el bloque que mueve las ruedas (¿se reescribio?)")
+    fallas += 1
+elif falta:
+    print("  FALLA  falta mover: %s" % ", ".join(falta))
+    print("         (si la maza o los rayos no se mueven, los rines se quedan atras)")
+    fallas += 1
+else:
+    print("  OK     se mueven la llanta, el aro, la maza y los rayos; la bici tiene controles")
+    print("         y en celular se sube al acercarse (sin letrero de E)")
+
+# ---------- 20) EL LIMITE DE CAJONES Y "MI AUTO AQUI" (v42) ----------
+# Los dos pedidos de esta ronda, probados con un JUGADOR DE VERDAD dentro del
+# servidor simulado (antes era imposible: Players:GetPlayers() devolvia {} y
+# PlayerAdded nunca se disparaba, asi que ninguna accion del servidor se probo).
+#   1. Con la bodega en nivel 1 solo puedes comprar UN auto; el segundo se
+#      rechaza con el aviso de que mejores la bodega. Al subir a nivel 2, ya
+#      puedes comprar el segundo.
+#   2. "Mi auto aqui" (el boton del celular) saca tu auto y lo deja JUSTO a un
+#      lado tuyo (10 studs); si lo vuelves a pedir, te lo trae (no te hace otro).
+print()
+print("=== 20. un auto por nivel de bodega + el auto viene a donde estas ===")
+
+
+def corre_acciones():
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local _city,_data
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+local sss=game:GetService("ServerScriptService")
+sss.WaitForChild=function(s,n)
+  if n=="CityGenerator" then return "__CITY__" end
+  if n=="DataService" then return "__DATA__" end end
+require=function(x)
+  if x=="__CFG__" then return _cfg end
+  if x=="__CITY__" then return _city end
+  if x=="__DATA__" then return _data end
+  return {} end
+_city=(function()
+'''
+    guion += L("ServerScriptService/CityGenerator.luau")
+    guion += '''
+end)()
+_data=(function()
+'''
+    guion += L("ServerScriptService/DataService.luau")
+    guion += '''
+end)()
+local ok, err = pcall(function()
+'''
+    guion += L("ServerScriptService/Main.luau")
+    guion += '''
+end)
+if not ok then print("__ACC__ el Main trono: " .. tostring(err)) return end
+local rem = rs:FindFirstChild("Remotes")
+local accion
+for _, c in ipairs(rem and rem:GetChildren() or {}) do
+  if c.Name == "Action" then accion = c end
+end
+if not accion or not accion.OnServerInvoke then
+  print("__ACC__ el servidor no expuso la accion")
+  return
+end
+-- jugador simulado
+local Players = game:GetService("Players")
+local pl = Instance.new("Player") ; pl.Name = "Tester" ; pl.UserId = 777 ; pl.Parent = Players
+task.__sched.advance(8)
+local prof = _data.Get(pl)
+if not prof then print("__ACC__ el jugador no tuvo perfil") return end
+prof.Cash = 900000
+-- personaje (sin esto no se puede probar traer el auto al lado tuyo)
+local char = Instance.new("Model") ; char.Name = "Tester"
+local hum = Instance.new("Humanoid") ; hum.Parent = char
+local hrp = Instance.new("Part") ; hrp.Name = "HumanoidRootPart"
+hrp.CFrame = CFrame.new(Vector3.new(20, 3, -40))
+hrp.Parent = char ; char.PrimaryPart = hrp ; char.Parent = workspace
+pl.Character = char
+task.__sched.advance(1)
+
+-- el anti-spam usa os.clock() (reloj real): hay que dejar pasar el tiempo
+local esperar = function()
+  local t0 = os.clock()
+  while os.clock() - t0 < 0.12 do end
+end
+local llamar = function(...)
+  esperar()
+  local r = accion.OnServerInvoke(...)
+  if type(r) == "table" then return tostring(r.ok), tostring(r.msg) end
+  return tostring(r), ""
+end
+
+local v1, v2 = _cfg.Vehicles[1], _cfg.Vehicles[2]
+local r1 = { llamar(pl, "buyVehicle", v1.Id) }
+local r2 = { llamar(pl, "buyVehicle", v2.Id) }
+local r3 = { llamar(pl, "carAqui") }
+local r4 = { llamar(pl, "carAqui") }
+-- ¿donde quedo el auto?
+local car = workspace:FindFirstChild("Car_" .. pl.UserId)
+local cerca = -1
+if car then
+  local yo = hrp.CFrame.Position
+  local mejor = 1e9
+  for _, d in ipairs(car:GetDescendants()) do
+    local cf = d.CFrame
+    if cf and cf.Position then
+      local dist = (cf.Position - yo).Magnitude
+      if dist < mejor then mejor = dist end
+    end
+  end
+  if mejor < 1e8 then cerca = mejor end
+end
+-- ahora sube la bodega a nivel 2: ya debe dejar comprar el segundo
+prof.WarehouseTier = 2
+local r5 = { llamar(pl, "buyVehicle", v2.Id) }
+local cuantos = 0
+for _ in pairs(prof.Vehicles) do cuantos = cuantos + 1 end
+print("__ACC__ 1=" .. r1[1] .. "|1m=" .. r1[2] ..
+  "||2=" .. r2[1] .. "|2m=" .. r2[2] ..
+  "||3=" .. r3[1] .. "|3m=" .. r3[2] ..
+  "||4=" .. r4[1] .. "|4m=" .. r4[2] ..
+  "||car=" .. tostring(car ~= nil) .. "|cerca=" .. string.format("%.1f", cerca) ..
+  "||5=" .. r5[1] .. "|5m=" .. r5[2] ..
+  "||autos=" .. cuantos)
+'''
+    return lua(guion)
+
+
+sal = corre_acciones()
+m = re.search(r"__ACC__ (.*)", sal)
+if not m:
+    print("  FALLA  el servidor simulado no termino la prueba")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:150])
+    fallas += 1
+elif m.group(1).startswith("el Main trono") or m.group(1).startswith("el servidor") or \
+        m.group(1).startswith("el jugador"):
+    print("  FALLA  " + m.group(1)[:160])
+    fallas += 1
+else:
+    d = {}
+    for trozo in m.group(1).split("||"):
+        for kv in trozo.split("|"):
+            if "=" in kv:
+                k, v = kv.split("=", 1)
+                d[k] = v
+    problemas = []
+    if d.get("1") != "true":
+        problemas.append("no lo dejo comprar el PRIMER auto")
+    if d.get("2") != "false":
+        problemas.append("lo dejo comprar 2 autos con la bodega en nivel 1")
+    if "lleno" not in d.get("2m", ""):
+        problemas.append("el aviso del segundo auto no explica que el garaje esta lleno")
+    if d.get("3") != "true" or "Sacaste" not in d.get("3m", ""):
+        problemas.append("no saco el auto del garaje (%s)" % d.get("3m"))
+    if d.get("car") != "true":
+        problemas.append("el vehiculo no aparecio en el mapa")
+    try:
+        cerca = float(d.get("cerca", "-1"))
+    except ValueError:
+        cerca = -1.0
+    if not (4.0 <= cerca <= 22.0):
+        problemas.append("el auto quedo a %s studs de ti (debe caer a un lado tuyo)" % d.get("cerca"))
+    if d.get("4") != "true" or "Traje" not in d.get("4m", ""):
+        problemas.append("al pedirlo otra vez no te lo trajo (%s)" % d.get("4m"))
+    if d.get("5") != "true":
+        problemas.append("con la bodega en nivel 2 sigue sin dejar comprar el segundo")
+    if d.get("autos") != "2":
+        problemas.append("quedaron %s autos en la cuenta (deben ser 2)" % d.get("autos"))
+    if problemas:
+        print("  FALLA  " + " | ".join(problemas))
+        fallas += 1
+    else:
+        print("  OK     nivel 1: 1 auto (el 2do se rechaza: \"%s\")" % d.get("2m"))
+        print("         \"mi auto aqui\" lo dejo a %s studs y a la segunda te lo trae" % d.get("cerca"))
+        print("         nivel 2: ya deja el segundo auto (quedan %s en la cuenta)" % d.get("autos"))
+
+# ---------- 19) EL LOTE VACIO: NAVE CLAUSURADA + OFICIAL (v42) ----------
+# Lo que pidio el usuario: "donde no hay bodega, que se vea una bodega clausurada
+# con estilo distinto y oficiales con los que puedas hablar al acercarte". El
+# error que se corrige: un lote sin dueno era un cuadro vacio y parecia un mapa
+# a medio hacer.
+print()
+print("=== 19. el lote vacio se ve clausurado y trae oficial ===")
+
+
+def corre_clausurada():
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+require=function(x) if x=="__CFG__" then return _cfg end return {} end
+local City=(function()
+'''
+    guion += L("ServerScriptService/CityGenerator.luau")
+    guion += '''
+end)()
+local ok, nave = pcall(function() return City.BuildClosedWarehouse() end)
+if not ok or not nave then
+  print("__RESULTADO__ trono: " .. tostring(nave))
+  return
+end
+local function hay(nombre, clase)
+  for _, d in ipairs(nave:GetDescendants()) do
+    if d.Name == nombre and (not clase or d.ClassName == clase) then return d end
+  end
+end
+local partes, luces = 0, 0
+for _, d in ipairs(nave:GetDescendants()) do
+  if d:IsA("BasePart") then partes = partes + 1 end
+  if d.ClassName == "PointLight" then luces = luces + 1 end
+end
+local ofi  = hay("OficialMunicipal")
+local burb = hay("Dialogo", "BillboardGui")
+local promo = hay("PromptOficial", "ProximityPrompt")
+local function si(x) if x then return "si" else return "no" end end
+-- ¿el globo nace apagado? (si nace prendido, se ve un cuadro de texto flotando
+-- en cada lote vacio de la ciudad)
+local apagado = burb and burb.Enabled == false
+print("__RESULTADO__ partes=" .. partes .. " luces=" .. luces ..
+  " oficial=" .. si(ofi) .. " burbuja=" .. si(burb) .. " apagada=" .. si(apagado) ..
+  " prompt=" .. si(promo) ..
+  " alcance=" .. tostring(promo and promo.MaxActivationDistance) ..
+  " tablas=" .. si(hay("Tabla1") and hay("Tabla3")) ..
+  " cadena=" .. si(hay("Cadena")) .. " candado=" .. si(hay("Candado")) ..
+  " letrero=" .. si(hay("LetreroBase")) ..
+  " principal=" .. si(nave.PrimaryPart ~= nil))
+'''
+    return lua(guion)
+
+
+sal = corre_clausurada()
+m = re.search(r"__RESULTADO__ (.*)", sal)
+if not m or m.group(1).startswith("trono"):
+    print("  FALLA  la nave clausurada no se pudo construir")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:150])
+    fallas += 1
+else:
+    campos = dict(kv.split("=") for kv in m.group(1).split())
+    problemas = []
+    if int(campos.get("partes", "0")) < 25:
+        problemas.append("muy pocas piezas (%s): se veria vacia" % campos.get("partes"))
+    if campos.get("luces") != "1":
+        problemas.append("luces=%s (va UNA, la del foco que parpadea)" % campos.get("luces"))
+    for k, que in [("oficial", "el oficial"), ("burbuja", "el globo de dialogo"),
+                   ("prompt", "el prompt de Hablar"), ("tablas", "las tablas del porton"),
+                   ("cadena", "la cadena"), ("candado", "el candado"),
+                   ("letrero", "el letrero de CLAUSURADA"), ("principal", "la parte principal")]:
+        if campos.get(k) != "si":
+            problemas.append("falta " + que)
+    if campos.get("apagada") != "si":
+        problemas.append("el globo nace PRENDIDO (se veria texto flotando en todo lote vacio)")
+    if campos.get("alcance") != "12":
+        problemas.append("el oficial se puede hablar de lejos (%s studs)" % campos.get("alcance"))
+    if problemas:
+        print("  FALLA  " + " | ".join(problemas))
+        fallas += 1
+    else:
+        print("  OK     nave gris con %s piezas, porton con tablas+cadena+candado, letrero"
+              % campos["partes"])
+        print("         oficial con globo apagado y prompt de Hablar a %s studs; 1 foco"
+              % campos["alcance"])
+
+# ...y que el SERVIDOR ponga y quite la clausurada en el lote que toca
+main_src = open(os.path.join(ROOT, "ServerScriptService/Main.luau"), encoding="utf-8").read()
+fallas_lote = []
+if "BuildClosedWarehouse()" not in main_src:
+    fallas_lote.append("el servidor nunca construye la nave clausurada")
+if "quitarClausurada(slot)" not in main_src:
+    fallas_lote.append("al ocupar un lote no se quita la clausurada (se verian las dos)")
+if "ponerClausurada(i)" not in main_src:
+    fallas_lote.append("al soltar un lote no vuelve la clausurada")
+if ".Magnitude <= 420" not in main_src or "ponerClausurada(slot)\n\t\t\t\t\t\t\t\t\tlevante" not in main_src.replace("\t", "\t"):
+    # la nave se levanta al acercarse (no las 20 de golpe: serian 1200 piezas)
+    if "ponerClausurada(slot)" not in main_src:
+        fallas_lote.append("los lotes vacios no se clausuran cuando el jugador anda cerca")
+print("  %s  el servidor: %s" % ("OK   " if not fallas_lote else "FALLA",
+      "pone y quita la clausurada en el lote correcto" if not fallas_lote
+      else "; ".join(fallas_lote)))
+if fallas_lote:
+    fallas += 1
+
+# ---------- 18) LOS BOTONES DEL DOCK DE VERDAD (v42) ----------
+# El usuario: "el dashboard de abajo no funciona en celular". Antes esta prueba
+# no se podia escribir: el mock no tenia InvokeServer, asi que act() moria dentro
+# de su pcall y NADIE veia que boton mandaba que accion. Ahora los remotes
+# existen y las llamadas se registran, asi que aqui se TOCAN los botones (como un
+# dedo en la pantalla) y se revisa que accion le llego al servidor.
+print()
+print("=== 18. el dock: cada boton manda la accion que debe ===")
+
+
+def corre_dock():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += "local __cli = function()\n" + CLIENTE + "\nend\n__cli()\n"
+    guion += '''
+if task.__sched then task.__sched.advance(2) end
+local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local sg = pg and pg:FindFirstChild("SpiceEmpireUI")
+local function buscaBoton(txt)
+  if not sg then return nil end
+  for _, d in ipairs(sg:GetDescendants()) do
+    if d.ClassName == "TextButton" and string.find(d.Text or "", txt, 1, true) then
+      return d
+    end
+  end
+end
+local nombres = {"Telefono", "Bodega", "Auto", "Tienda", "Mejoras"}
+local faltan, tocados = {}, {}
+for _, n in ipairs(nombres) do
+  local b = buscaBoton(n)
+  if not b then
+    table.insert(faltan, n)
+  else
+    b.MouseButton1Click:Fire()
+    table.insert(tocados, n)
+  end
+end
+if task.__sched then task.__sched.advance(3) end
+local accs = {}
+for _, l in ipairs(LLAMADAS or {}) do
+  local a = l.args and l.args[1]
+  if type(a) == "string" then table.insert(accs, a) end
+end
+table.sort(accs)
+-- ¿la pantalla del telefono se abrio de verdad? (se busca por su titulo)
+local telefonoAbierto = false
+for _, d in ipairs(sg and sg:GetDescendants() or {}) do
+  if d.ClassName == "TextLabel" and d.Text == "MENSAJES" and d.Visible then
+    local pap = d.Parent
+    if pap and pap.Visible then telefonoAbierto = true end
+  end
+end
+local gui = tostring(sg ~= nil)
+print("__DOCK__ faltan=" .. table.concat(faltan, ",") ..
+  "|botones=" .. tostring(#nombres) ..
+  "|acciones=" .. table.concat(accs, ",") ..
+  "|telefono=" .. tostring(telefonoAbierto) ..
+  "|pantalla=" .. gui)
+'''
+    return lua(guion, env=ENTORNO)
+
+
+sal = corre_dock()
+m = re.search(r"__DOCK__ faltan=(\S*)\|botones=(\d+)\|acciones=(\S*)\|telefono=(\w+)\|pantalla=(\w+)", sal)
+if not m:
+    print("  FALLA  el cliente no llego al final")
+    for linea in sal.strip().splitlines()[-8:]:
+        print("         | " + linea[:150])
+    fallas += 1
+else:
+    faltan, _nb, acciones, telefono, pantalla = m.groups()
+    faltan = [x for x in faltan.split(",") if x]
+    tiene = set(x for x in acciones.split(",") if x)
+    # lo que TIENE que pasar: existen los botones, la bodega teletransporta,
+    # el auto llama a carAqui (lo nuevo de la v42) y el telefono ABRE su pantalla.
+    esperadas = {"teleportHome", "carAqui"}
+    problemas = []
+    if pantalla != "true":
+        problemas.append("la interfaz ni se dibujo")
+    if faltan:
+        problemas.append("faltan botones: " + ", ".join(faltan))
+    if not esperadas.issubset(tiene):
+        problemas.append("no mandaron: " + ", ".join(sorted(esperadas - tiene)))
+    if telefono != "true":
+        problemas.append("el boton Telefono no abrio su pantalla")
+    if problemas:
+        print("  FALLA  " + " | ".join(problemas))
+        print("         acciones que si llegaron: %s" % (acciones or "(ninguna)"))
+        fallas += 1
+    else:
+        print("  OK     los 5 botones existen y responden al toque")
+        print("         acciones al servidor: %s" % acciones)
+        print("         el telefono abre su pantalla al tocarlo")
+
+# ---------- 17) LOS CAJONES Y PORTONES DEPENDEN DEL NIVEL (v42) ----------
+print()
+print("=== 17. el garaje arranca con 1 cajon y crece con la bodega ===")
+
+
+def corre_cajones():
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+require=function(x) if x=="__CFG__" then return _cfg end return {} end
+local City=(function()
+'''
+    guion += L("ServerScriptService/CityGenerator.luau")
+    guion += '''
+end)()
+local lineas = {}
+for tier = 1, 4 do
+  local ok, wh = pcall(function() return City.BuildWarehouse(tier) end)
+  if not ok then print("__RESULTADO__ tier " .. tier .. " trono"); return end
+  local cajones, portones = 0, 0
+  for _, d in ipairs(wh:GetDescendants()) do
+    if string.match(d.Name, "^Bay%d+$") then cajones = cajones + 1 end
+    if d:IsA("Model") and d.Name == "GarageDoor" then portones = portones + 1 end
+  end
+  table.insert(lineas, tier .. ":" .. cajones .. "/" .. portones)
+end
+print("__RESULTADO__ " .. table.concat(lineas, " "))
+'''
+    return lua(guion, env=dict(ENTORNO, MOCK_CITY="1"))
+
+
+sal = corre_cajones()
+m = re.search(r"__RESULTADO__ (.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    datos = m.group(1).split()
+    esperado = ["1:1/1", "2:2/2", "3:3/3", "4:4/4"]
+    ok = datos == esperado
+    print("  %s  cajones/portones por nivel: %s (esperado: %s)"
+          % ("OK   " if ok else "FALLA", " ".join(datos), " ".join(esperado)))
+    if not ok:
+        fallas += 1
+
 print()
 if fallas:
     print("FALLA")

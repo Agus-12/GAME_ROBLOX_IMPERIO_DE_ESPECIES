@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ReplicatedStorage.GameConfig
 -- Todos los numeros del juego viven aqui. Cambia esto para balancear.
@@ -13,7 +13,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v41"
+GameConfig.Build = "v42"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
@@ -341,16 +341,24 @@ GameConfig.DayNight = {
 -- Crece con la bodega: nivel 1 = cajon chico, nivel 4 = taller grande.
 -- Cada nivel tiene sus medidas en la lista (1..4 = nivel de bodega).
 GameConfig.Garage = {
-	Widths  = {44, 52, 60, 68},   -- ancho del anexo
-	Depths  = {26, 30, 34, 38},   -- fondo
-	Heights = {13, 15, 17, 19},   -- alto del techo
+	-- v42: el garaje ARRANCA CHICO (nivel 1 = 1 cajon) y crece con la bodega.
+	-- Antes el nivel 1 ya traia 4 cajones de 44 de ancho: el jugador se perdia
+	-- adentro y con 2 autos no cabia para maniobrar ("es muy pequeno").
+	Widths  = {26, 44, 52, 68},   -- ancho del anexo por nivel de bodega
+	Depths  = {22, 26, 30, 34},   -- fondo
+	Heights = {11, 14, 16, 18},   -- alto del techo
 	DoorWidth  = 9,               -- ancho del porton de cada cajon
-	DoorHeight = 11,              -- alto del porton
-	OpenRadius = 13,              -- a que distancia se abre solo el porton
-	-- v36: era 20. Con 20 el porton se abria desde adentro de la bodega y el
-	-- jugador NUNCA veia las puertas cerradas ("el garaje no tiene puertas").
-	-- Con 13 se abren justo cuando llegas al frente, como un porton de verdad.
-	Bays = 4,                     -- cajones (los Bay de GameConfig.Vehicles)
+	DoorHeight = 10,              -- alto del porton
+	OpenRadius = 9,               -- a que distancia se abre solo el porton
+	-- v36: era 20 (se abria desde adentro de la bodega: nunca se veian puertas).
+	-- v42: 9. El porton se abre SOLO cuando llegas al frente y se VUELVE A CERRAR
+	-- al entrar al garaje (a los 9 studs ya no te ve): asi SIEMPRE se ven las
+	-- puertas cerradas, desde adentro y desde lejos, como un porton de verdad.
+	-- Ademas cada cajon trae su propio detector (mide la distancia AL CAJON), o
+	-- sea que solo se abre el porton de la puerta por la que vas entrando.
+	Bays = {1, 2, 3, 4},          -- cajones POR NIVEL de bodega (1 = chico)
+	-- Cuantos autos puedes tener segun el nivel: es el mismo numero de cajones.
+	MaxCars = {1, 2, 3, 4},
 }
 
 -- ========== AMBIENTACION EXTERIOR ==========

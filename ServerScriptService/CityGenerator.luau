@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v41 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v42 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -663,6 +663,15 @@ local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: V
 			shirt = Color3.fromRGB(238, 186, 48),
 			pants = Color3.fromRGB(54, 62, 86),
 			hair  = Color3.fromRGB(38, 28, 22),
+		}
+	elseif style == "oficial" then
+		-- v42: el oficial municipal que cuida las naves clausuradas. Camisa
+		-- caqui del ayuntamiento con chaleco reflejante y gorra oscura.
+		look = {
+			skin  = NPC_LOOKS[rng:NextInteger(1, #NPC_LOOKS)].skin,
+			shirt = Color3.fromRGB(84, 96, 70),
+			pants = Color3.fromRGB(46, 52, 44),
+			hair  = Color3.fromRGB(30, 34, 40),
 		}
 	end
 
@@ -2329,7 +2338,15 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- Antes esta pared era UNA pieza solida: el garaje era una caja cerrada y
 	-- los coches no tenian por donde entrar ni salir. Ahora cada cajon tiene su
 	-- porton, que se abre solo cuando te acercas (lo maneja Main).
-	local BAYS  = math.max(1, GC.Bays or 4)
+	-- v42: los cajones ahora dependen del NIVEL de bodega (nivel 1 = 1 cajon).
+	-- GC.Bays puede venir como numero (compatibilidad) o como tabla por nivel.
+	local baysCfg = GC.Bays
+	local BAYS = 4
+	if type(baysCfg) == "table" then
+		BAYS = math.max(1, baysCfg[TIER] or baysCfg[#baysCfg] or 4)
+	elseif type(baysCfg) == "number" then
+		BAYS = math.max(1, baysCfg)
+	end
 	local bayW  = GAR_W / BAYS
 	local doorW = math.max(6, math.min(GC.DoorWidth or 9, bayW - 2))
 	local doorH = math.min(GC.DoorHeight or 11, garH - 1.5)
@@ -2500,11 +2517,12 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		fLamp.Parent = model
 		local fl = Instance.new("PointLight")
-		fl.Brightness = 0.8   -- v36: era mas alto (quemaba)
-		fl.Range = 22
+		fl.Brightness = 1.5   -- v42: la cochera se veia MUY oscura por dentro
+		fl.Range = 30         -- (con 0.8/22 no se veia ni el piso). Sigue por
+		tagLight(fl, 3.0)     -- debajo del cartel de noche, que va aparte.
 		fl.Color = Color3.fromRGB(255, 240, 205)
 		fl.Parent = fLamp
-		tagLight(fl, 1.6)
+		tagLight(fl, 3.0)
 	end
 
 	-- marcador invisible: Main mide la distancia a este punto para abrir los
@@ -3665,20 +3683,34 @@ function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
 		seat.Color = Color3.fromRGB(48, 48, 54)
 		-- v36: boton de verdad para subirse. Antes habia que "tocar" el asiento
 		-- y en celular eso casi no funciona (nadie sabia donde picarle).
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "Conducir"
-		prompt.ActionText = "Conducir"
-		prompt.ObjectText = "Vehiculo"
-		prompt.KeyboardKeyCode = Enum.KeyCode.E
-		prompt.HoldDuration = 0
-		prompt.MaxActivationDistance = 14
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = seat
-		prompt.Triggered:Connect(function(quien)
-			local c = quien and quien.Character
-			local hum = c and c:FindFirstChildOfClass("Humanoid")
-			if hum and not seat.Occupant then seat:Sit(hum) end
-		end)
+		-- v42: el letrero "E Conducir" NO va en celular (el usuario lo reporto:
+		-- "para celular eso no tiene sentido, solo me acerco y se sube"). En
+		-- celular nada mas te acercas y el asiento te sienta solo.
+		local UIS = game:GetService("UserInputService")
+		local esCelular = UIS.TouchEnabled and not UIS.KeyboardEnabled
+		if esCelular then
+			-- sin boton: el servidor trae un auto-sentido (ver mas abajo, en el
+			-- bucle que mantiene los autos). Aqui solo se marca el asiento.
+			seat:SetAttribute("AutoSubir", true)
+		else
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "Conducir"
+			prompt.ActionText = "Conducir"
+			prompt.ObjectText = "Vehiculo"
+			prompt.KeyboardKeyCode = Enum.KeyCode.E
+			prompt.HoldDuration = 0
+			-- v42: era 14. A 14 studs los prompts de TODOS los autos del garaje
+			-- se encimaban y te subias al que estuviera mas cerca del centro,
+			-- no al que querias ("me subiria en cualquier auto que este primero").
+			prompt.MaxActivationDistance = 8
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = seat
+			prompt.Triggered:Connect(function(quien)
+				local c = quien and quien.Character
+				local hum = c and c:FindFirstChildOfClass("Humanoid")
+				if hum and not seat.Occupant then seat:Sit(hum) end
+			end)
+		end
 		seat.Parent = m
 		-- el asiento NO lleva weld constraint: el chasis lo carga solo
 		for _, d in ipairs(m:GetChildren()) do
@@ -3793,6 +3825,351 @@ function CityGenerator.MakeGuard(parent: Instance, pos: Vector3, facing: Vector3
 	npc:SetAttribute("BuyerId", nil)
 	npc.Name = "HiredGuard"
 	return npc
+end
+
+-- ===== v42: LA NAVE CLAUSURADA Y SU OFICIAL =====
+-- Lo que pidio el usuario: "donde no hay bodega que se vea una bodega
+-- CLAUSURADA con estilo distinto, y oficiales con los que puedas hablar al
+-- acercarte". Antes los lotes libres eran un cuadro vacio de pasto: se veia
+-- como un error del mapa, no como una ciudad.
+function CityGenerator.MakeOficial(parent: Instance, pos: Vector3, facing: Vector3?): Model
+	local npc = makeBuyerNPC(parent, pos, {Id = "Oficial", Name = "Oficial"}, facing, "oficial")
+	CollectionService:RemoveTag(npc, "BuyerNPC")
+	npc:SetAttribute("BuyerId", nil)
+	npc.Name = "OficialMunicipal"
+	npc:SetAttribute("Oficial", true)
+
+	local head = npc:FindFirstChild("Head")
+	if not head then head = npc:FindFirstChild("Torso") end
+
+	-- gorra con placa (color del uniforme, y una visera al frente)
+	local gorra = Instance.new("Part")
+	gorra.Name = "Gorra"
+	gorra.Size = Vector3.new(2.1, 0.5, 1.15)
+	gorra.CFrame = (head and head.CFrame or CFrame.new(pos + Vector3.new(0, 5.1, 0)))
+		* CFrame.new(0, 0.55, 0)
+	gorra.Color = Color3.fromRGB(32, 38, 46)
+	gorra.Material = Enum.Material.Fabric
+	gorra.CanCollide = false
+	gorra.Parent = npc
+
+	local visera = Instance.new("Part")
+	visera.Name = "Visera"
+	visera.Size = Vector3.new(2.05, 0.16, 0.7)
+	visera.CFrame = gorra.CFrame * CFrame.new(0, -0.15, 0.75)
+	visera.Color = Color3.fromRGB(20, 24, 30)
+	visera.Material = Enum.Material.Plastic
+	visera.CanCollide = false
+	visera.Parent = npc
+
+	-- placa dorada en el pecho, pa que se vea que es de la autoridad
+	local torso = npc:FindFirstChild("Torso")
+	if torso then
+		local placa = Instance.new("Part")
+		placa.Name = "Placa"
+		placa.Size = Vector3.new(0.55, 0.4, 0.1)
+		placa.CFrame = torso.CFrame * CFrame.new(0.5, 0.2, -0.55)
+		placa.Color = Color3.fromRGB(228, 196, 92)
+		placa.Material = Enum.Material.Neon
+		placa.CanCollide = false
+		placa.Parent = npc
+	end
+
+	-- La BURBUJA del dialogo: nace apagada y el servidor la prende cuando el
+	-- jugador se acerca (asi funciona igual en computadora y en celular: en el
+	-- telefono no hay tecla E, pero el globo de texto se ve perfecto).
+	if head then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "Dialogo"
+		bb.Size = UDim2.new(0, 250, 0, 64)
+		bb.StudsOffset = Vector3.new(0, 3.2, 0)
+		bb.MaxDistance = 110
+		bb.AlwaysOnTop = true
+		bb.LightInfluence = 0
+		bb.Enabled = false
+		bb.Parent = head
+
+		local lbl = Instance.new("TextLabel")
+		lbl.Name = "Texto"
+		lbl.Size = UDim2.fromScale(1, 1)
+		lbl.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
+		lbl.BackgroundTransparency = 0.12
+		lbl.TextColor3 = Color3.fromRGB(240, 232, 210)
+		lbl.TextStrokeTransparency = 0.6
+		lbl.TextScaled = true
+		lbl.Font = Enum.Font.GothamBold
+		lbl.TextWrapped = true
+		lbl.Text = "..."
+		lbl.Parent = bb
+
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		pad.PaddingTop = UDim.new(0, 6)
+		pad.PaddingBottom = UDim.new(0, 6)
+		pad.Parent = lbl
+	end
+
+	-- En computadora tambien se puede apretar E para que repita lo que dijo.
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PromptOficial"
+	prompt.ActionText = "Hablar"
+	prompt.ObjectText = "Oficial"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = head or torso or npc
+	return npc
+end
+
+-- La nave vacia: mas chica, gris, con tablas y cadena en el porton, basura
+-- afuera y el oficial parado en la puerta. El letrero dice CLAUSURADA.
+function CityGenerator.BuildClosedWarehouse(): Model
+	local G = Config.Garage
+	local W = (type(G.Widths) == "table" and G.Widths[1]) or 26
+	local D = (type(G.Depths) == "table" and G.Depths[1]) or 22
+	local H = (type(G.Heights) == "table" and G.Heights[1]) or 11
+
+	local model = Instance.new("Model")
+	model.Name = "BodegaClausurada"
+
+	local lona   = Color3.fromRGB(96, 94, 88)   -- lamina vieja
+	local lonaO  = Color3.fromRGB(76, 76, 72)
+	local concre = Color3.fromRGB(78, 76, 72)
+	local madera = Color3.fromRGB(92, 68, 42)
+
+	-- piso de concreto agrietado
+	local piso = part({
+		Name = "Piso",
+		Size = Vector3.new(W, 0.6, D),
+		Position = Vector3.new(0, 0.3, 0),
+		Color = concre,
+		Material = Enum.Material.Concrete,
+	})
+	piso.Parent = model
+	model.PrimaryPart = piso
+
+	-- paredes de lamina (doble hoja por lado: se ve el corrugado)
+	local lados = {
+		{ Size = Vector3.new(0.7, H, D), Pos = Vector3.new(-W * 0.5, H * 0.5, 0) },
+		{ Size = Vector3.new(0.7, H, D), Pos = Vector3.new(W * 0.5, H * 0.5, 0) },
+		{ Size = Vector3.new(W, H, 0.7), Pos = Vector3.new(0, H * 0.5, -D * 0.5) },
+	}
+	for i, cfgLado in ipairs(lados) do
+		local pared = part({
+			Name = "Muro" .. i,
+			Size = cfgLado.Size,
+			Position = cfgLado.Pos,
+			Color = lona,
+			Material = Enum.Material.CorrodedMetal,
+		})
+		pared.Parent = model
+	end
+	-- franjas horizontales (el corrugado de la lamina)
+	for fila = 1, 3 do
+		local y = 1.6 + (fila - 1) * 3.4
+		if y < H then
+			for i, cfgLado in ipairs(lados) do
+				local franja = part({
+					Name = "Franja" .. i .. "_" .. fila,
+					Size = (i == 3) and Vector3.new(W + 0.2, 0.5, 0.9)
+						or Vector3.new(0.9, 0.5, D + 0.2),
+					Position = (i == 3) and Vector3.new(0, y, -D * 0.5)
+						or Vector3.new(cfgLado.Pos.X, y, 0),
+					Color = lonaO,
+					Material = Enum.Material.CorrodedMetal,
+				})
+				franja.Parent = model
+			end
+		end
+	end
+	-- techo de lamina, con dos caidas
+	local techo = part({
+		Name = "Techo",
+		Size = Vector3.new(W, 0.6, D),
+		Position = Vector3.new(0, H, 0),
+		Color = lonaO,
+		Material = Enum.Material.CorrodedMetal,
+	})
+	techo.Parent = model
+	local buhardilla = part({
+		Name = "Buhardilla",
+		Size = Vector3.new(W * 0.9, 1.2, D * 0.85),
+		Position = Vector3.new(0, H + 0.9, 0),
+		Color = lonaO,
+		Material = Enum.Material.CorrodedMetal,
+	})
+	buhardilla.Parent = model
+
+	-- ===== PORTON CLAUSURADO (al frente, +Z) =====
+	local ancho = (G.DoorWidth or 9)
+	local altoO = (G.DoorHeight or 10)
+	local zFrente = D * 0.5
+	local porton = part({
+		Name = "PortonClausurado",
+		Size = Vector3.new(ancho, altoO, 0.6),
+		Position = Vector3.new(0, altoO * 0.5, zFrente),
+		Color = Color3.fromRGB(120, 104, 84),
+		Material = Enum.Material.WoodPlanks,
+	})
+	porton.Parent = model
+	-- marco
+	local marco = part({
+		Name = "Marco",
+		Size = Vector3.new(ancho + 1.2, altoO + 1.0, 0.4),
+		Position = Vector3.new(0, (altoO) * 0.5 + 0.2, zFrente + 0.35),
+		Color = lonaO,
+		Material = Enum.Material.Metal,
+	})
+	marco.Parent = model
+	marco.Transparency = 0.35
+	-- las dos tablas cruzadas en X (el sello del municipio)
+	for i = -1, 1, 2 do
+		local tabla = part({
+			Name = "Tabla" .. (i + 2),
+			Size = Vector3.new(1.0, altoO * 1.35, 0.35),
+			Position = Vector3.new(0, altoO * 0.5, zFrente + 0.55),
+			Color = madera,
+			Material = Enum.Material.Wood,
+		})
+		tabla.CFrame = CFrame.new(tabla.Position) * CFrame.Angles(0, 0, math.rad(38 * i))
+		tabla.Parent = model
+	end
+	-- la cadena y el candado
+	local cadena = part({
+		Name = "Cadena",
+		Size = Vector3.new(ancho * 0.92, 0.35, 0.35),
+		Position = Vector3.new(0, altoO * 0.52, zFrente + 0.75),
+		Color = Color3.fromRGB(150, 150, 156),
+		Material = Enum.Material.Metal,
+	})
+	cadena.Parent = model
+	local candado = part({
+		Name = "Candado",
+		Size = Vector3.new(1.1, 1.4, 0.7),
+		Position = Vector3.new(0, altoO * 0.52, zFrente + 0.85),
+		Color = Color3.fromRGB(198, 166, 74),
+		Material = Enum.Material.Metal,
+	})
+	candado.Parent = model
+
+	-- letreros: CLAUSURADA arriba del porton, EN VENTA al lado
+	local letrero = part({
+		Name = "LetreroBase",
+		Size = Vector3.new(0.4, 3.2, ancho + 2),
+		Position = Vector3.new(0, altoO + 2.2, zFrente - 0.2),
+		Color = Color3.fromRGB(60, 22, 22),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	letrero.Parent = model
+	makeBillboard(letrero, "CLAUSURADA", Color3.fromRGB(255, 120, 110), 4.2)
+	local venta = part({
+		Name = "LetreroVenta",
+		Size = Vector3.new(0.4, 2.2, 7),
+		Position = Vector3.new(W * 0.5 + 0.4, 5.4, zFrente - 2),
+		Color = Color3.fromRGB(210, 186, 96),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+	})
+	venta.Parent = model
+	makeBillboard(venta, "EN VENTA", Color3.fromRGB(255, 236, 170), 2.6)
+
+	-- ===== LUZ: una sola lampara exterior que parpadea =====
+	-- (el lote clausurado queda a oscuras: por dentro no hay nada que alumbrar)
+	local poste = part({
+		Name = "Poste",
+		Size = Vector3.new(0.5, 8.4, 0.5),
+		Position = Vector3.new(-W * 0.5 - 1.6, 4.2, zFrente - 2),
+		Color = Color3.fromRGB(70, 72, 76),
+		Material = Enum.Material.Metal,
+	})
+	poste.Parent = model
+	local brazo = part({
+		Name = "Brazo",
+		Size = Vector3.new(1.8, 0.3, 0.3),
+		Position = Vector3.new(-W * 0.5 - 0.9, 8.2, zFrente - 2),
+		Color = Color3.fromRGB(70, 72, 76),
+		Material = Enum.Material.Metal,
+	})
+	brazo.Parent = model
+	local foco = part({
+		Name = "Foco",
+		Size = Vector3.new(1.2, 0.4, 0.8),
+		Position = Vector3.new(-W * 0.5 + 0.1, 8.0, zFrente - 2),
+		Color = Color3.fromRGB(255, 232, 176),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+	})
+	foco.Parent = model
+	local luz = Instance.new("PointLight")
+	luz.Name = "LuzFoco"
+	luz.Brightness = 1.4
+	luz.Range = 22
+	luz.Color = Color3.fromRGB(255, 216, 150)
+	luz.Shadows = false
+	luz.Parent = foco
+
+	-- ===== BASURA Y ESCOMBROS (pa que se vea abandonada) =====
+	local cajas = {
+		{ Vector3.new(W * 0.32, 1.0, -D * 0.3), Vector3.new(2.6, 2.0, 2.6) },
+		{ Vector3.new(W * 0.30, 0.8, -D * 0.12), Vector3.new(2.2, 1.6, 2.2) },
+		{ Vector3.new(-W * 0.34, 0.9, -D * 0.22), Vector3.new(2.4, 1.8, 2.0) },
+	}
+	for i, c in ipairs(cajas) do
+		local caja = part({
+			Name = "Caja" .. i,
+			Size = c[2],
+			Position = Vector3.new(c[1].X, c[2].Y * 0.5, c[1].Z),
+			Color = Color3.fromRGB(150, 124, 88),
+			Material = Enum.Material.WoodPlanks,
+		})
+		caja.CFrame = CFrame.new(caja.Position) * CFrame.Angles(0, math.rad((i * 37) % 60 - 30), 0)
+		caja.Parent = model
+	end
+	-- llantas tiradas
+	for i = 1, 2 do
+		local llanta = Instance.new("Part")
+		llanta.Name = "LlantaVieja" .. i
+		llanta.Shape = Enum.PartType.Cylinder
+		llanta.Size = Vector3.new(0.8, 3.2, 3.2)
+		llanta.CFrame = CFrame.new(Vector3.new(W * 0.5 - 3 - i * 3.4, 1.6, zFrente - 3.2))
+			* CFrame.Angles(0, 0, math.rad(90))
+		llanta.Color = Color3.fromRGB(34, 34, 36)
+		llanta.Material = Enum.Material.Rubber
+		llanta.Anchored = true
+		llanta.CanCollide = false
+		llanta.Parent = model
+	end
+	-- bote de basura y escombros
+	local bote = part({
+		Name = "Bote",
+		Size = Vector3.new(2.0, 3.0, 2.0),
+		Position = Vector3.new(-W * 0.5 + 2.4, 1.5, zFrente - 1.6),
+		Color = Color3.fromRGB(58, 74, 58),
+		Material = Enum.Material.Metal,
+	})
+	bote.Parent = model
+	for i = 1, 5 do
+		local ang = math.rad(i * 71)
+		local escombro = part({
+			Name = "Escombro" .. i,
+			Size = Vector3.new(0.6 + (i % 3) * 0.35, 0.4, 0.6 + (i % 2) * 0.4),
+			Position = Vector3.new(math.cos(ang) * (W * 0.32), 0.8, zFrente - 2.6 + math.sin(ang) * 3.4),
+			Color = concre,
+			Material = Enum.Material.Concrete,
+			CanCollide = false,
+		})
+		escombro.CFrame = CFrame.new(escombro.Position) * CFrame.Angles(0, ang, math.rad(8 * (i % 3)))
+		escombro.Parent = model
+	end
+
+	-- el oficial parado junto al porton, mirando a la calle
+	local oficial = CityGenerator.MakeOficial(model, Vector3.new(ancho * 0.5 + 4.2, 0, zFrente + 3.5),
+		Vector3.new(0, 0, 1))
+	oficial.Parent = model
+
+	return model
 end
 
 function CityGenerator.BuildAgent(): Model
