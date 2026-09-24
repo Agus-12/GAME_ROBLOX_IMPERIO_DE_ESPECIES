@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v20** · 23 sep 2026
+> Última actualización: **v21** · 23 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v20 |
+| **Versión actual** | v21 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ⚠️ Reglas que NO puedes romper
@@ -88,7 +88,7 @@ que volver a preguntarlo**:
 | Cosechadores | **Uno por mesa.** 4 mesas = 4 cosechadores. Físicos, se paran en su mesa y cosechan solo las plantas maduras de ESA mesa | ✅ v19 |
 | Producción offline | **Sí**, los trabajadores producen aunque estés desconectado. Hay que calcular al volver | ✅ v19 (tope 8 h) |
 | Cosecha manual | **Sí sigue existiendo**, además de los trabajadores | ✅ ya funciona |
-| Asaltos a la caja | **Sí pueden robar de la caja fuerte** — para eso sirven los guardias y la alerta del celular | ⏳ **pendiente, es lo siguiente** |
+| Asaltos a la caja | **Sí pueden robar de la caja fuerte** — para eso sirven los guardias y la alerta del celular | ✅ v21, con asaltantes físicos y arma |
 
 ---
 
@@ -98,7 +98,7 @@ Por orden de valor sugerido:
 
 | Pendiente | Qué implica |
 |---|---|
-| **Asaltos que roben de la caja fuerte** | Ver 2.1. Es lo siguiente que toca |
+
 | **Territorios de crews** | Zonas capturables en la ciudad + guerra entre crews. Es el feature grande que falta del pedido original |
 | **Interiores de propiedades** | Las casas/departamentos que compras hoy son solo fachada. No se puede entrar |
 | **Garaje real** | Un lugar físico donde aparezcan los autos comprados |
@@ -108,7 +108,8 @@ Features del pedido original que **ya están hechas**: mapa procedural, policía
 persiguen, celular con alertas, PvP de robo, crews básicos, empleados, autos, casas,
 bodega progresiva de 4 niveles, NPC vigilante, compradores en la ciudad, bici inicial,
 plantas con crecimiento visible, prensa detallada, encargos, llamadas telefónicas,
-adaptación a celular, sonido.
+adaptación a celular, sonido, caja fuerte, empleados físicos, **arma y asaltos con
+balacera**.
 
 ---
 

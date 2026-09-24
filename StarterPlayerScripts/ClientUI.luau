@@ -17,6 +17,7 @@ local RE_Mission = Remotes:WaitForChild("MissionUpdate") :: RemoteEvent
 local RE_OpenUp  = Remotes:WaitForChild("OpenUpgrades") :: RemoteEvent
 local RE_Sfx     = Remotes:WaitForChild("Sfx") :: RemoteEvent
 local RE_OpenVault = Remotes:WaitForChild("OpenVault") :: RemoteEvent
+local RE_Shoot   = Remotes:WaitForChild("Shoot") :: RemoteEvent
 local RF_Action = Remotes:WaitForChild("Action") :: RemoteFunction
 
 local player = Players.LocalPlayer
@@ -1680,6 +1681,64 @@ do
 				snd.PlaybackSpeed = base * (0.96 + math.random() * 0.08)
 				snd:Play()
 			end
+		end)
+	end
+end
+
+----------------------------------------------------------------------
+-- DISPARO
+----------------------------------------------------------------------
+-- El servidor crea la Tool y hace el raycast; aqui solo avisamos hacia
+-- donde estas apuntando. En celular se dispara hacia donde mira la camara.
+do
+	local W = Config.Weapon
+	if W then
+		local mouse = player:GetMouse()
+
+		local function aimDirection(): Vector3?
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return nil end
+			local from = hrp.Position + Vector3.new(0, 1, 0)
+
+			local target
+			if IS_MOBILE then
+				-- en tactil no hay mouse: se apunta con la camara
+				target = camera.CFrame.Position + camera.CFrame.LookVector * W.Range
+			else
+				target = mouse.Hit and mouse.Hit.Position
+			end
+			if not target then return nil end
+
+			local d = target - from
+			if d.Magnitude < 0.01 then return nil end
+			return d.Unit
+		end
+
+		local function hookTool(tool: Instance)
+			if not tool:IsA("Tool") or tool.Name ~= W.Name then return end
+			tool.Activated:Connect(function()
+				local d = aimDirection()
+				if d then RE_Shoot:FireServer(d) end
+			end)
+		end
+
+		local function watch(container: Instance)
+			for _, c in ipairs(container:GetChildren()) do hookTool(c) end
+			container.ChildAdded:Connect(hookTool)
+		end
+
+		local bp = player:FindFirstChildOfClass("Backpack")
+		if bp then watch(bp) end
+		player.ChildAdded:Connect(function(c)
+			if c:IsA("Backpack") then watch(c) end
+		end)
+		if player.Character then watch(player.Character) end
+		player.CharacterAdded:Connect(function(char)
+			task.wait(0.4)
+			watch(char)
+			local nbp = player:FindFirstChildOfClass("Backpack")
+			if nbp then watch(nbp) end
 		end)
 	end
 end

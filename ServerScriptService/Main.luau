@@ -42,6 +42,7 @@ local RE_Mission = mkEvent("MissionUpdate")    -- server -> client, encargo acti
 local RE_OpenUp  = mkEvent("OpenUpgrades")     -- server -> client, abrir panel de mejoras
 local RE_Sfx     = mkEvent("Sfx")              -- server -> client, efecto de sonido
 local RE_OpenVault = mkEvent("OpenVault")      -- server -> client, abrir la caja fuerte
+local RE_Shoot   = mkEvent("Shoot")            -- client -> server, disparo
 local RF_Action  = mkFunc("Action")           -- client -> server, todo lo demas
 
 ----------------------------------------------------------------------
@@ -80,6 +81,7 @@ local initPlants
 local setupGate
 local syncWorkers
 local applyOfflineProduction
+local giveWeapon
 
 -- estado de encargos y llamadas (se declara aqui arriba porque
 -- PlayerRemoving lo limpia antes de que se definan las funciones)
@@ -337,6 +339,16 @@ local function setupPlayer(player: Player)
 	task.spawn(function()
 		task.wait(1.5)   -- dejar que cargue todo antes de avisarle
 		pcall(applyOfflineProduction, player)
+	end)
+
+	-- el arma: se repone en cada respawn
+	player.CharacterAdded:Connect(function()
+		task.wait(0.6)
+		pcall(giveWeapon, player)
+	end)
+	task.spawn(function()
+		task.wait(1)
+		pcall(giveWeapon, player)
 	end)
 
 	local function placeInWarehouse(char: Model)
@@ -1062,45 +1074,287 @@ task.spawn(function()
 end)
 
 ----------------------------------------------------------------------
+-- ARMA
+----------------------------------------------------------------------
+-- Tool sencilla. El cliente avisa hacia donde apuntas y el servidor hace
+-- el raycast: asi nadie puede inventarse impactos desde el cliente.
+
+local shootCooldown: {[Player]: number} = {}
+
+local function makeWeapon(): Tool
+	local W = Config.Weapon
+	local tool = Instance.new("Tool")
+	tool.Name = W.Name
+	tool.RequiresHandle = true
+	tool.CanBeDropped = false
+	tool.ToolTip = "Clic para disparar"
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.4, 1.0, 1.9)
+	handle.Color = Color3.fromRGB(38, 38, 44)
+	handle.Material = Enum.Material.Metal
+	handle.CanCollide = false
+	handle.Parent = tool
+
+	local barrel = Instance.new("Part")
+	barrel.Name = "Barrel"
+	barrel.Size = Vector3.new(0.25, 0.25, 1.1)
+	barrel.Color = Color3.fromRGB(24, 24, 28)
+	barrel.Material = Enum.Material.Metal
+	barrel.CanCollide = false
+	barrel.Massless = true
+	barrel.Parent = tool
+	local bw = Instance.new("WeldConstraint")
+	bw.Part0 = handle
+	bw.Part1 = barrel
+	bw.Parent = handle
+	barrel.CFrame = handle.CFrame * CFrame.new(0, 0.25, -1.2)
+
+	local muzzle = Instance.new("Attachment")
+	muzzle.Name = "Muzzle"
+	muzzle.Position = Vector3.new(0, 0.25, -1.8)
+	muzzle.Parent = handle
+
+	return tool
+end
+
+function giveWeapon(player: Player)
+	if not Config.Weapon.GiveOnSpawn then return end
+	local bp = player:FindFirstChildOfClass("Backpack")
+	if not bp then return end
+	if bp:FindFirstChild(Config.Weapon.Name) then return end
+	local char = player.Character
+	if char and char:FindFirstChild(Config.Weapon.Name) then return end
+	makeWeapon().Parent = bp
+end
+
+-- rayita del disparo, para que se vea de donde a donde
+local function tracer(from: Vector3, to: Vector3)
+	local dist = (to - from).Magnitude
+	if dist < 0.5 then return end
+	local p = Instance.new("Part")
+	p.Name = "Tracer"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.Material = Enum.Material.Neon
+	p.Color = Color3.fromRGB(255, 220, 140)
+	p.Size = Vector3.new(0.12, 0.12, dist)
+	p.CFrame = CFrame.lookAt(from + (to - from) * 0.5, to)
+	p.Parent = Workspace
+	task.delay(0.06, function() p:Destroy() end)
+end
+
+RE_Shoot.OnServerEvent:Connect(function(player: Player, dir: Vector3)
+	local W = Config.Weapon
+	local now = os.clock()
+	if shootCooldown[player] and now - shootCooldown[player] < W.Cooldown then return end
+	shootCooldown[player] = now
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not (hrp and hum and hum.Health > 0) then return end
+
+	-- tiene que traer el arma equipada
+	if not char:FindFirstChild(W.Name) then return end
+
+	if typeof(dir) ~= "Vector3" or dir.Magnitude < 0.01 then return end
+	local d = dir.Unit
+
+	local rp = RaycastParams.new()
+	rp.FilterType = Enum.RaycastFilterType.Exclude
+	rp.FilterDescendantsInstances = {char}
+
+	local from = hrp.Position + Vector3.new(0, 1, 0)
+	local hit = Workspace:Raycast(from, d * W.Range, rp)
+	local to = hit and hit.Position or (from + d * W.Range)
+	tracer(from, to)
+
+	if not hit then return end
+	local model = hit.Instance:FindFirstAncestorOfClass("Model")
+	local target = model and model:FindFirstChildOfClass("Humanoid")
+	if target and target.Health > 0 then
+		target:TakeDamage(W.Damage)
+	end
+end)
+
+----------------------------------------------------------------------
 -- ASALTOS A LA BODEGA
 ----------------------------------------------------------------------
+local activeRaid: {[Player]: boolean} = {}
+local raidMobs: {[Player]: {Model}} = {}
+
+local function clearRaid(player: Player)
+	for _, m in ipairs(raidMobs[player] or {}) do
+		if m and m.Parent then m:Destroy() end
+	end
+	raidMobs[player] = nil
+	activeRaid[player] = nil
+end
+
+Players.PlayerRemoving:Connect(function(pl) clearRaid(pl) end)
+
 local function runRaid(player: Player)
 	local profile = DataService.Get(player)
 	if not profile then return end
+	if activeRaid[player] then return end        -- uno a la vez
+	activeRaid[player] = true
 
+	local R = Config.Raids
 	alert(player, "ASALTO EN CAMINO",
-		string.format("Van a golpear tu bodega en %d segundos. Llega y defiendela.", Config.Raids.WarnSeconds),
+		string.format("Van a golpear tu bodega en %d segundos. Llega y defiendela.", R.WarnSeconds),
 		"danger")
 
-	task.delay(Config.Raids.WarnSeconds, function()
+	task.delay(R.WarnSeconds, function()
 		local p = DataService.Get(player)
-		if not p then return end
-
 		local wh = warehouses[player]
-		local char = player.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not (p and wh and wh.Parent) then clearRaid(player); return end
 
-		local defended = false
-		if wh and wh.PrimaryPart and hrp then
-			defended = (hrp.Position - wh.PrimaryPart.Position).Magnitude <= Config.Raids.DefendRadius
+		local vault = wh:FindFirstChild("VaultBody", true)
+		local gate = wh:FindFirstChild("GateSensor") or wh.PrimaryPart
+		if not (vault and gate) then clearRaid(player); return end
+
+		raidMobs[player] = {}
+
+		-- ===== ENTRAN LOS ASALTANTES =====
+		local n = R.RaidersBase + (p.WarehouseTier or 1) * R.RaidersPerTier
+		local alive = 0
+		local cracking = false
+		local finished = false
+
+		local function finish(defended: boolean)
+			if finished then return end
+			finished = true
+
+			if defended then
+				local reward = math.floor(300 + p.TotalEarned * 0.012)
+				p.Cash += reward
+				alert(player, "ASALTO REPELIDO",
+					string.format("Los bajaste a todos. Te quedaste con $%s de lo que traian.",
+						Config.Abbrev(reward)), "good")
+				sfx(player, "Sell")
+			else
+				local lostL = math.floor((p.Leaves or 0) * R.StealPercent)
+				local lostB = math.floor((p.Blocks or 0) * R.StealPercent)
+				p.Leaves = (p.Leaves or 0) - lostL
+				p.Blocks = (p.Blocks or 0) - lostB
+				alert(player, "TE VACIARON LA CAJA",
+					string.format("Abrieron la caja fuerte. Se llevaron %d hojas y %d bloques.",
+						lostL, lostB), "danger")
+				sfx(player, "Arrest")
+			end
+
+			push(player)
+			syncLeaderstats(player)
+			task.delay(3, function() clearRaid(player) end)
 		end
 
-		if defended then
-			local reward = math.floor(200 + p.TotalEarned * 0.01)
-			p.Cash += reward
-			alert(player, "ASALTO REPELIDO",
-				string.format("Defendiste tu bodega. Recuperaste $%s de los atacantes.", Config.Abbrev(reward)), "good")
-		else
-			local lostL = math.floor(p.Leaves * Config.Raids.StealPercent)
-			local lostB = math.floor(p.Blocks * Config.Raids.StealPercent)
-			p.Leaves -= lostL
-			p.Blocks -= lostB
-			alert(player, "TE ROBARON",
-				string.format("No llegaste. Se llevaron %d hojas y %d bloques.", lostL, lostB), "danger")
+		for i = 1, n do
+			local ang = (i / n) * math.pi * 2
+			local spawnPos = gate.Position
+				+ Vector3.new(math.cos(ang) * 14, 1, math.sin(ang) * 14 + 26)
+
+			local ok, mob = pcall(function()
+				return CityGenerator.MakeRaider(Workspace, spawnPos)
+			end)
+			if ok and mob then
+				table.insert(raidMobs[player], mob)
+				alive += 1
+
+				local hum = mob:FindFirstChildOfClass("Humanoid")
+				local mhrp = mob.PrimaryPart
+				if hum and mhrp then
+					hum.MaxHealth = R.RaiderHealth
+					hum.Health = R.RaiderHealth
+					hum.WalkSpeed = R.RaiderSpeed
+
+					hum.Died:Connect(function()
+						alive -= 1
+						task.delay(2.5, function()
+							if mob and mob.Parent then mob:Destroy() end
+						end)
+						if alive <= 0 then finish(true) end
+					end)
+
+					-- caminan hacia la caja; si llegan, la empiezan a abrir
+					task.spawn(function()
+						while mob.Parent and hum.Health > 0 and not finished do
+							hum:MoveTo(vault.Position)
+
+							local d = (mhrp.Position - vault.Position).Magnitude
+							if d < 9 and not cracking then
+								cracking = true
+								alert(player, "ESTAN EN LA CAJA",
+									string.format("Llegaron a tu caja fuerte. Tienes %d segundos.",
+										R.CrackSeconds), "danger")
+								task.delay(R.CrackSeconds, function()
+									if not finished then finish(false) end
+								end)
+							end
+
+							-- si andas cerca, te tiran
+							local pchar = player.Character
+							local phrp = pchar and pchar:FindFirstChild("HumanoidRootPart")
+							local phum = pchar and pchar:FindFirstChildOfClass("Humanoid")
+							if phrp and phum and phum.Health > 0
+								and (phrp.Position - mhrp.Position).Magnitude <= R.RaiderAttackRange then
+								phum:TakeDamage(R.RaiderDamage)
+								tracer(mhrp.Position + Vector3.new(0, 1, 0), phrp.Position)
+							end
+
+							task.wait(R.RaiderAttackEvery)
+						end
+					end)
+				end
+			end
 		end
 
-		push(player)
-		syncLeaderstats(player)
+		if alive == 0 then clearRaid(player); return end
+
+		-- ===== TUS GUARDIAS CONTRATADOS =====
+		local nG = p.Employees.Guard or 0
+		for i = 1, nG do
+			local gpos = vault.Position + Vector3.new(-6 + (i - 1) * 4, -5.3, 10)
+			local ok, g = pcall(function()
+				return CityGenerator.MakeGuard(wh, gpos, Vector3.new(0, 0, 1))
+			end)
+			if ok and g then
+				table.insert(raidMobs[player], g)
+				local ghrp = g.PrimaryPart
+				task.spawn(function()
+					while g.Parent and not finished do
+						-- le dispara al asaltante vivo mas cercano
+						local best, bestD = nil, R.GuardRange
+						for _, m in ipairs(raidMobs[player] or {}) do
+							if m and m.Parent and m.Name == "Raider" and m.PrimaryPart then
+								local mh = m:FindFirstChildOfClass("Humanoid")
+								if mh and mh.Health > 0 and ghrp then
+									local d = (m.PrimaryPart.Position - ghrp.Position).Magnitude
+									if d < bestD then best, bestD = m, d end
+								end
+							end
+						end
+						if best and ghrp then
+							local bh = best:FindFirstChildOfClass("Humanoid")
+							if bh then
+								bh:TakeDamage(R.GuardDamage)
+								tracer(ghrp.Position + Vector3.new(0, 1, 0),
+									best.PrimaryPart.Position)
+							end
+						end
+						task.wait(R.GuardEvery)
+					end
+				end)
+			end
+		end
+
+		-- red de seguridad: que nunca se quede un asalto colgado
+		task.delay(R.MaxRaidSeconds, function()
+			if not finished then finish(false) end
+			clearRaid(player)
+		end)
 	end)
 end
 

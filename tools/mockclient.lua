@@ -11,6 +11,11 @@ workspace.CurrentCamera = cam
 local uis = game:GetService("UserInputService")
 uis.TouchEnabled = touch ; uis.KeyboardEnabled = not touch ; uis.InputBegan = newSignal()
 local plr = Instance.new("Player") ; plr.Name="Tester" ; plr.UserId=1
+plr.GetMouse = function() return {Hit = nil} end
+local bpk = Instance.new("Backpack"); bpk.Name = "Backpack"; bpk.Parent = plr
+plr.FindFirstChildOfClass = function(s,c)
+  if c == "Backpack" then return bpk end
+  return nil end
 plr.WaitForChild = function(s,n)
   local c=s:FindFirstChild(n) ; if c then return c end
   local o=Instance.new("Folder") ; o.Name=n ; o.Parent=s ; return o end
@@ -18,7 +23,7 @@ local pg = Instance.new("PlayerGui") ; pg.Name="PlayerGui" ; pg.Parent=plr
 game:GetService("Players").LocalPlayer = plr
 local rs = game:GetService("ReplicatedStorage")
 local remotes = Instance.new("Folder") ; remotes.Name="Remotes" ; remotes.Parent=rs
-local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Action"}
+local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Shoot","Action"}
 for _,n in ipairs(NEEDED) do
   local e=Instance.new(n=="Action" and "RemoteFunction" or "RemoteEvent")
   e.Name=n ; e.OnClientEvent=newSignal() ; e.InvokeServer=function() return {ok=true} end

@@ -273,8 +273,35 @@ GameConfig.Raids = {
 	BaseChance = 0.18,        -- 18% base
 	ChancePerBlock = 0.004,   -- mas inventario = mas atractivo
 	WarnSeconds = 25,         -- cuanto avisa el telefono antes
-	StealPercent = 0.35,      -- cuanto se llevan si no defiendes
-	DefendRadius = 60,        -- que tan cerca debes estar para defender
+	StealPercent = 0.35,      -- cuanto se llevan si LLEGAN a la caja
+	DefendRadius = 60,        -- que tan cerca debes estar para que cuente
+
+	-- ===== EL ASALTO FISICO =====
+	-- Ya no es un dado invisible: llegan tipos de verdad, caminan hacia tu
+	-- caja fuerte y hay que bajarlos a balazos antes de que la abran.
+	RaidersBase = 2,          -- cuantos vienen de entrada
+	RaidersPerTier = 1,       -- +1 por nivel de bodega (eres mas jugoso)
+	RaiderHealth = 90,
+	RaiderSpeed = 13,
+	RaiderDamage = 9,         -- lo que te pegan si te les pones enfrente
+	RaiderAttackRange = 12,
+	RaiderAttackEvery = 1.4,
+	CrackSeconds = 16,        -- lo que tardan en abrir la caja al llegar
+	MaxRaidSeconds = 120,     -- red de seguridad: a los 2 min se limpia todo
+
+	-- tus guardias contratados se plantan junto a la caja y disparan solos
+	GuardDamage = 12,
+	GuardRange = 70,
+	GuardEvery = 1.3,
+}
+
+-- ========== ARMA ==========
+GameConfig.Weapon = {
+	Name = "Escuadra",
+	Damage = 26,
+	Range = 260,
+	Cooldown = 0.26,
+	GiveOnSpawn = true,       -- todos traen una desde que entran
 }
 
 -- ========== PVP / CREWS ==========

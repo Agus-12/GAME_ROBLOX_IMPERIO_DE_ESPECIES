@@ -61,6 +61,8 @@ function Instance_.new(cls,parent)
   o.MoveToFinished=newSignal() ; o.Died=newSignal()
   o.AncestryChanged=newSignal() ; o.Completed=newSignal()
   o.MouseButton1Click=newSignal() ; o.OnClientEvent=newSignal() ; o.Touched=newSignal()
+  o.OnServerEvent=newSignal() ; o.Activated=newSignal() ; o.Equipped=newSignal()
+  o.ChildAdded=newSignal() ; o.CharacterAdded=newSignal()
   o.FireClient=function() end
   local proxy
   proxy=setmetatable({},{

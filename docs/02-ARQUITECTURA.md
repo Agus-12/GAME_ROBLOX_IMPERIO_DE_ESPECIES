@@ -45,6 +45,12 @@ Action:InvokeServer(action, arg1, arg2)  -->  { ok = boolean, msg = string }
 | `Sfx` | `(key)` · nombre del sonido en `Config.Sounds` (v16) |
 | `OpenVault` | — · se dispara al pisar el tapete de la caja fuerte (v18) |
 
+### Cliente → servidor
+
+| Evento | Carga |
+|---|---|
+| `Shoot` | `dir: Vector3` · dirección de puntería; el servidor hace el raycast (v21) |
+
 ---
 
 ## Estructura de `CityGenerator.luau`
@@ -147,6 +153,32 @@ Mejoras G · **Caja C**
 
 **Controles de teclado:** E cosechar · R prensar · F vender · G mejoras · B tienda ·
 T teléfono · H bodega · **C caja fuerte** · **M minimizar HUD** (único sin botón en el dock)
+
+## Combate y asaltos (v21)
+
+**Arma** — `makeWeapon()` crea una `Tool` server-side; `giveWeapon(player)` la repone en
+cada `CharacterAdded`. El cliente **solo manda la dirección**: `RE_Shoot:FireServer(dir)`.
+El servidor valida cadencia (`Config.Weapon.Cooldown`), que el arma esté equipada
+(`char:FindFirstChild(W.Name)`), hace el `Raycast` y aplica `TakeDamage`. Nunca confíes
+en el cliente para los impactos.
+
+**Asalto** (`runRaid`) — `activeRaid[player]` garantiza uno a la vez; `raidMobs[player]`
+guarda asaltantes y guardias para poder limpiarlos.
+
+1. Alerta → espera `WarnSeconds`
+2. Spawnea `RaidersBase + tier * RaidersPerTier` asaltantes afuera del portón
+3. Cada uno hace `Humanoid:MoveTo(vault.Position)` en bucle y dispara al jugador si
+   está a `RaiderAttackRange`
+4. El primero que llega a menos de 9 studs de la caja arranca la cuenta `CrackSeconds`
+5. `finish(true)` si `alive <= 0`; `finish(false)` si vence la cuenta
+6. Red de seguridad a `MaxRaidSeconds` para que nunca quede colgado
+
+Los guardias contratados (`Employees.Guard`) se spawnean junto a la caja y le pegan al
+asaltante vivo más cercano cada `GuardEvery`. **No se mueven** — a propósito, para no
+meter pathing y repetir los problemas de la bici.
+
+> Los NPCs de asalto usan `Humanoid:MoveTo`, que es pathing nativo de Roblox. **No les
+> metas física custom.**
 
 ## Empleados físicos (v19)
 

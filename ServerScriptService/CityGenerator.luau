@@ -623,6 +623,14 @@ local function makeBuyerNPC(parent: Instance, pos: Vector3, info: any, facing: V
 			pants = Color3.fromRGB(20, 22, 28),
 			hair  = Color3.fromRGB(18, 18, 20),
 		}
+	elseif style == "raider" then
+		-- asaltante: encapuchado, todo oscuro
+		look = {
+			skin  = Color3.fromRGB(150, 116, 90),
+			shirt = Color3.fromRGB(34, 20, 24),
+			pants = Color3.fromRGB(24, 24, 28),
+			hair  = Color3.fromRGB(12, 12, 14),
+		}
 	elseif style == "worker" then
 		-- tus empleados: overol de trabajo y chaleco reflejante
 		look = {
@@ -2324,6 +2332,26 @@ function CityGenerator.MakeWorker(parent: Instance, pos: Vector3, facing: Vector
 	npc:SetAttribute("BuyerId", nil)
 	npc:SetAttribute("Worker", true)
 	npc.Name = "Worker_" .. (tag or "X")
+	return npc
+end
+
+-- Asaltante que viene por tu caja fuerte.
+function CityGenerator.MakeRaider(parent: Instance, pos: Vector3): Model
+	local npc = makeBuyerNPC(parent, pos, {Id = "Raider", Name = "Asaltante"},
+		nil, "raider")
+	CollectionService:RemoveTag(npc, "BuyerNPC")
+	npc:SetAttribute("BuyerId", nil)
+	npc.Name = "Raider"
+	return npc
+end
+
+-- Guardia contratado, plantado junto a la caja.
+function CityGenerator.MakeGuard(parent: Instance, pos: Vector3, facing: Vector3?): Model
+	local npc = makeBuyerNPC(parent, pos, {Id = "Guard", Name = "Guardia"},
+		facing, "guard")
+	CollectionService:RemoveTag(npc, "BuyerNPC")
+	npc:SetAttribute("BuyerId", nil)
+	npc.Name = "HiredGuard"
 	return npc
 end
 

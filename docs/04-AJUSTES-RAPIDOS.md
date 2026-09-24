@@ -31,6 +31,17 @@ Perillas para cambiar cosas sin rediseñar nada.
 | Más horas de producción offline | `GameConfig.Employees` | `OfflineMaxHours = 8` |
 | Quitar el tope de un cosechador por mesa | `Main.luau`, `hire()` | borra el bloque `if role == "Harvester"` |
 
+## Asaltos y combate
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Probar un asalto YA | `GameConfig.Raids` | `CheckInterval = 20`, `BaseChance = 1`, `WarnSeconds = 8` |
+| Asaltos más difíciles | `GameConfig.Raids` | sube `RaidersBase` o `RaiderHealth` |
+| Más tiempo para llegar | `GameConfig.Raids` | sube `CrackSeconds = 16` |
+| Arma más fuerte | `GameConfig.Weapon` | `Damage = 26` |
+| Quitar el arma | `GameConfig.Weapon` | `GiveOnSpawn = false` |
+| Guardias más efectivos | `GameConfig.Raids` | `GuardDamage`, baja `GuardEvery` |
+
 ## Visual
 
 | Quiero… | Dónde | Cómo |
