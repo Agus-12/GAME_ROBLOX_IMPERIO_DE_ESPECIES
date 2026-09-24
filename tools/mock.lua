@@ -42,6 +42,20 @@ UDim={new=function() return {} end} ; TweenInfo={new=function() return {} end}
 local Instance_={}
 function Instance_.new(cls,parent)
   local o={ClassName=cls,Name=cls,_children={},_attrs={}}
+  -- PROPIEDADES CON VALOR POR DEFECTO (como Roblox)
+  -- El mock no las ponia y quedaban en nil. Eso rompia codigo real: por ejemplo
+  -- "c.LayoutOrder >= 2" en el HUD del cliente tronaba con "attempt to compare
+  -- number with nil" — un error que en Roblox NUNCA pasa (ahi LayoutOrder nace
+  -- en 0). Aqui se imita a Roblox para que las pruebas sean de verdad.
+  o.LayoutOrder = 0
+  o.Visible = true
+  o.Enabled = true
+  o.Text = ""
+  o.ZIndex = 1
+  o.Transparency = 0
+  o.RichText = false
+  o.TextTransparency = 0
+  o.BackgroundTransparency = 0
   o.GetChildren=function(s) return s._children end
   -- OJO: GetDescendants en Roblox baja TODOS los niveles. Aqui devolvia solo los
   -- hijos directos: el simulador decia "GetDescendants" y los scripts que
@@ -61,7 +75,28 @@ function Instance_.new(cls,parent)
   o.FindFirstChild=function(s,n) for _,c in ipairs(s._children) do if c.Name==n then return c end end end
   o.FindFirstChildWhichIsA=function(s) return s._children[1] end
   o.FindFirstChildOfClass=function(s,c) for _,x in ipairs(s._children) do if x.ClassName==c then return x end end end
-  o.IsA=function(s,t) return s.ClassName==t end
+  -- IsA en Roblox contempla la HERENCIA (un Frame es un GuiObject). El mock
+  -- comparaba solo el nombre exacto, asi que "c:IsA(\"GuiObject\")" daba FALSO
+  -- para todo: el codigo que muestra/oculta filas del HUD se probaba... sin
+  -- probarse (falso verde que escondio que la columna del HUD nunca se veia).
+  local GUI_OBJ = {Frame=true,TextLabel=true,TextButton=true,ImageLabel=true,
+    ImageButton=true,ScrollingFrame=true,ViewportFrame=true,TextBox=true,
+    CanvasGroup=true}
+  local GUI_BASE = {ScreenGui=true,SurfaceGui=true,BillboardGui=true}
+  o.IsA=function(s,t)
+    if t == s.ClassName or t == "Instance" then return true end
+    if t == "GuiObject" then return GUI_OBJ[s.ClassName] == true end
+    if t == "GuiBase2d" or t == "LayerCollector" or t == "GuiBase" then
+      return GUI_OBJ[s.ClassName] == true or GUI_BASE[s.ClassName] == true
+    end
+    if t == "BasePart" then return s.ClassName == "Part" end
+    if t == "Light" then return s.ClassName == "PointLight" or s.ClassName == "SpotLight" end
+    if t == "LuaSourceContainer" then
+      local c = s.ClassName
+      return c == "Script" or c == "LocalScript" or c == "ModuleScript"
+    end
+    return false
+  end
   -- Destroy de verdad: antes era una funcion vacia, asi que el simulador
   -- nunca podia detectar si el juego limpiaba o no lo que ya no sirve
   -- (justo el bug de "todo sale doble"). Ahora desparenta como Roblox.

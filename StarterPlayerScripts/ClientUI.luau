@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v36 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v37 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v36"
+local MI_VERSION = "v37"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -570,24 +570,38 @@ end
 ----------------------------------------------------------------------
 -- SCREEN GUI
 ----------------------------------------------------------------------
--- ¿HAY DOS ClientUI PEGADOS?
+-- ¿HAY UNA INTERFAZ DEL JUEGO YA PUESTA EN LA PANTALLA?
 ----------------------------------------------------------------------
--- Dos LocalScripts 'ClientUI' = DOS interfaces encima (botones, paneles y
--- avisos duplicados). Es la mitad del "todo sale doble" cuando el usuario pega
--- el archivo nuevo sin borrar el viejo. Se avisa y esta copia se apaga.
+-- >>> ESTE BLOQUE ERA LA CAUSA DEL "no cambio nada" (v37) <<<
+-- Antes decia: si ya hay algo llamado "SpiceEmpireUI" en PlayerGui, es que hay
+-- DOS ClientUI pegados -> esta copia se APAGABA (con cartel rojo y 'return').
+--
+-- El problema: esa interfaz puede ser BASURA GUARDADA en el lugar (una copia
+-- vieja que quedo en StarterGui y Roblox mete en PlayerGui al arrancar). En ese
+-- caso la copia nueva se apagaba TODAS las veces y el jugador se quedaba con la
+-- interfaz vieja PARA SIEMPRE: "le pegue los archivos y no cambio nada".
+--
+-- Ahora: la copia que gana se decide por RONDA (con el latido de arriba, que
+-- solo apaga a la MAS VIEJA). Si al llegar aqui todavia hay una interfaz, es
+-- basura guardada del lugar: se BORRA y seguimos dibujando la nueva.
 local playerGui = player:WaitForChild("PlayerGui", 10)
-if playerGui and playerGui:FindFirstChild("SpiceEmpireUI") then
-	warn("[SpiceEmpire] HAY 2 ClientUI PEGADOS en StarterPlayerScripts: se ve todo doble." ..
-		" Borra el que sobra en el Explorer y vuelve a dar Play. Ver docs/09-SI-SALE-DOBLE.md")
-	pcall(cartelDeError, {
-		"HAY 2 ClientUI PEGADOS (por eso sale todo doble)",
-		"En el Explorer: StarterPlayer > StarterPlayerScripts -> deja UN solo 'ClientUI'.",
-		"Para saber cual conservar: abre cada uno y busca con Ctrl+F",
-		"el texto 'RONDA: " .. MI_VERSION .. "' (el que lo tenga es el bueno).",
-		"Tambien revisa que no haya 2 'Main' en ServerScriptService.",
-		"Guia con dibujos: docs/09-SI-SALE-DOBLE.md",
-	})
-	return
+if playerGui then
+	local basura = {}
+	for _, g in ipairs(playerGui:GetChildren()) do
+		local ok, cls = pcall(function() return g.ClassName end)
+		if ok and cls == "ScreenGui" and g.Name ~= "SpiceEmpire_Error"
+			and g.Name ~= "SpiceEmpire_Avisito"
+			and string.sub(g.Name or "", 1, 11) == "SpiceEmpire" then
+			table.insert(basura, g)
+		end
+	end
+	if #basura > 0 then
+		for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
+		warn("[SpiceEmpire] encontre " .. #basura .. " interfaz(es) VIEJAS guardadas en el" ..
+			" lugar (por eso seguia saliendo el tablero anterior) y las borre para dibujar la" ..
+			" de esta ronda. Si el juego avisa otra vez: borra el 'ScreenGui' que sobra en" ..
+			" StarterGui y la ClientUI que sobre en el Explorer (docs/09-SI-SALE-DOBLE.md).")
+	end
 end
 
 local gui = Instance.new("ScreenGui")
@@ -608,33 +622,55 @@ gui.Parent = playerGui or player:WaitForChild("PlayerGui")
 -- Solucion: al arrancar, esta copia borra las interfaces del juego que NO son
 -- suyas (las de las otras copias), asi se ve UNA sola. Se repite un par de
 -- veces porque la copia vieja puede arrancar un instante despues.
-local MIA = gui
-local function barrerInterfacesViejas(): number
-	local pg = player:FindFirstChild("PlayerGui")
-	if not pg then return 0 end
-	local basura = {}
-	for _, g in ipairs(pg:GetChildren()) do
-		if g:IsA("ScreenGui") and g ~= MIA then
-			local n = g.Name
-			-- del juego (SpiceEmpireUI, SpiceEmpire_Error, SpiceEmpire_Avisito, ...)
-			-- pero NUNCA las mias: el cartel y el avisito se registran aparte.
-			if (n == "SpiceEmpireUI" or string.sub(n, 1, 12) == "SpiceEmpire_")
-				and not MIS_GUIS[g] then
-				table.insert(basura, g)
-			end
+-- OJO (v37): el barrido comparaba el nombre EXACTO ("SpiceEmpireUI") y por eso
+-- NO borraba la copia vieja cuando Roblox la renombraba solo: "SpiceEmpireUI2".
+-- Ahora se compara por PREFIJO: cualquier interfaz del juego menos las mias.
+do
+	local MIA = gui
+
+	local function esInterfazDelJuego(g: any): boolean
+		if g == MIA or MIS_GUIS[g] then return false end
+		local ok, cls = pcall(function() return g.ClassName end)
+		if not ok or cls ~= "ScreenGui" then return false end
+		local n = g.Name or ""
+		return string.sub(n, 1, 11) == "SpiceEmpire"
+	end
+
+	local function barrerInterfacesViejas(): number
+		local pg = player:FindFirstChild("PlayerGui")
+		if not pg then return 0 end
+		local basura = {}
+		for _, g in ipairs(pg:GetChildren()) do
+			if esInterfazDelJuego(g) then table.insert(basura, g) end
+		end
+		for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
+		if #basura > 0 then
+			print("[SpiceEmpire] limpie " .. #basura .. " interfaz(es) de otra copia del juego" ..
+				" (habia mas de una ClientUI corriendo; ver docs/09-SI-SALE-DOBLE.md)")
+		end
+		return #basura
+	end
+
+	-- se revisa al arrancar y varias veces mas; y ADEMAS, si en cualquier momento
+	-- aparece una interfaz de otra copia, se borra al instante
+	barrerInterfacesViejas()
+	do
+		local pg = player:FindFirstChild("PlayerGui")
+		if pg then
+			pg.ChildAdded:Connect(function()
+				task.defer(function()
+					if barrerInterfacesViejas() > 0 then
+						warn("[SpiceEmpire] aparecio una interfaz de OTRA copia del juego y la" ..
+							" borre. Borra la ClientUI que sobra en el Explorer (docs/09).")
+					end
+				end)
+			end)
 		end
 	end
-	for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
-	if #basura > 0 then
-		print("[SpiceEmpire] limpie " .. #basura .. " interfaz(es) de otra copia del juego" ..
-			" (habia mas de una ClientUI corriendo)")
+	for _, espera in ipairs({0.7, 1.5, 3, 6, 10}) do
+		task.delay(espera, barrerInterfacesViejas)
 	end
-	return #basura
 end
-
-barrerInterfacesViejas()
-task.delay(1.5, barrerInterfacesViejas)
-task.delay(4, barrerInterfacesViejas)
 
 ----------------------------------------------------------------------
 -- ADAPTACION A CELULAR
@@ -1064,7 +1100,10 @@ local clockLbl = label(gui, {
 	TextSize = IS_MOBILE and 14 or 16,
 	Font = Enum.Font.GothamBold,
 	TextColor3 = Color3.fromRGB(200, 210, 235),
-	Text = "",
+	-- v37: junto al reloj va la RONDA de la interfaz que estas viendo. Sirve
+	-- para lo que paso: desde la pantalla no habia forma de saber si el que
+	-- dibujaba era el codigo nuevo o una copia vieja.
+	Text = MI_VERSION,
 	TextXAlignment = Enum.TextXAlignment.Right,
 	TextStrokeTransparency = 0.4,
 })
@@ -1076,7 +1115,7 @@ task.spawn(function()
 		local h = math.floor(t)
 		local m = math.floor((t - h) * 60)
 		local icon = (h >= 6 and h < 19) and "SOL" or "LUNA"
-		clockLbl.Text = string.format("%02d:%02d  %s", h, m, icon)
+		clockLbl.Text = string.format("%02d:%02d  %s  %s", h, m, icon, MI_VERSION)
 		task.wait(1)
 	end
 end)
@@ -1118,6 +1157,12 @@ corner(miniToggle, 11)
 local function setHud(expanded: boolean)
 	hudExpanded = expanded
 	hud.Visible = false               -- la barra ancha vieja queda retirada
+	-- >>> ESTE RENGLON FALTABA (v37) <<<
+	-- 'mini' se creo con Visible = false y NADIE lo ponia en true: la columna
+	-- quedaba invisible. La barra ancha se escondia bien... y en su lugar no
+	-- aparecia NADA. Por eso el usuario seguia viendo "el tablero anterior":
+	-- el que se veia era el de OTRA copia vieja, porque la nueva no dibujaba nada.
+	mini.Visible = true
 	for _, c in ipairs(mini:GetChildren()) do
 		if c:IsA("GuiObject") and c.LayoutOrder >= 2 and c ~= miniToggle then
 			c.Visible = expanded

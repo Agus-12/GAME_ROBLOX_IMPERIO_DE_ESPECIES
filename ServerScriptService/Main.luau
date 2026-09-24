@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v36 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v37 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -320,6 +320,27 @@ local function inventario(momento: string)
 			problemas += 1
 		else
 			apunta("CARP. ", ruta, "(la del juego)")
+		end
+	end
+
+	-- ===== INTERFACES GUARDADAS EN EL LUGAR (v37) =====
+	-- CASO REAL: al usuario le seguia saliendo el tablero viejo y el cliente nuevo
+	-- se apagaba solo. Causa: un ScreenGui del juego GUARDADO dentro del lugar
+	-- (StarterGui). Roblox lo mete en la pantalla al arrancar, y el cliente lo
+	-- tomaba por "otra copia corriendo". Aqui se reporta para que se borre de una
+	-- vez (es basura que viaja dentro del lugar, no se quita sola).
+	do
+		local StarterGui = game:GetService("StarterGui")
+		local ok, hijos = pcall(function() return StarterGui:GetChildren() end)
+		if ok and hijos then
+			for _, g in ipairs(hijos) do
+				local okc, cls = pcall(function() return g.ClassName end)
+				if okc and (cls == "ScreenGui" or cls == "BillboardGui" or cls == "SurfaceGui")
+					and string.sub(g.Name or "", 1, 11) == "SpiceEmpire" then
+					apunta("BASURA", rutaLarga(g), "<- interfaz guardada en el lugar, borrala")
+					problemas += 1
+				end
+			end
 		end
 	end
 

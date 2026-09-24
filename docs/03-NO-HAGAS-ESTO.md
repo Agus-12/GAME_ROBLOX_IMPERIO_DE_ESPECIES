@@ -431,7 +431,7 @@ de efectos de iluminación.
 
 ## 14. 🫥 Usar una variable ANTES de declararla (y no tronar nunca)
 
-En la v36, el cliente quedo asi:
+En la v37, el cliente quedo asi:
 
 ```lua
 local function carpetaRemotes()
@@ -441,11 +441,11 @@ local function carpetaRemotes()
     end
 end
 
-local MI_VERSION = "v36"    -- se declara 60 lineas mas abajo
+local MI_VERSION = "v37"    -- se declara 60 lineas mas abajo
 ```
 
 En Lua, leer un nombre que todavia no es local **no truena**: lee un **global que
-vale nil**. Entonces la comparacion era `"v36" == nil` -> siempre falso, el avisito
+vale nil**. Entonces la comparacion era `"v37" == nil` -> siempre falso, el avisito
 no salia nunca, y en la consola no habia ni un error. Un bug invisible.
 
 **Regla:** lo que usan las funciones de arriba se declara **arriba**. Y el
@@ -454,7 +454,7 @@ toca como globales; si sale uno que deberia ser local, ahi esta el bug.
 
 ---
 
-## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v36)
+## 15. 🧟 Guardar el objeto del remote en vez de un intermediario (v37)
 
 ```lua
 -- MAL: te quedas con el objeto. Si el servidor borra esa carpeta (limpieza,
@@ -467,7 +467,7 @@ RE_Shoot.OnClientEvent:Connect(...)     -- nunca vuelve a dispararse
 Sintoma: **los botones no hacen nada y en la consola no sale ni un error**. Es lo
 peor de depurar, porque no hay rastro.
 
-El caso real (v36): el cliente arranca **antes** de que el servidor termine de limpiar.
+El caso real (v37): el cliente arranca **antes** de que el servidor termine de limpiar.
 Si en el lugar habia una carpeta `Remotes` vieja guardada, el cliente se enganchaba a
 esa; el servidor la borraba 0.3 s despues y el jugador se quedaba con remotes muertos.
 
@@ -482,7 +482,7 @@ vieja quede desconectada (`Remotes#false=0`).
 
 ---
 
-## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v36)
+## 16. 🔢 Escribir a mano "cuantos hay" (la pestaña que se quedo en blanco, v37)
 
 ```js
 for (var k = 0; k < 5; k++) {        // MAL: cuantos paneles hay, escrito a mano
@@ -503,7 +503,7 @@ JavaScript de la pagina y **da clic en cada pestaña**.
 
 ---
 
-## 17. 📦 Pasarse de 200 variables locales (v36)
+## 17. 📦 Pasarse de 200 variables locales (v37)
 
 Luau (y Roblox) permiten **200 variables locales por funcion**, y **el nivel de arriba de
 un script cuenta como una funcion**. `ClientUI.luau` andaba en **185**: al agregar un
@@ -520,3 +520,37 @@ sueltan al salir); `tools/check.py` **avisa a partir de 170** y **falla a partir
 y si hace falta mas espacio, junta los elementos de UI en **una tabla** (`UI.cash`) en vez
 de una variable por elemento. Los simuladores encierran el codigo del cliente en su propia
 funcion antes de agregarle instrumentacion, para no gastar los locales del guion.
+
+---
+
+## 18. 💀 Apagar la copia NUEVA por algo que puede ser basura (v37)
+
+```lua
+if playerGui:FindFirstChild("SpiceEmpireUI") then
+    warn("HAY 2 ClientUI PEGADOS")
+    return        -- MAL: apaga la interfaz NUEVA
+end
+```
+
+El razonamiento era "si ya hay interfaz, hay otro script corriendo". **Falso**: tambien
+puede ser un `ScreenGui` **guardado dentro del lugar** (`StarterGui`), que Roblox copia a
+la pantalla al arrancar. Resultado: la copia nueva se apagaba **siempre** y el jugador se
+quedaba con la vieja durante rondas enteras ("le pegue los archivos y no cambio nada").
+
+**Reglas:**
+
+* quien gana se decide por **version** (el latido de la v35): la mas vieja es la que se
+  apaga, nunca la nueva;
+* lo que parece "otra copia" puede ser **basura guardada**: se borra y se sigue;
+* el barrido de interfaces va por **PREFIJO** de nombre (Roblox renombra solos los
+  repetidos a `SpiceEmpireUI2`) y tambien escucha `ChildAdded` en el `PlayerGui`, para
+  borrar la basura en cuanto aparezca;
+* y para no volver a adivinar desde una captura: **la ronda se imprime en pantalla**
+  (junto al reloj) y el servidor **reporta las interfaces guardadas en `StarterGui`**.
+
+### Y en el simulador (v37)
+
+`IsA("GuiObject")` comparaba el nombre exacto: **siempre daba falso**, asi que nada
+verificaba que las filas del HUD se mostraran de verdad. Y `LayoutOrder` valia `nil`
+(cuando en Roblox nace en `0`), asi que el simulador corria **otro** codigo. Ahora el
+simulador imita a Roblox (herencia de IsA + valores por defecto de GUI).

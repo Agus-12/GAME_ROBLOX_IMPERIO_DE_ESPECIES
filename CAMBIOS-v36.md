@@ -1,4 +1,4 @@
-# Cambios de la ronda v36
+# Cambios de la ronda v37
 
 > Resumen: se arreglo el **tablero viejo que salia encima** (habia otra `ClientUI`
 > corriendo), las **llantas de la bici**, que **no te podias subir** a la bici ni al
@@ -14,7 +14,7 @@
 `ClientUI` corriendo** (una copia vieja). Las dos dibujaban su interfaz, y la vieja
 dibujaba **su** tablero ancho (`$0 | HEAT 0% | Hojas | Bloques | Espacio`) encima.
 
-**Arreglado (v36):** al arrancar, esta copia **borra las interfaces del juego que no
+**Arreglado (v37):** al arrancar, esta copia **borra las interfaces del juego que no
 son suyas** (las de las otras copias). Se repite a los 1.5 s y a los 4 s, por si la
 copia vieja arranca un instante despues. En la consola sale:
 
@@ -28,8 +28,8 @@ cerrojo: aunque la copia vieja sea mas vieja y no sepa apagarse, **su interfaz s
 ## 2. 🔎 El INVENTARIO ahora dice la RONDA de cada archivo
 
 ```
-[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v36, al arrancar) ====
-[SpiceEmpire]  OK     [v36] ServerScriptService > Main
+[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v37, al arrancar) ====
+[SpiceEmpire]  OK     [v37] ServerScriptService > Main
 [SpiceEmpire]  VIEJO  [v29] ServerScriptService > CityGenerator   <- es de otra ronda, pegalo de nuevo
 [SpiceEmpire]  VIEJO  [v32] StarterPlayer > StarterPlayerScripts > ClientUI   <- ...
 [SpiceEmpire]  COPIA  [v32] StarterGui > ClientUI2   <- borra esta (clic derecho > Delete)

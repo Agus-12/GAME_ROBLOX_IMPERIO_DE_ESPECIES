@@ -326,6 +326,62 @@ if not ok:
         print("         | " + linea[:140])
     fallas += 1
 
+# ------------------------------- 8) INTERFAZ VIEJA GUARDADA EN EL LUGAR (StarterGui)
+# EL BUG DE LA v37: si en el lugar quedo guardada una interfaz del juego (por
+# ejemplo en StarterGui, que Roblox mete en pantalla al arrancar), la ClientUI
+# nueva la tomaba por "otra copia corriendo" y SE APAGABA A SI MISMA (con cartel
+# rojo). Resultado: el jugador pegaba los archivos y seguia viendo el tablero
+# viejo: "no cambio nada". Ahora borra esa basura y sigue dibujando la suya.
+print()
+print("=== 8. interfaz vieja guardada en el lugar: el cliente NO se apaga ===")
+
+
+def corre_interfaz_guardada():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += '''
+-- basura guardada en el lugar (lo que Roblox copia a la pantalla al arrancar),
+-- y con el nombre ya renombrado por Roblox en otra copia
+local pg0 = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local a = Instance.new("ScreenGui") ; a.Name = "SpiceEmpireUI"  ; a.Parent = pg0
+local b = Instance.new("ScreenGui") ; b.Name = "SpiceEmpireUI2" ; b.Parent = pg0
+print("__ANTES__ " .. #pg0:GetChildren())
+'''
+    guion += "local __cli = function()\n" + CLIENTE + "\nend\n__cli()\n"
+    guion += '''
+if task.__sched then task.__sched.advance(2) end
+local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local guis, visibles = 0, 0
+for _, g in ipairs(pg:GetChildren()) do
+  if string.sub(g.Name or "", 1, 11) == "SpiceEmpire" and g.Name ~= "SpiceEmpire_Error"
+     and g.Name ~= "SpiceEmpire_Avisito" then
+    guis = guis + 1
+    for _, c in ipairs(g:GetChildren()) do
+      if c.Visible then visibles = visibles + 1 end
+    end
+  end
+end
+print("__RESULTADO__ guis=" .. guis .. " visibles=" .. visibles)
+'''
+    return lua(guion, env=ENTORNO)
+
+
+sal = corre_interfaz_guardada()
+llego = "UI cargada" in sal
+m = re.search(r"__RESULTADO__ guis=(\d+) visibles=(\d+)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    guis, visibles = int(m.group(1)), int(m.group(2))
+    ok = llego and guis == 1 and visibles >= 4
+    print("  %s  el cliente llego al final: %s | quedan %d interfaz(es) del juego, %d cuadros visibles"
+          % ("OK   " if ok else "FALLA", "si" if llego else "NO", guis, visibles))
+    if not ok:
+        print("         (esperado: llegar al final, 1 sola interfaz y su contenido visible)")
+        fallas += 1
+
 print()
 if fallas:
     print("FALLA")
