@@ -82,6 +82,7 @@ local initPlants
 local setupGate
 local syncWorkers
 local syncWorkersInner
+local syncGarage
 local applyOfflineProduction
 local giveWeapon
 local territoryBonus
@@ -354,6 +355,7 @@ local function setupPlayer(player: Player)
 	setupLeaderstats(player, profile)
 	local wh = assignWarehouse(player)
 	if syncWorkers then pcall(syncWorkers, player) end
+	if syncGarage then pcall(syncGarage, player) end
 	task.spawn(function()
 		task.wait(1.5)   -- dejar que cargue todo antes de avisarle
 		pcall(applyOfflineProduction, player)
@@ -2603,7 +2605,8 @@ local function buyVehicle(player: Player, id: string)
 			profile.Cash -= v.Cost
 			profile.Vehicles[id] = true
 			push(player); syncLeaderstats(player)
-			return true, "Compraste: " .. v.Name
+			if syncGarage then pcall(syncGarage, player) end
+			return true, "Compraste: " .. v.Name .. " (esta en tu garaje)"
 		end
 	end
 	return false, "vehiculo invalido"
@@ -2627,6 +2630,88 @@ local function buyProperty(player: Player, id: string)
 end
 
 -- spawnea un carro simple manejable
+----------------------------------------------------------------------
+-- GARAJE
+----------------------------------------------------------------------
+-- Los autos que compras se quedan estacionados en su cajon. Al sacarlos,
+-- el de adelante desaparece del cajon y aparece uno manejable afuera.
+
+local parkedCars: {[Player]: {Model}} = {}
+
+-- carroceria decorativa (sin fisica), para el auto estacionado
+local function buildParkedCar(info: any, cf: CFrame): Model
+	local m = Instance.new("Model")
+	m.Name = "Parked_" .. info.Id
+
+	local function pc(name, size, off, col, mat, shape)
+		local pp = Instance.new("Part")
+		pp.Name = name
+		pp.Size = size
+		pp.CFrame = cf * CFrame.new(off)
+		pp.Color = col
+		pp.Material = mat or Enum.Material.SmoothPlastic
+		if shape then pp.Shape = shape end
+		pp.Anchored = true
+		pp.CanCollide = false
+		pp.Parent = m
+		return pp
+	end
+
+	local col = info.Color or Color3.fromRGB(150, 40, 40)
+	local body = pc("Body", Vector3.new(8, 2.6, 16), Vector3.new(0, 2.6, 0), col)
+	m.PrimaryPart = body
+	pc("Cabin", Vector3.new(7, 2.4, 7.5), Vector3.new(0, 5.1, -0.6), col)
+	pc("Glass", Vector3.new(7.1, 1.5, 7.6), Vector3.new(0, 5.6, -0.6),
+		Color3.fromRGB(120, 155, 175), Enum.Material.Glass)
+	pc("Hood", Vector3.new(7.6, 0.4, 5), Vector3.new(0, 3.9, 5.2),
+		Color3.fromRGB(36, 36, 40))
+	for _, lx in ipairs({-2.6, 2.6}) do
+		pc("Headlight", Vector3.new(1.6, 0.8, 0.3), Vector3.new(lx, 3.2, 8),
+			Color3.fromRGB(255, 244, 210), Enum.Material.Neon)
+		pc("Taillight", Vector3.new(1.4, 0.7, 0.3), Vector3.new(lx, 3.2, -8),
+			Color3.fromRGB(215, 60, 50), Enum.Material.Neon)
+	end
+	for _, off in ipairs({
+		Vector3.new(-4.1, 1.5, 5), Vector3.new(4.1, 1.5, 5),
+		Vector3.new(-4.1, 1.5, -5), Vector3.new(4.1, 1.5, -5)}) do
+		pc("Wheel", Vector3.new(1, 3, 3), off, Color3.fromRGB(28, 28, 32),
+			Enum.Material.Rubber, Enum.PartType.Cylinder)
+	end
+	return m
+end
+
+function syncGarage(player: Player)
+	local profile = DataService.Get(player)
+	local wh = warehouses[player]
+	if not (profile and wh and wh.Parent) then return end
+
+	for _, d in ipairs(wh:GetDescendants()) do
+		if d:IsA("Model") and string.sub(d.Name, 1, 7) == "Parked_" then d:Destroy() end
+	end
+	for _, m in ipairs(parkedCars[player] or {}) do
+		if m and m.Parent then m:Destroy() end
+	end
+	parkedCars[player] = {}
+
+	-- el que anda afuera no se estaciona
+	local out = Workspace:FindFirstChild("Car_" .. player.UserId)
+	local outId = out and out:GetAttribute("VehicleId")
+
+	for _, v in ipairs(Config.Vehicles) do
+		if profile.Vehicles[v.Id] and v.Id ~= outId then
+			local bay = wh:FindFirstChild("Bay" .. (v.Bay or 1), true)
+			if bay then
+				local cf = CFrame.new(bay.Position + Vector3.new(0, 0, 0))
+				local ok, m = pcall(function() return buildParkedCar(v, cf) end)
+				if ok and m then
+					m.Parent = wh
+					table.insert(parkedCars[player], m)
+				end
+			end
+		end
+	end
+end
+
 local function spawnVehicle(player: Player, id: string)
 	local profile = DataService.Get(player)
 	if not profile or not profile.Vehicles[id] then return false, "No tienes ese vehiculo" end
@@ -2644,11 +2729,18 @@ local function spawnVehicle(player: Player, id: string)
 
 	local model = Instance.new("Model")
 	model.Name = "Car_" .. player.UserId
+	model:SetAttribute("VehicleId", id)
+
+	-- Sale por la rampa del garaje, no de la nada junto a ti.
+	local wh0 = warehouses[player]
+	local exit = wh0 and wh0:FindFirstChild("GarageExit", true)
+	local baseCF = exit and CFrame.new(exit.Position + Vector3.new(0, 3, 0))
+		or (hrp.CFrame * CFrame.new(0, 2, -14))
 
 	local body = Instance.new("Part")
 	body.Name = "Body"
 	body.Size = Vector3.new(8, 3, 16)
-	body.CFrame = hrp.CFrame * CFrame.new(0, 2, -14)
+	body.CFrame = baseCF
 	body.Color = Color3.fromRGB(150, 40, 40)
 	body.Material = Enum.Material.SmoothPlastic
 	body.Parent = model
@@ -2686,8 +2778,12 @@ local function spawnVehicle(player: Player, id: string)
 		hinge.Parent = body
 	end
 
+	body.Color = info.Color or Color3.fromRGB(150, 40, 40)
 	model.Parent = Workspace
-	return true, "Spawneaste tu " .. info.Name
+
+	-- el cajon queda vacio mientras el auto anda afuera
+	if syncGarage then pcall(syncGarage, player) end
+	return true, "Sacaste tu " .. info.Name .. " del garaje"
 end
 
 ----------------------------------------------------------------------

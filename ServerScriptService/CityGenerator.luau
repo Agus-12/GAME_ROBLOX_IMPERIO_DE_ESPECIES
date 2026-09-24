@@ -2049,6 +2049,125 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	vLight.Range = 13
 	vLight.Parent = vaultScreen
 
+	-- ===== GARAJE =====
+	-- Anexo pegado al costado izquierdo de la nave, con un cajon por
+	-- vehiculo. Main estaciona ahi los autos que compraste.
+	local GAR_W = 46
+	local GAR_D = 26
+	local GAR_X = -W * 0.5 - GAR_W / 2
+	local GAR_Z = -D * 0.5 + 24
+	local garH = 15
+
+	local garFloor = part({
+		Name = "GarageFloor",
+		Size = Vector3.new(GAR_W, 2, GAR_D),
+		Position = Vector3.new(GAR_X, 1, GAR_Z),
+		Color = Color3.fromRGB(78, 78, 82),
+		Material = Enum.Material.Concrete,
+	})
+	garFloor.Parent = model
+
+	-- muros: fondo, frente y exterior (el lado de la nave queda abierto)
+	local gwCol = Color3.fromRGB(118, 112, 104)
+	local function gw(size, pos)
+		local pp = part({
+			Name = "GarageWall", Size = size, Position = pos,
+			Color = gwCol, Material = Enum.Material.Brick,
+		})
+		pp.Parent = model
+	end
+	gw(Vector3.new(GAR_W, garH, 1), Vector3.new(GAR_X, 2 + garH / 2, GAR_Z - GAR_D / 2))
+	gw(Vector3.new(GAR_W, garH, 1), Vector3.new(GAR_X, 2 + garH / 2, GAR_Z + GAR_D / 2))
+	gw(Vector3.new(1, garH, GAR_D), Vector3.new(GAR_X - GAR_W / 2, 2 + garH / 2, GAR_Z))
+
+	local garCeil = part({
+		Name = "GarageCeiling",
+		Size = Vector3.new(GAR_W + 1, 0.8, GAR_D),
+		Position = Vector3.new(GAR_X, 2 + garH, GAR_Z),
+		Color = Color3.fromRGB(92, 90, 88),
+		Material = Enum.Material.Concrete,
+	})
+	garCeil.Parent = model
+
+	-- portones de cada cajon, sobre el muro del frente (+Z)
+	local bays = 4
+	for i = 1, bays do
+		local bx = GAR_X - GAR_W / 2 + (GAR_W / bays) * (i - 0.5)
+
+		-- marca del cajon en el piso
+		local slot = part({
+			Name = "Bay" .. i,
+			Size = Vector3.new(9, 0.12, 18),
+			Position = Vector3.new(bx, 2.06, GAR_Z),
+			Color = Color3.fromRGB(60, 62, 68),
+			Material = Enum.Material.Pebble,
+			CanCollide = false,
+		})
+		slot:SetAttribute("BayIndex", i)
+		slot.Parent = model
+
+		for _, ex in ipairs({-4.6, 4.6}) do
+			local line = part({
+				Name = "BayLine",
+				Size = Vector3.new(0.35, 0.14, 18),
+				Position = Vector3.new(bx + ex, 2.07, GAR_Z),
+				Color = Color3.fromRGB(216, 196, 90),
+				Material = Enum.Material.Pebble,
+				CanCollide = false,
+			})
+			line.Parent = model
+		end
+
+		-- numero del cajon
+		local plate = part({
+			Name = "BayPlate",
+			Size = Vector3.new(4, 2, 0.2),
+			Position = Vector3.new(bx, 12, GAR_Z - GAR_D / 2 + 0.7),
+			Color = Color3.fromRGB(44, 46, 54),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		plate.Parent = model
+		makeBillboard(plate, "CAJON " .. i, Color3.fromRGB(200, 205, 215), 1)
+
+		-- lampara del cajon
+		local gl = part({
+			Name = "GarageLamp",
+			Size = Vector3.new(6, 0.4, 3),
+			Position = Vector3.new(bx, 2 + garH - 0.6, GAR_Z),
+			Color = Color3.fromRGB(226, 220, 205),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+		gl.Parent = model
+		local gll = Instance.new("PointLight")
+		gll.Brightness = 0.7
+		gll.Range = 20
+		gll.Color = Color3.fromRGB(255, 246, 225)
+		gll.Parent = gl
+	end
+
+	-- por donde sale el coche cuando lo sacas
+	local exit = part({
+		Name = "GarageExit",
+		Size = Vector3.new(10, 0.3, 10),
+		Position = Vector3.new(GAR_X, 2.05, GAR_Z + GAR_D / 2 + 12),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	exit.Parent = model
+
+	local garSign = part({
+		Name = "GarageSign",
+		Size = Vector3.new(12, 2.4, 0.3),
+		Position = Vector3.new(GAR_X, 14.5, GAR_Z + GAR_D / 2 - 0.7),
+		Color = Color3.fromRGB(38, 42, 50),
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+	})
+	garSign.Parent = model
+	makeBillboard(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), 2)
+
 	-- ===== LAMPARAS DE TECHO =====
 	local lampCount = math.max(3, math.floor(W / 45))
 	for i = 1, lampCount do

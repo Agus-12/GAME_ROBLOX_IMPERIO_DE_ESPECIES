@@ -405,10 +405,15 @@ GameConfig.Dialogue = {
 
 -- ========== TIENDAS ==========
 GameConfig.Vehicles = {
-	{Id = "van",     Name = "Van de Carga",  Cost = 8000,   Speed = 60,  Capacity = 40},
-	{Id = "sedan",   Name = "Sedan Gris",    Cost = 20000,  Speed = 85,  Capacity = 20},
-	{Id = "pickup",  Name = "Pickup Rural",  Cost = 45000,  Speed = 75,  Capacity = 80},
-	{Id = "sport",   Name = "Deportivo",     Cost = 150000, Speed = 130, Capacity = 10},
+	-- Bay = en que cajon del garaje se estaciona. Color = pintura.
+	{Id = "van",     Name = "Van de Carga",  Cost = 8000,   Speed = 60,  Capacity = 40,
+		Bay = 1, Color = Color3.fromRGB(216, 216, 220)},
+	{Id = "sedan",   Name = "Sedan Gris",    Cost = 20000,  Speed = 85,  Capacity = 20,
+		Bay = 2, Color = Color3.fromRGB(122, 126, 134)},
+	{Id = "pickup",  Name = "Pickup Rural",  Cost = 45000,  Speed = 75,  Capacity = 80,
+		Bay = 3, Color = Color3.fromRGB(94, 122, 88)},
+	{Id = "sport",   Name = "Deportivo",     Cost = 150000, Speed = 130, Capacity = 10,
+		Bay = 4, Color = Color3.fromRGB(186, 46, 46)},
 }
 
 GameConfig.Properties = {

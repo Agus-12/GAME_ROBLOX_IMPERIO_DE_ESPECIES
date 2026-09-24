@@ -936,6 +936,11 @@ dockBtn("Caja", "C", function()
 	if vault.Visible then refreshVault() end
 end, "vault")
 
+dockBtn("Garaje", "V", function()
+	shop.Visible = true
+	renderTab("autos")
+end, "garage")
+
 -- El servidor avisa cuando te paras en el tapete del escritorio:
 -- la computadora abre sola el panel de mejoras.
 RE_OpenUp.OnClientEvent:Connect(function()
@@ -1126,6 +1131,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		shop.Visible = true
 		renderTab("bodega")
 	elseif k == Enum.KeyCode.R then act("press")
+	elseif k == Enum.KeyCode.V then
+		shop.Visible = true
+		renderTab("autos")
 	elseif k == Enum.KeyCode.C then
 		vault.Visible = not vault.Visible
 		if vault.Visible then refreshVault() end
@@ -1800,7 +1808,8 @@ do
 		task.delay(3, function() sd:Destroy() end)
 	end
 
-	local R_PRESS, R_COMPUTER, R_VAULT, R_TABLE, R_BUYER = 16, 13, 16, 12, 30
+	local R_PRESS, R_COMPUTER, R_VAULT, R_TABLE, R_BUYER = 16, 13, 16, 14, 30
+		local R_GARAGE = 26
 
 	local function myWarehouse(): Model?
 		local w = Workspace:FindFirstChild("Warehouse_" .. player.UserId)
@@ -1813,7 +1822,7 @@ do
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		if not hrp then
-			for _, c in ipairs({"harvest", "press", "computer", "vault", "sell"}) do
+			for _, c in ipairs({"harvest", "press", "computer", "vault", "sell", "garage"}) do
 				setCtx(c, false)
 			end
 			return
@@ -1863,6 +1872,7 @@ do
 			computer = dist("UpgradeScreen") <= R_COMPUTER,
 			vault    = dist("VaultBody") <= R_VAULT,
 			sell     = buyerNear,
+			garage   = dist("GarageFloor") <= R_GARAGE,
 		}
 
 		for k, v in pairs(st) do

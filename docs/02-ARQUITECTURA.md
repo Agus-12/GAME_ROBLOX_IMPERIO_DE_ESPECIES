@@ -220,6 +220,19 @@ meter pathing y repetir los problemas de la bici.
 > Los NPCs de asalto usan `Humanoid:MoveTo`, que es pathing nativo de Roblox. **No les
 > metas física custom.**
 
+## Garaje (v26)
+
+- `CityGenerator` levanta un anexo al costado izquierdo de la nave:
+  `GarageFloor`, `GarageWall`, `GarageCeiling`, `Bay1..Bay4` (con attr `BayIndex`),
+  `BayLine`, `BayPlate`, `GarageLamp`, `GarageExit`, `GarageSign`.
+- `Config.Vehicles[i].Bay` dice en qué cajón va cada auto, y `.Color` su pintura.
+- `syncGarage(player)` borra los `Parked_*` y vuelve a armar uno por vehículo
+  poseído, **menos el que ande fuera** (se compara con el attr `VehicleId` del
+  `Car_<UserId>` que esté en Workspace). Se llama al entrar, al comprar y al sacar.
+- `buildParkedCar(info, cf)` arma la carrocería decorativa (anclada, sin colisión).
+- `spawnVehicle` ahora coloca el auto manejable en `GarageExit`.
+- ⚠️ `syncGarage` va **forward-declared**: `setupPlayer` y `buyVehicle` la usan antes.
+
 ## Empleados físicos (v19)
 
 - `CityGenerator.MakeWorker(parent, pos, facing, tag)` crea el NPC (estilo `"worker"`:
