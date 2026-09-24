@@ -2824,46 +2824,14 @@ end
 
 local parkedCars: {[Player]: {Model}} = {}
 
--- carroceria decorativa (sin fisica), para el auto estacionado
+-- carroceria decorativa (sin fisica), para el auto estacionado.
+-- El modelo lo arma CityGenerator.BuildCar: el MISMO constructor que usa el
+-- auto que manejas, asi el que esta en el cajon se ve igualito de bonito.
 local function buildParkedCar(info: any, cf: CFrame): Model
-	local m = Instance.new("Model")
-	m.Name = "Parked_" .. info.Id
-
-	local function pc(name, size, off, col, mat, shape)
-		local pp = Instance.new("Part")
-		pp.Name = name
-		pp.Size = size
-		pp.CFrame = cf * CFrame.new(off)
-		pp.Color = col
-		pp.Material = mat or Enum.Material.SmoothPlastic
-		if shape then pp.Shape = shape end
-		pp.Anchored = true
-		pp.CanCollide = false
-		pp.Parent = m
-		return pp
-	end
-
-	local col = info.Color or Color3.fromRGB(150, 40, 40)
-	local body = pc("Body", Vector3.new(8, 2.6, 16), Vector3.new(0, 2.6, 0), col)
-	m.PrimaryPart = body
-	pc("Cabin", Vector3.new(7, 2.4, 7.5), Vector3.new(0, 5.1, -0.6), col)
-	pc("Glass", Vector3.new(7.1, 1.5, 7.6), Vector3.new(0, 5.6, -0.6),
-		Color3.fromRGB(120, 155, 175), Enum.Material.Glass)
-	pc("Hood", Vector3.new(7.6, 0.4, 5), Vector3.new(0, 3.9, 5.2),
-		Color3.fromRGB(36, 36, 40))
-	for _, lx in ipairs({-2.6, 2.6}) do
-		pc("Headlight", Vector3.new(1.6, 0.8, 0.3), Vector3.new(lx, 3.2, 8),
-			Color3.fromRGB(255, 244, 210), Enum.Material.Neon)
-		pc("Taillight", Vector3.new(1.4, 0.7, 0.3), Vector3.new(lx, 3.2, -8),
-			Color3.fromRGB(215, 60, 50), Enum.Material.Neon)
-	end
-	for _, off in ipairs({
-		Vector3.new(-4.1, 1.5, 5), Vector3.new(4.1, 1.5, 5),
-		Vector3.new(-4.1, 1.5, -5), Vector3.new(4.1, 1.5, -5)}) do
-		pc("Wheel", Vector3.new(1, 3, 3), off, Color3.fromRGB(28, 28, 32),
-			Enum.Material.Rubber, Enum.PartType.Cylinder)
-	end
-	return m
+	local ok, m = pcall(function() return CityGenerator.BuildCar(info, cf, true) end)
+	if ok and m then return m end
+	warn("[SpiceEmpire] no se pudo armar el auto estacionado: " .. tostring(m))
+	return nil
 end
 
 function syncGarage(player: Player)
@@ -2913,64 +2881,93 @@ local function spawnVehicle(player: Player, id: string)
 	local old = Workspace:FindFirstChild("Car_" .. player.UserId)
 	if old then old:Destroy() end
 
-	local model = Instance.new("Model")
-	model.Name = "Car_" .. player.UserId
-	model:SetAttribute("VehicleId", id)
-
-	-- Sale por la rampa del garaje, no de la nada junto a ti.
+	-- Sale por la puerta del garaje, no de la nada junto a ti.
+	-- OJO: la 'cf' que recibe BuildCar va a NIVEL DEL PISO (ahi se apoyan las
+	-- ruedas), por eso y = 2 (el piso de la bodega esta en y=2).
 	local wh0 = warehouses[player]
 	local exit = wh0 and wh0:FindFirstChild("GarageExit", true)
-	local baseCF = exit and CFrame.new(exit.Position + Vector3.new(0, 3, 0))
-		or (hrp.CFrame * CFrame.new(0, 2, -14))
+	local sp = exit and exit.Position or (hrp.Position + Vector3.new(0, 0, -14))
+	local baseCF = CFrame.new(sp.X, 2.05, sp.Z)
 
-	local body = Instance.new("Part")
-	body.Name = "Body"
-	body.Size = Vector3.new(8, 3, 16)
-	body.CFrame = baseCF
-	body.Color = Color3.fromRGB(150, 40, 40)
-	body.Material = Enum.Material.SmoothPlastic
-	body.Parent = model
-	model.PrimaryPart = body
-
-	local seat = Instance.new("VehicleSeat")
-	seat.Name = "Seat"
-	seat.Size = Vector3.new(4, 1, 4)
-	seat.CFrame = body.CFrame * CFrame.new(0, 2, 0)
-	seat.MaxSpeed = info.Speed
-	seat.Torque = 40
-	seat.TurnSpeed = 18
-	seat.Parent = model
-
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = seat
-	weld.Part1 = body
-	weld.Parent = seat
-
-	for _, off in ipairs({Vector3.new(-4.2,-1.5,5), Vector3.new(4.2,-1.5,5), Vector3.new(-4.2,-1.5,-5), Vector3.new(4.2,-1.5,-5)}) do
-		local w = Instance.new("Part")
-		w.Shape = Enum.PartType.Ball
-		w.Size = Vector3.new(3, 3, 3)
-		w.Color = Color3.fromRGB(30, 30, 30)
-		w.CFrame = body.CFrame * CFrame.new(off)
-		w.Parent = model
-
-		local att0 = Instance.new("Attachment", body)
-		att0.Position = off
-		local att1 = Instance.new("Attachment", w)
-
-		local hinge = Instance.new("HingeConstraint")
-		hinge.Attachment0 = att0
-		hinge.Attachment1 = att1
-		hinge.Parent = body
+	-- el modelo completo (carroceria por tipo, vidrios, faros, rines) lo arma
+	-- CityGenerator.BuildCar; aqui solo se posiciona y se ajusta el asiento.
+	local okc, model = pcall(function() return CityGenerator.BuildCar(info, baseCF, false) end)
+	if not okc or not model then
+		return false, "no se pudo armar el vehiculo: " .. tostring(model)
 	end
-
-	body.Color = info.Color or Color3.fromRGB(150, 40, 40)
+	model.Name = "Car_" .. player.UserId
+	model:SetAttribute("VehicleId", id)
+	local seat = model:FindFirstChild("Seat")
+	if seat and seat:IsA("VehicleSeat") then
+		seat.MaxSpeed = info.Speed
+		seat.Torque = 60
+		seat.TurnSpeed = 20
+	end
 	model.Parent = Workspace
+
 
 	-- el cajon queda vacio mientras el auto anda afuera
 	if syncGarage then pcall(syncGarage, player) end
 	return true, "Sacaste tu " .. info.Name .. " del garaje"
 end
+
+----------------------------------------------------------------------
+-- PORTONES DEL GARAJE (se abren solos)
+----------------------------------------------------------------------
+-- Cada cajon tiene su porton de cortina (Model 'GarageDoor'). Aqui se abre
+-- cuando TU o TU COCHE estan cerca del frente del taller, y se cierra cuando
+-- ambos se alejan. Antes el garaje era una caja sellada: no habia puerta.
+local garageOpen: {[Player]: boolean} = {}
+
+task.spawn(function()
+	local R = (Config.Garage and Config.Garage.OpenRadius) or 20
+	local info = TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	while true do
+		task.wait(0.4)
+		pcall(function()
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local wh = warehouses[pl]
+				if wh and wh.Parent then
+					local trig = wh:FindFirstChild("GarageTrigger", true)
+					local doors = wh:FindFirstChild("GarageDoor", true)
+					if trig and doors then
+						local char = pl.Character
+						local hrp = char and char:FindFirstChild("HumanoidRootPart")
+						local car = Workspace:FindFirstChild("Car_" .. pl.UserId)
+						local pts = {}
+						if hrp then table.insert(pts, hrp.Position) end
+						if car and car.PrimaryPart then table.insert(pts, car.PrimaryPart.Position) end
+
+						local best = math.huge
+						for _, p in ipairs(pts) do
+							local d = (Vector3.new(p.X, 0, p.Z) - Vector3.new(trig.Position.X, 0, trig.Position.Z)).Magnitude
+							if d < best then best = d end
+						end
+						local shouldOpen = best <= R
+						if garageOpen[pl] ~= shouldOpen then
+							garageOpen[pl] = shouldOpen
+							if sfx then sfx(pl, "Gate") end
+							for _, d in ipairs(wh:GetDescendants()) do
+								if d:IsA("Model") and d.Name == "GarageDoor" then
+									local dh = d:GetAttribute("DoorHeight") or 11
+									for _, piece in ipairs(d:GetChildren()) do
+										if piece:IsA("BasePart") then
+											local home = piece:GetAttribute("HomeCF") or piece.CFrame
+											local target = shouldOpen and (home * CFrame.new(0, dh, 0)) or home
+											TweenService:Create(piece, info, { CFrame = target }):Play()
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end)
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(pl) garageOpen[pl] = nil end)
 
 ----------------------------------------------------------------------
 -- ROUTER DE ACCIONES

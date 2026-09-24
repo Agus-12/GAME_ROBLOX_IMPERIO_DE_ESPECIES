@@ -21,6 +21,14 @@ REQUIRED = [
     "GarageDoorJamb", "GarageDoorHead",          # puerta del garaje
     "GateApron", "ApronRail",                    # rampa de la entrada
     "GarageFloor", "GarageExit", "Bay1", "Bay4", # garaje
+    "GarageDoor", "DoorSlab", "DoorSlat",        # portones que suben (v29)
+    "GarageWallLamp", "GarageThreshold",         # luces y umbral del taller
+    "GarageTrigger", "GarageSign",               # marcador y letrero
+    "OfficeWindowGlass", "OfficeWindowFrame",    # ventana DE VERDAD (v29)
+    "OfficeWindowMullion", "OfficeWindowSill",
+    "LotWallLamp", "GateSign", "LampPost",       # ambientacion exterior (v29)
+    "LotApron", "Planter", "Bollard", "Dumpster",
+    "RoofAC", "NaveLamp", "OfficeCanopy",
     "Plot1", "Plant", "Lookout",                 # cultivo y vigilante
     "Gate", "GateSensor",                        # porton
 ]

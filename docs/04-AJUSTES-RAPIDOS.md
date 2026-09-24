@@ -39,6 +39,24 @@ Todo lo que se siembra en el mundo usa estos números; si los tocas, corre
 > El suelo de la ciudad se **estira solo** para cubrir los lotes (`buildGround` lee los
 > mismos números). No hay que tocar el tamaño del pasto a mano.
 
+## Garaje, carros y ambientación (v29)
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Garaje más grande | `GameConfig.Garage` | sube `Widths` / `Depths` / `Heights` (¡mira el aviso de abajo!) |
+| Que el portón se abra desde más lejos | `GameConfig.Garage` | sube `OpenRadius = 20` |
+| Portón más ancho o alto | `GameConfig.Garage` | `DoorWidth = 9`, `DoorHeight = 11` |
+| Menos cajones | `GameConfig.Garage` | baja `Bays` (ojo: los `Bay` de `GameConfig.Vehicles` tienen que existir) |
+| Quitar la ambientación de afuera | `GameConfig.Ambience` | `Enabled = false` |
+| Dejar solo las luces (sin adornos) | `GameConfig.Ambience` | `Props = false` |
+| Noche más corta/larga | `GameConfig.DayNight` | `DayLengthMinutes = 12` |
+| Que oscurezca más tarde | `CityGenerator.SetupLighting` | el renglón `setCityLights(t >= 18 or t < 6.5)` |
+
+> ⚠️ **Si agrandas el garaje, corre `python3 tools/walk.py`.** El ancho total del lote
+> (bodega + taller + oficina) tiene que caber en `Config.WarehouseLots.SpacingX`:
+> hoy son **297 de 340**. Si te pasas, la oficina de un jugador se mete en el taller del
+> vecino (ya nos pasó en la v28).
+
 ## Empleados
 
 | Quiero… | Dónde | Cómo |

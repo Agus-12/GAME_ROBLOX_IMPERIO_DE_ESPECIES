@@ -1,4 +1,4 @@
-# 📋 COPIAR Y PEGAR LOS 5 ARCHIVOS (ronda v28)
+# 📋 COPIAR Y PEGAR LOS 5 ARCHIVOS (ronda v29)
 
 Guía corta: aquí están los **5 archivos con su link directo** para copiar el texto completo
 y pegarlo en Studio. Sirve igual para **reemplazar** los que ya tienes (por ejemplo si
@@ -34,7 +34,7 @@ Búscalos uno por uno y borra las copias:
 > **`ClientUI2`**. También son copias.
 
 > 💡 Si no sabes cuál es el bueno: el que tiene **el código más nuevo** es el que ya trae
-> el texto `MI_VERSION = "v28"`. Los viejos no. (Y si borras el bueno por error, no pasa
+> el texto `MI_VERSION = "v29"`. Los viejos no. (Y si borras el bueno por error, no pasa
 > nada: se pega otra vez con esta guía.)
 
 ---
@@ -95,7 +95,7 @@ Dale **Play**. **No** debe salir ningún cartel rojo.
 Menú **View › Output**. Tiene que decir **una sola vez**:
 
 ```
-========== IMPERIO DE ESPECIAS v28 ==========
+========== IMPERIO DE ESPECIAS v29 ==========
   remotes creados: 11
 [SpiceEmpire] Ciudad generada.
 [SpiceEmpire] Servidor listo.

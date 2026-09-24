@@ -11,7 +11,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v28"
+GameConfig.Build = "v29"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
@@ -335,6 +335,29 @@ GameConfig.DayNight = {
 	FixedHour = 14,          -- si Enabled = false, se queda en esta hora
 }
 
+-- ========== GARAJE (anexo pegado al costado izquierdo) ==========
+-- Crece con la bodega: nivel 1 = cajon chico, nivel 4 = taller grande.
+-- Cada nivel tiene sus medidas en la lista (1..4 = nivel de bodega).
+GameConfig.Garage = {
+	Widths  = {44, 52, 60, 68},   -- ancho del anexo
+	Depths  = {26, 30, 34, 38},   -- fondo
+	Heights = {13, 15, 17, 19},   -- alto del techo
+	DoorWidth  = 9,               -- ancho del porton de cada cajon
+	DoorHeight = 11,              -- alto del porton
+	OpenRadius = 20,              -- a que distancia se abre solo el porton
+	Bays = 4,                     -- cajones (los Bay de GameConfig.Vehicles)
+}
+
+-- ========== AMBIENTACION EXTERIOR ==========
+-- Adornos de afuera de la bodega (macetas, botes, poste de luz, toldo...).
+-- Todo esto se puede apagar sin tocar el codigo.
+GameConfig.Ambience = {
+	Enabled    = true,   -- si es false, la bodega queda pelona
+	LampPosts  = true,   -- poste de luz en el lote (se prende de noche)
+	Props      = true,   -- macetas, botes de basura, banquitas
+	Roof       = true,   -- aires acondicionados y ventilas en el techo
+}
+
 -- ========== CIUDAD (generacion del mapa) ==========
 GameConfig.City = {
 	BlockSize = 160,      -- tamano de cada cuadra
@@ -522,6 +545,9 @@ GameConfig.Sounds = {
 	Talk    = { Id = "rbxassetid://16480579431", Volume = 0.28, Pitch = 1.00 },
 	-- te agarro Aduanas: esposas
 	Arrest  = { Id = "rbxassetid://9114764731", Volume = 0.80, Pitch = 1.00 },
+
+	-- porton de la bodega / del taller: metal subiendo
+	Gate    = { Id = "rbxassetid://9125672726", Volume = 0.60, Pitch = 0.55 },
 }
 
 return GameConfig

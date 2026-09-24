@@ -302,3 +302,35 @@ Tres bugs distintos de este proyecto fueron **la misma cosa**:
    contra un radio inventado.
 5. **El piso de la bodega está a 2 studs y la calle a 0.2.** Sin rampa, la bici
    (`MAX_STEP = 1.6`) se atora en el portón. Ya hay `GateApron`.
+
+---
+
+## 7. 🪟 "Ponlo encima" casi nunca es "hazlo de verdad" (v29)
+
+El usuario dijo de la ventana de la oficina: *"solo se ve como que está sobre la pared, se
+ve raro"*. Y tenía razón: era **un vidrio pegado encima del muro**, sin hueco.
+
+**Lo importante no fue cambiar el vidrio: fue abrir el hueco.** Si solo hubiera cambiado
+el color o el material, se hubiera visto exactamente igual de raro. Para que sea una
+ventana de verdad hay que:
+
+1. construir el muro **en tramos** (antepecho abajo, dintel arriba, pilares a los lados),
+2. meter **marco + travesaños + repisa** en el hueco,
+3. y recién entonces el vidrio.
+
+**Regla:** cuando el usuario dice "se ve raro/pegado/de mentiras", la solución casi nunca
+es un adorno nuevo: es **reconstruir la geometría** para que la pieza exista de verdad.
+
+---
+
+## 8. 🚗 Un detalle que vale doble: reusar el mismo constructor (v29)
+
+Los carros estaban "de mentiras" (un ladrillo con 4 bolas) **y encima había DOS
+constructores distintos**: uno para el auto que manejas (`Main.spawnVehicle`) y otro para
+el estacionado (`Main.buildParkedCar`). Arreglar uno solo hubiera dejado la mitad del
+problema.
+
+**Regla:** si dos cosas se ven iguales para el jugador, **una sola función las construye**
+(`CityGenerator.BuildCar(info, cf, parked)`). Menos código, imposible que se
+desincronicen, y el día que quieras un carro nuevo lo agregas en un solo lugar
+(`CAR_SPEC`).

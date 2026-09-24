@@ -116,7 +116,7 @@ local RF_Action  = need(Remotes, "Action")
 -- era "faltan 2 remotes", sin decir cual de los 5 archivos pegar ni por que.
 -- Ahora el servidor estampa su version en la carpeta Remotes, GameConfig trae
 -- la suya, y aqui se comparan las tres cosas.
-local MI_VERSION = "v28"
+local MI_VERSION = "v29"
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
 	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
@@ -486,55 +486,82 @@ corner(heatFill, 4)
 ----------------------------------------------------------------------
 -- HUD COMPACTO (iconos semitransparentes)
 ----------------------------------------------------------------------
+-- ======================================================================
+-- HUD: COLUMNA VERTICAL DEL LADO IZQUIERDO
+-- ======================================================================
+-- El usuario lo pidio asi: la barra de arriba era DEMASIADO LARGA (medía
+-- casi 600 px: media pantalla de un celular). Ahora todo va en una columna
+-- pegada al borde izquierdo, de arriba hacia abajo, con el ancho de un dedo.
+-- Ademas asi el centro de la pantalla queda libre para ver el juego.
+local COL_W = IS_MOBILE and 112 or 124
+local COL_X = IS_MOBILE and 6 or 12
+local COL_Y = IS_MOBILE and 56 or 92      -- debajo del boton de Roblox
+
 local mini = frame(gui, {
-	-- ancho suficiente para los 4 chips; el de la caja trae dos topes
-	Size = UDim2.new(0, 470, 0, 62),
-	Position = UDim2.new(0, 16, 0, 96),
-	BackgroundTransparency = 1,
+	Size = UDim2.new(0, COL_W, 0, 10),     -- la altura la pone el layout solo
+	Position = UDim2.new(0, COL_X, 0, COL_Y),
+	BackgroundColor3 = Color3.fromRGB(10, 10, 14),
+	BackgroundTransparency = 0.35,
 	Visible = false,
 })
+corner(mini, 12)
 
+local colPad = Instance.new("UIPadding")
+colPad.PaddingTop = UDim.new(0, 6)
+colPad.PaddingBottom = UDim.new(0, 6)
+colPad.PaddingLeft = UDim.new(0, 5)
+colPad.PaddingRight = UDim.new(0, 5)
+colPad.Parent = mini
+
+local colList = Instance.new("UIListLayout")
+colList.FillDirection = Enum.FillDirection.Vertical
+colList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+colList.SortOrder = Enum.SortOrder.LayoutOrder
+colList.Padding = UDim.new(0, 3)
+colList.Parent = mini
+
+-- el alto de la columna se calcula sola (AutomaticSize) para que nunca
+-- se corte una fila ni se encime con los botones de abajo
+local colSize = Instance.new("AutomaticSize")
+colSize.Parent = mini
+
+-- efectivo, arriba de todo y bien visible
 local miniCash = label(mini, {
-	Size = UDim2.new(1, 0, 0, 26),
-	Position = UDim2.new(0, 4, 0, 0),
-	TextSize = 22,
+	Size = UDim2.new(1, 0, 0, IS_MOBILE and 24 or 26),
+	LayoutOrder = 1,
+	TextSize = IS_MOBILE and 19 or 21,
+	Font = Enum.Font.GothamBold,
 	TextColor3 = Color3.fromRGB(120, 230, 150),
 	Text = "$0",
 	TextStrokeTransparency = 0.25,
+	TextXAlignment = Enum.TextXAlignment.Center,
 })
 
-local miniRow = frame(mini, {
-	Size = UDim2.new(1, 0, 0, 28),
-	Position = UDim2.new(0, 0, 0, 28),
-	BackgroundTransparency = 1,
-})
-local miniLayout = Instance.new("UIListLayout")
-miniLayout.FillDirection = Enum.FillDirection.Horizontal
-miniLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-miniLayout.Padding = UDim.new(0, 6)
-miniLayout.Parent = miniRow
-
--- Chip = icono + numero. Se usan emojis porque se ven igual en todos los
+-- Fila = icono + numero. Se usan emojis porque se ven igual en todos los
 -- dispositivos y no hay que subir imagenes a Roblox.
-local function chip(icon: string, tint: Color3, wide: number?)
-	local holder = frame(miniRow, {
-		Size = UDim2.new(0, wide or 86, 0, 28),
-		BackgroundColor3 = Color3.fromRGB(10, 10, 14),
-		BackgroundTransparency = 0.4,
+local function row(icon: string, tint: Color3, order: number, wide: boolean?)
+	local holder = frame(mini, {
+		Size = UDim2.new(1, 0, 0, IS_MOBILE and 24 or 28),
+		LayoutOrder = order,
+		BackgroundColor3 = Color3.fromRGB(22, 22, 28),
+		BackgroundTransparency = 0.25,
 	})
-	corner(holder, 14)
+	corner(holder, 9)
+	if wide then holder.Size = UDim2.new(1, 0, 0, IS_MOBILE and 28 or 32) end
 
 	label(holder, {
 		Size = UDim2.new(0, 22, 1, 0),
-		Position = UDim2.new(0, 8, 0, 0),
-		TextSize = 15,
+		Position = UDim2.new(0, 5, 0, 0),
+		TextSize = 14,
 		Text = icon,
+		TextXAlignment = Enum.TextXAlignment.Center,
 	})
 
 	local txt = label(holder, {
-		Size = UDim2.new(1, -36, 1, 0),
-		Position = UDim2.new(0, 32, 0, 0),
-		TextSize = 13,
+		Size = UDim2.new(1, -30, 1, 0),
+		Position = UDim2.new(0, 27, 0, 0),
+		TextSize = IS_MOBILE and 12 or 13,
+		Font = Enum.Font.GothamBold,
 		TextColor3 = tint,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = "0",
@@ -543,14 +570,52 @@ local function chip(icon: string, tint: Color3, wide: number?)
 end
 
 -- 🌿 hojas que traes  |  🧱 bloques que traes
--- 🎒 espacio de mochila  |  🔒 lo que hay en la caja fuerte
-local chipLeaf  = chip("🌿", Color3.fromRGB(150, 235, 140))
-local chipBlock = chip("🧱", Color3.fromRGB(238, 216, 160))
-local chipBag   = chip("🎒", Color3.fromRGB(170, 195, 235))
--- este va mas ancho: trae los dos topes de la caja y se cortaba
-local chipVault = chip("🔒", Color3.fromRGB(130, 245, 190), 150)
+-- 🎒 espacio de mochila  |  🔒 lo que hay en la caja fuerte  |  🚨 heat
+local chipLeaf  = row("🌿", Color3.fromRGB(150, 235, 140), 2)
+local chipBlock = row("🧱", Color3.fromRGB(238, 216, 160), 3)
+local chipBag   = row("🎒", Color3.fromRGB(170, 195, 235), 4)
+-- este va mas alto: trae los dos topes de la caja
+local chipVault = row("🔒", Color3.fromRGB(130, 245, 190), 5, true)
+local chipHeat  = row("🚨", Color3.fromRGB(255, 150, 90), 6)
 
-----------------------------------------------------------------------
+-- aviso de BUSCADO (antes era un texto larguisimo arriba; ahora es una
+-- etiqueta pegada a la columna para que no tape la pantalla)
+local wantedLbl = label(mini, {
+	Size = UDim2.new(1, 0, 0, 0),      -- crece solo cuando estas BUSCADO
+	LayoutOrder = 7,
+	TextSize = IS_MOBILE and 11 or 12,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = Color3.fromRGB(255, 90, 90),
+	Text = "",
+	TextWrapped = true,
+	TextXAlignment = Enum.TextXAlignment.Center,
+	TextStrokeTransparency = 0.4,
+})
+
+-- reloj del juego: arriba a la derecha, como el reloj de un celular
+local clockLbl = label(gui, {
+	Size = UDim2.new(0, 110, 0, 22),
+	Position = UDim2.new(1, IS_MOBILE and -112 or -124, 0, IS_MOBILE and 8 or 12),
+	TextSize = IS_MOBILE and 14 or 16,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = Color3.fromRGB(200, 210, 235),
+	Text = "",
+	TextXAlignment = Enum.TextXAlignment.Right,
+	TextStrokeTransparency = 0.4,
+})
+
+task.spawn(function()
+	local Lighting = game:GetService("Lighting")
+	while true do
+		local t = Lighting.ClockTime
+		local h = math.floor(t)
+		local m = math.floor((t - h) * 60)
+		local icon = (h >= 6 and h < 19) and "SOL" or "LUNA"
+		clockLbl.Text = string.format("%02d:%02d  %s", h, m, icon)
+		task.wait(1)
+	end
+end)
+
 -- BOTON MINIMIZAR
 ----------------------------------------------------------------------
 local toggleBtn = Instance.new("TextButton")
@@ -569,7 +634,7 @@ corner(toggleBtn, 13)
 
 local miniToggle = Instance.new("TextButton")
 miniToggle.Size = UDim2.new(0, 22, 0, 22)
-miniToggle.Position = UDim2.new(0, 150, 0, 2)
+miniToggle.Position = UDim2.new(1, -26, 0, 4)
 miniToggle.BackgroundColor3 = Color3.fromRGB(45, 45, 56)
 miniToggle.BackgroundTransparency = 0.45
 miniToggle.TextColor3 = Color3.fromRGB(225, 225, 240)
@@ -581,52 +646,27 @@ miniToggle.BorderSizePixel = 0
 miniToggle.Parent = mini
 corner(miniToggle, 11)
 
+-- Las FILAS de la columna (icono + numero) se pueden esconder con la tecla
+-- M o con el botoncito, para cuando quieras la pantalla limpia. El efectivo
+-- se queda siempre visible, y la barra ancha vieja ya NO se muestra nunca
+-- (era justo lo que el usuario pidio quitar: media pantalla de celular).
 local function setHud(expanded: boolean)
 	hudExpanded = expanded
-	hud.Visible = expanded
-	mini.Visible = not expanded
+	hud.Visible = false               -- la barra ancha vieja queda retirada
+	for _, c in ipairs(mini:GetChildren()) do
+		if c:IsA("GuiObject") and c.LayoutOrder >= 2 and c ~= miniToggle then
+			c.Visible = expanded
+		end
+	end
+	miniToggle.Text = expanded and "-" or "+"
+	miniToggle.Visible = true
 end
 
 toggleBtn.MouseButton1Click:Connect(function() setHud(false) end)
-miniToggle.MouseButton1Click:Connect(function() setHud(true) end)
+miniToggle.MouseButton1Click:Connect(function() setHud(not hudExpanded) end)
 
--- El usuario pidio dejarlo SIEMPRE compacto, con iconos. La barra grande
--- y sus botones de +/- se quedan en el codigo por si se quieren revivir,
--- pero arrancan apagados.
-setHud(false)
+setHud(true)
 toggleBtn.Visible = false
-miniToggle.Visible = false
-
-local wantedLbl = label(gui, {
-	Size = UDim2.new(0, 400, 0, 34),
-	Position = UDim2.new(0, 16, 0, 176),
-	TextSize = 20,
-	TextColor3 = Color3.fromRGB(255, 90, 90),
-	Text = "",
-	TextStrokeTransparency = 0.3,
-})
-
--- reloj del juego
-local clockLbl = label(gui, {
-	Size = UDim2.new(0, 120, 0, 24),
-	Position = UDim2.new(0, 446, 0, 96),
-	TextSize = 17,
-	TextColor3 = Color3.fromRGB(200, 210, 235),
-	Text = "",
-	TextStrokeTransparency = 0.4,
-})
-
-task.spawn(function()
-	local Lighting = game:GetService("Lighting")
-	while true do
-		local t = Lighting.ClockTime
-		local h = math.floor(t)
-		local m = math.floor((t - h) * 60)
-		local icon = (h >= 6 and h < 19) and "SOL" or "LUNA"
-		clockLbl.Text = string.format("%02d:%02d  %s", h, m, icon)
-		task.wait(1)
-	end
-end)
 
 ----------------------------------------------------------------------
 -- BOTONES DE ACCION (abajo)
@@ -634,8 +674,11 @@ end)
 -- En CELULAR: rejilla de 2 columnas pegada al costado DERECHO, a media
 -- altura. Ahi no estorba el joystick (abajo-izq) ni el salto (abajo-der).
 -- En COMPU: la barra horizontal de siempre, abajo al centro.
-local BTN_W = IS_MOBILE and 106 or 100
-local BTN_H = IS_MOBILE and 46 or 38   -- en tactil el boton debe ser mas alto
+-- EN TACTIL: botones de 112x52 (el minimo comodo para un dedo es ~48 px;
+-- abajo de eso se fallan los toques) y la rejilla pegada al costado derecho,
+-- donde no estorban ni el joystick ni el boton de saltar.
+local BTN_W = IS_MOBILE and 112 or 100
+local BTN_H = IS_MOBILE and 52 or 38
 
 local dock
 if IS_MOBILE then
@@ -680,7 +723,7 @@ local ctxButtons: {[string]: {GuiObject}} = {}
 local function dockBtn(name: string, key: string, cb: () -> (), ctx: string?)
 	local text = IS_MOBILE and name or (name .. " [" .. key .. "]")
 	local b = button(dock, text, {Size = UDim2.new(0, BTN_W, 0, BTN_H)})
-	if IS_MOBILE then b.TextSize = 13 end
+	if IS_MOBILE then b.TextSize = 14 end
 	b.MouseButton1Click:Connect(cb)
 	if ctx then
 		b.Visible = false
@@ -1280,12 +1323,18 @@ RE_State.OnClientEvent:Connect(function(data)
 
 	local ratio = data.Heat / Config.Heat.Max
 	heatTxt.Text = string.format("HEAT %d%%", math.floor(ratio * 100))
+	chipHeat.Text = string.format("%d%%", math.floor(ratio * 100))
+	chipHeat.TextColor3 = ratio > 0.7 and Color3.fromRGB(255, 110, 110)
+		or ratio > 0.4 and Color3.fromRGB(255, 190, 110)
+		or Color3.fromRGB(150, 230, 160)
 	TweenService:Create(heatFill, TweenInfo.new(0.3), {Size = UDim2.new(ratio, 0, 1, 0)}):Play()
 	heatFill.BackgroundColor3 = ratio > 0.7 and Color3.fromRGB(255, 70, 70)
 		or ratio > 0.4 and Color3.fromRGB(255, 160, 60)
 		or Color3.fromRGB(120, 200, 120)
 
 	wantedLbl.Text = data.Wanted and "BUSCADO - ADUANAS EN TU CONTRA" or ""
+	-- colapsado cuando no estas buscado: la columna no come pantalla de gusto
+	wantedLbl.Size = UDim2.new(1, 0, 0, data.Wanted and (IS_MOBILE and 28 or 30) or 0)
 
 	if shop.Visible then renderTab(currentTab) end
 end)

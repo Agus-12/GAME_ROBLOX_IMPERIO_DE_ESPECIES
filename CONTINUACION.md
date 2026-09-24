@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v28** · 23 sep 2026
+> Última actualización: **v29** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v28 |
+| **Versión actual** | v29 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -64,6 +64,33 @@ por duplicado. Y **nada truena**, que es lo peor: funciona dos veces.
   usuario: `docs/09-SI-SALE-DOBLE.md`.
 - El juego desde la v28 **lo detecta y se defiende** (tabla de arriba), pero eso es una
   red de seguridad, no una excusa para no borrar la copia.
+
+### ✅ Qué se cerró en la v29 (HUD, garaje, carros, luces)
+
+| Pedido del usuario | Qué se hizo |
+|---|---|
+| La ventana de la oficina se veía "pegada" encima del muro | El muro exterior va **en tramos con 2 huecos reales** (8 × 4.6) + marco, travesaños, repisa y vidrio que se ilumina de noche. Piezas: `OfficeWindowGlass/Frame/Mullion/Sill` |
+| El HUD de arriba era larguísimo | **Columna vertical** a la izquierda (112 px en celular; la barra vieja medía ~590 px = media pantalla). Reloj arriba a la derecha; HEAT y BUSCADO dentro de la columna. La barra ancha vieja (`hud`) **ya no se muestra nunca** |
+| Juego 100% para teléfono | Botones 112 × 52 (mínimo cómodo ~48 px), texto 14, rejilla a la derecha sin estorbar joystick/salto, paneles con `fitPanel`, columna reacomodada en móvil (`IS_MOBILE`, `COL_Y = 56`) |
+| El garaje "no tiene ni siquiera puerta y está muy pequeño" | Portón de cortina **por cajón** (`GarageDoor` + duelas + ventanita + manija + umbral) que **se abre solo** a 20 studs (loop `garageOpen` en Main, tween con `HomeCF`), y el anexo **crece por nivel** (`GameConfig.Garage`: ancho 44→68, fondo 26→38, alto 13→19) |
+| Los carros "están de mentiras" | `CityGenerator.BuildCar(info, cf, parked)`: **un solo constructor** con silueta por tipo (van/sedán/pickup/deportivo), vidrios inclinados, espejos, defensas, parrilla, **faros con luz real**, calaveras, rines cromados, placas, escape, alerón/baca. Lo usan el auto manejable **y** el estacionado (antes: `buildParkedCar` era otro ladrillo aparte) |
+| Faltaba iluminación de noche (y que se apague de día) | Luces nuevas de la bodega, todas con `tagLight`: `LotWallLamp`, `GarageWallLamp`, `GarageLamp`, `NaveLamp`, `RoofFloodLight`, `GateSignGlow`, `LampPost`, `Headlight` del carro. Se prenden 18:00–6:30 con el ciclo de `SetupLighting` |
+| Faltaba ambientación por fuera | Patio de concreto con franjas, macetas, bolardos, toldo de la oficina, botes, banca, aires acondicionados, ventilas y poste de luz. Todo gobernado por `GameConfig.Ambience` (`Enabled`/`Props`/`Roof`/`LampPosts`) |
+
+### 🎛️ Perillas de la v29 (dónde está cada cosa)
+
+| Qué | Dónde | Nota |
+|---|---|---|
+| Medidas del garaje por nivel | `GameConfig.Garage` (`Widths`, `Depths`, `Heights`, `Bays`, `DoorWidth/Height`, `OpenRadius`) | El anexo se calcula con `TIER` dentro de `BuildWarehouse` |
+| Ambientación exterior | `GameConfig.Ambience` | `Enabled=false` la apaga completa; `Props=false` deja solo luces |
+| Sonido del portón | `GameConfig.Sounds.Gate` | Se dispara desde el loop de portones (`sfx(pl, "Gate")`) |
+| HUD | `ClientUI`, bloque "HUD: COLUMNA VERTICAL" | `COL_W/COL_X/COL_Y`, `IS_MOBILE`, `BTN_W/BTN_H` |
+| Carros | `CAR_SPEC` en `CityGenerator` (arriba de `BuildCar`) | Para un tipo nuevo: agrega entrada en `CAR_SPEC` + en `Config.Vehicles` |
+
+**Regla nueva:** si agregas un anexo o mueves el garaje, **vuelve a correr
+`tools/walk.py`**: revisa que el ancho total del lote (bodega + taller + oficina) siga
+cabiendo en `Config.WarehouseLots.SpacingX` (hoy 297 de 340) y que se pueda caminar a
+cada cuarto.
 
 ### ⚠️ Reglas que NO puedes romper
 

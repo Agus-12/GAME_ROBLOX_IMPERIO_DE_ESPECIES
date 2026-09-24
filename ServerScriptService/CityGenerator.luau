@@ -1300,11 +1300,15 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- declarados aqui arriba porque la PARED IZQUIERDA necesita saber donde
 	-- va su hueco. Si no, se construye de una sola pieza y el garaje queda
 	-- SELLADO: los autos de adentro se ven desde el nave pero no hay puerta.
-	local GAR_W = 46
-	local GAR_D = 26
+	-- Las medidas salen de GameConfig.Garage y CRECEN con el nivel de bodega
+	-- (nivel 1 = cajon chico, nivel 4 = taller grande).
+	local GC = Config.Garage
+	local TIER = math.max(1, math.min(4, tierIndex or 1))
+	local GAR_W = (GC.Widths and GC.Widths[TIER]) or 52
+	local GAR_D = (GC.Depths and GC.Depths[TIER]) or 30
+	local garH  = (GC.Heights and GC.Heights[TIER]) or 15
 	local GAR_X = -W * 0.5 - GAR_W / 2
 	local GAR_Z = -D * 0.5 + 24
-	local garH = 15
 	local GAR_DOOR = 14                  -- ancho del hueco hacia el garaje
 
 	-- lo que estorbaria el paso hacia la oficina o hacia el garaje
@@ -1964,8 +1968,82 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		Vector3.new(OFF_CX, 2 + wallH / 2, OFF_Z0))
 	owall("OfficeWall", Vector3.new(offW, wallH, 1),
 		Vector3.new(OFF_CX, 2 + wallH / 2, OFF_Z1))
-	owall("OfficeWall", Vector3.new(1, wallH, offD),
-		Vector3.new(OFF_X1, 2 + wallH / 2, OFF_CZ))
+	-- El muro exterior (OFF_X1) va EN TRAMOS para dejar DOS VENTANAS DE VERDAD.
+	-- Antes la ventana era un vidrio pegado SOBRE el muro: se veia raro, como
+	-- calcomania. Ahora hay hueco de verdad, con marco, travesanos y repisa.
+	do
+		local winW, winH, sillY = 8, 4.6, 7.4      -- ancho, alto y altura del marco
+		local wA = OFF_CZ - 6.5                     -- centro de la ventana de atras
+		local wB = OFF_CZ + 6.5                     -- centro de la ventana de adelante
+		local function oseg(z0, z1, y0, y1)
+			local len = z1 - z0
+			if len <= 0.1 or (y1 - y0) <= 0.1 then return end
+			local pw = part({
+				Name = "OfficeWall",
+				Size = Vector3.new(1, y1 - y0, len),
+				Position = Vector3.new(OFF_X1, (y0 + y1) / 2, (z0 + z1) / 2),
+				Color = officeCol, Material = Enum.Material.Brick,
+			})
+			pw.Parent = model
+		end
+		-- tres tramos de altura completa...
+		oseg(OFF_Z0, wA - winW / 2, 2, 2 + wallH)
+		oseg(wA + winW / 2, wB - winW / 2, 2, 2 + wallH)
+		oseg(wB + winW / 2, OFF_Z1, 2, 2 + wallH)
+		-- ...y en cada ventana: el antepecho de abajo y el dintel de arriba
+		for _, wc in ipairs({wA, wB}) do
+			oseg(wc - winW / 2, wc + winW / 2, 2, sillY)
+			oseg(wc - winW / 2, wc + winW / 2, sillY + winH, 2 + wallH)
+
+			-- marco de madera (4 lados)
+			local frameCol = Color3.fromRGB(78, 56, 40)
+			local function ofr(name, size, pos)
+				local f = part({
+					Name = name, Size = size, Position = pos,
+					Color = frameCol, Material = Enum.Material.Wood,
+					CanCollide = false,
+				})
+				f.Parent = model
+				return f
+			end
+			ofr("OfficeWindowFrame", Vector3.new(1.2, 0.4, winW + 0.8),
+				Vector3.new(OFF_X1, sillY + 0.2, wc))
+			ofr("OfficeWindowFrame", Vector3.new(1.2, 0.4, winW + 0.8),
+				Vector3.new(OFF_X1, sillY + winH - 0.2, wc))
+			for _, zz in ipairs({wc - winW / 2, wc + winW / 2}) do
+				ofr("OfficeWindowFrame", Vector3.new(1.2, winH, 0.4),
+					Vector3.new(OFF_X1, sillY + winH / 2, zz))
+			end
+			-- travesanos (se ve a "ventana", no a hoyo)
+			ofr("OfficeWindowMullion", Vector3.new(0.9, winH - 0.6, 0.35),
+				Vector3.new(OFF_X1, sillY + winH / 2, wc))
+			ofr("OfficeWindowMullion", Vector3.new(0.9, 0.35, winW - 0.6),
+				Vector3.new(OFF_X1, sillY + winH / 2, wc))
+			-- repisa que sobresale hacia afuera
+			local sill = part({
+				Name = "OfficeWindowSill",
+				Size = Vector3.new(2.4, 0.4, winW + 1.6),
+				Position = Vector3.new(OFF_X1 + 0.6, sillY - 0.1, wc),
+				Color = Color3.fromRGB(96, 70, 50), Material = Enum.Material.Wood,
+				CanCollide = false,
+			})
+			sill.Parent = model
+			-- el vidrio: se ve para adentro y de noche se ilumina
+			local glass = part({
+				Name = "OfficeWindowGlass",
+				Size = Vector3.new(0.35, winH - 0.6, winW - 0.6),
+				Position = Vector3.new(OFF_X1, sillY + winH / 2, wc),
+				Color = Color3.fromRGB(168, 196, 214),
+				Material = Enum.Material.Glass,
+				Transparency = 0.5,
+				Reflectance = 0.3,
+				CanCollide = false,
+			})
+			glass:SetAttribute("IsWindow", true)
+			glass.Parent = model
+			tagNeon(glass, Color3.fromRGB(255, 226, 170), Color3.fromRGB(168, 196, 214))
+		end
+	end
 
 	local ceil = part({
 		Name = "OfficeCeiling",
@@ -1987,17 +2065,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	woodFloor.Parent = model
 
-	-- ventana al exterior
-	local win = part({
-		Name = "OfficeWindow",
-		Size = Vector3.new(1.4, 5, 10),
-		Position = Vector3.new(OFF_X1, 9, OFF_CZ),
-		Color = Color3.fromRGB(150, 180, 200),
-		Material = Enum.Material.Glass,
-		Transparency = 0.45,
-		CanCollide = false,
-	})
-	win.Parent = model
+	-- (la ventana ya se construye arriba, con hueco de verdad en el muro)
 
 	-- ===== SAFEPAD: el detector del Heat (ya sin neon) =====
 	local safe = part({
@@ -2230,9 +2298,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- ===== GARAJE =====
 	-- Anexo pegado al costado izquierdo de la nave, con un cajon por
 	-- vehiculo. Main estaciona ahi los autos que compraste.
-	-- OJO: GAR_W/GAR_D/GAR_X/GAR_Z/garH se declaran ARRIBA (los necesita la
-	-- pared izquierda para saber donde va su hueco). No los vuelvas a
-	-- declarar aqui: si cambian de valor, la puerta deja de cuadrar.
+	-- Las medidas (GAR_W/GAR_D/GAR_X/GAR_Z/garH) se calculan ARRIBA, porque
+	-- la pared izquierda de la nave necesita saber donde va su hueco.
 	local garFloor = part({
 		Name = "GarageFloor",
 		Size = Vector3.new(GAR_W, 2, GAR_D),
@@ -2242,7 +2309,6 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	garFloor.Parent = model
 
-	-- muros: fondo, frente y exterior (el lado de la nave queda abierto)
 	local gwCol = Color3.fromRGB(118, 112, 104)
 	local function gw(size, pos)
 		local pp = part({
@@ -2250,10 +2316,31 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			Color = gwCol, Material = Enum.Material.Brick,
 		})
 		pp.Parent = model
+		return pp
 	end
+
+	-- fondo y costado exterior: de una pieza
 	gw(Vector3.new(GAR_W, garH, 1), Vector3.new(GAR_X, 2 + garH / 2, GAR_Z - GAR_D / 2))
-	gw(Vector3.new(GAR_W, garH, 1), Vector3.new(GAR_X, 2 + garH / 2, GAR_Z + GAR_D / 2))
 	gw(Vector3.new(1, garH, GAR_D), Vector3.new(GAR_X - GAR_W / 2, 2 + garH / 2, GAR_Z))
+
+	-- ===== EL FRENTE (+Z) VA EN TRAMOS: UN HUECO POR CAJON =====
+	-- Antes esta pared era UNA pieza solida: el garaje era una caja cerrada y
+	-- los coches no tenian por donde entrar ni salir. Ahora cada cajon tiene su
+	-- porton, que se abre solo cuando te acercas (lo maneja Main).
+	local BAYS  = math.max(1, GC.Bays or 4)
+	local bayW  = GAR_W / BAYS
+	local doorW = math.max(6, math.min(GC.DoorWidth or 9, bayW - 2))
+	local doorH = math.min(GC.DoorHeight or 11, garH - 1.5)
+	local frontZ = GAR_Z + GAR_D / 2
+
+	-- dintel corrido arriba de los portones + pilares entre cajones
+	gw(Vector3.new(GAR_W, garH - doorH - 0.6, 1.2),
+		Vector3.new(GAR_X, 2 + doorH + 0.6 + (garH - doorH - 0.6) / 2, frontZ))
+	for i = 0, BAYS do
+		local px = GAR_X - GAR_W / 2 + bayW * i
+		local w = (i == 0 or i == BAYS) and 1.4 or 1.6
+		gw(Vector3.new(w, doorH + 0.6, 1.2), Vector3.new(px, 2 + (doorH + 0.6) / 2, frontZ))
+	end
 
 	local garCeil = part({
 		Name = "GarageCeiling",
@@ -2264,10 +2351,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	garCeil.Parent = model
 
-	-- portones de cada cajon, sobre el muro del frente (+Z)
-	local bays = 4
-	for i = 1, bays do
-		local bx = GAR_X - GAR_W / 2 + (GAR_W / bays) * (i - 0.5)
+	-- ===== UN CAJON =====
+	-- El porton va en un Model 'GarageDoor' para que Main lo pueda subir
+	-- completo (las duelas y la ventanita se mueven juntas).
+	for i = 1, BAYS do
+		local bx = GAR_X - GAR_W / 2 + bayW * (i - 0.5)
 
 		-- marca del cajon en el piso
 		local slot = part({
@@ -2293,7 +2381,84 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			line.Parent = model
 		end
 
-		-- numero del cajon
+		-- umbral amarillo en la entrada del cajon
+		local th = part({
+			Name = "GarageThreshold",
+			Size = Vector3.new(doorW + 0.6, 0.14, 1.4),
+			Position = Vector3.new(bx, 2.09, frontZ),
+			Color = Color3.fromRGB(216, 196, 90),
+			Material = Enum.Material.Pebble,
+			CanCollide = false,
+		})
+		th.Parent = model
+
+		-- ===== PORTON (cortina metalica) =====
+		local doorModel = Instance.new("Model")
+		doorModel.Name = "GarageDoor"
+		doorModel:SetAttribute("BayIndex", i)
+		doorModel:SetAttribute("DoorHeight", doorH)
+		doorModel:SetAttribute("HomeY", 2 + doorH / 2)
+		doorModel:SetAttribute("HomeZ", frontZ - 0.35)
+		doorModel.Parent = model
+
+		local slab = part({
+			Name = "DoorSlab",
+			Size = Vector3.new(doorW, doorH, 0.5),
+			Position = Vector3.new(bx, 2 + doorH / 2, frontZ - 0.35),
+			Color = Color3.fromRGB(170, 172, 178),
+			Material = Enum.Material.Metal,
+		})
+		slab:SetAttribute("HomeY", slab.Position.Y)
+		doorModel.PrimaryPart = slab
+		slab.Parent = doorModel
+		-- Main guarda de donde sale cada pieza para poder subir el porton
+		-- completo (duelas, ventanita y manija) de un solo tiron
+		local function rememberCF(piece)
+			piece:SetAttribute("HomeCF", piece.CFrame)
+		end
+		rememberCF(slab)
+
+		-- duelas horizontales (el rayado de las cortinas de taller)
+		for d = 1, 5 do
+			local slat = part({
+				Name = "DoorSlat",
+				Size = Vector3.new(doorW - 0.4, 0.16, 0.62),
+				Position = Vector3.new(bx, 2 + (doorH / 6) * d, frontZ - 0.4),
+				Color = Color3.fromRGB(126, 128, 134),
+				Material = Enum.Material.Metal,
+				CanCollide = false,
+			})
+			slat.Parent = doorModel
+		rememberCF(slat)
+		end
+
+		-- ventanita del porton
+		local dwin = part({
+			Name = "DoorWindow",
+			Size = Vector3.new(math.max(3, doorW - 3.4), 1.4, 0.34),
+			Position = Vector3.new(bx, 2 + doorH - 2.3, frontZ - 0.5),
+			Color = Color3.fromRGB(150, 180, 200),
+			Material = Enum.Material.Glass,
+			Transparency = 0.35,
+			Reflectance = 0.25,
+			CanCollide = false,
+		})
+		dwin.Parent = doorModel
+		rememberCF(dwin)
+
+		-- manija
+		local handle = part({
+			Name = "DoorHandle",
+			Size = Vector3.new(1.6, 0.35, 0.3),
+			Position = Vector3.new(bx, 3.6, frontZ - 0.75),
+			Color = Color3.fromRGB(58, 60, 66),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		handle.Parent = doorModel
+		rememberCF(handle)
+
+		-- numero del cajon (al reverso, adentro del taller)
 		local plate = part({
 			Name = "BayPlate",
 			Size = Vector3.new(4, 2, 0.2),
@@ -2305,24 +2470,108 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		plate.Parent = model
 		makeBillboard(plate, "CAJON " .. i, Color3.fromRGB(200, 205, 215), 1)
 
-		-- lampara del cajon
+		-- lampara del techo del cajon (se prende de noche)
 		local gl = part({
 			Name = "GarageLamp",
 			Size = Vector3.new(6, 0.4, 3),
-			Position = Vector3.new(bx, 2 + garH - 0.6, GAR_Z),
+			Position = Vector3.new(bx, 2 + garH - 0.8, GAR_Z),
 			Color = Color3.fromRGB(226, 220, 205),
 			Material = Enum.Material.Neon,
 			CanCollide = false,
 		})
 		gl.Parent = model
 		local gll = Instance.new("PointLight")
-		gll.Brightness = 0.7
-		gll.Range = 20
+		gll.Brightness = 0.9
+		gll.Range = 24
 		gll.Color = Color3.fromRGB(255, 246, 225)
 		gll.Parent = gl
+		tagLight(gll, 0.9)
+
+		-- lampara de fachada arriba del porton (se prende de noche)
+		local fLamp = part({
+			Name = "GarageWallLamp",
+			Size = Vector3.new(2.6, 0.5, 1.1),
+			Position = Vector3.new(bx, 2 + doorH + 2.2, frontZ + 0.9),
+			Color = Color3.fromRGB(255, 236, 200),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+		fLamp.Parent = model
+		local fl = Instance.new("PointLight")
+		fl.Brightness = 1.6
+		fl.Range = 30
+		fl.Color = Color3.fromRGB(255, 240, 205)
+		fl.Parent = fLamp
+		tagLight(fl, 1.6)
 	end
 
-	-- por donde sale el coche cuando lo sacas
+	-- marcador invisible: Main mide la distancia a este punto para abrir los
+	-- portones solos (si mide contra cada porton, es mas lento y mas fragil)
+	local trig = part({
+		Name = "GarageTrigger",
+		Size = Vector3.new(1, 1, 1),
+		Position = Vector3.new(GAR_X, 4, frontZ + 2),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	trig.Parent = model
+
+	-- ===== AMBIENTACION INTERNA DEL TALLER =====
+	if Config.Ambience and Config.Ambience.Enabled and Config.Ambience.Props then
+		-- banco de trabajo contra el muro del fondo
+		local bench = part({
+			Name = "GarageBench",
+			Size = Vector3.new(8, 0.5, 3),
+			Position = Vector3.new(GAR_X - 5, 5.2, GAR_Z - GAR_D / 2 + 2.6),
+			Color = Color3.fromRGB(120, 92, 60),
+			Material = Enum.Material.Wood,
+		})
+		bench.Parent = model
+		for _, lx in ipairs({GAR_X - 8.6, GAR_X - 1.4}) do
+			local leg = part({
+				Name = "BenchLeg",
+				Size = Vector3.new(0.6, 3.2, 2.6),
+				Position = Vector3.new(lx, 3.6, GAR_Z - GAR_D / 2 + 2.6),
+				Color = Color3.fromRGB(74, 74, 78),
+				Material = Enum.Material.Metal,
+			})
+			leg.Parent = model
+		end
+		local box = part({
+			Name = "Toolbox",
+			Size = Vector3.new(2.6, 1.4, 1.4),
+			Position = Vector3.new(GAR_X - 5, 6.2, GAR_Z - GAR_D / 2 + 2.6),
+			Color = Color3.fromRGB(196, 62, 52),
+			Material = Enum.Material.Metal,
+		})
+		box.Parent = model
+
+		-- llantas de refaccion apiladas
+		for st = 1, 3 do
+			local tire = part({
+				Name = "SpareTire",
+				Size = Vector3.new(1.1, 3.4 - st * 0.15, 3.4 - st * 0.15),
+				Position = Vector3.new(GAR_X + GAR_W / 2 - 4, 2.8 + (st - 1) * 0.9,
+					GAR_Z - GAR_D / 2 + 3),
+				Color = Color3.fromRGB(32, 32, 36),
+				Material = Enum.Material.Rubber,
+				Shape = Enum.PartType.Cylinder,
+			})
+			tire.CFrame = CFrame.new(tire.Position) * CFrame.Angles(0, 0, math.rad(90))
+			tire.Parent = model
+		end
+
+		-- bote metalico del taller
+		local bin = part({
+			Name = "GarageBin",
+			Size = Vector3.new(3, 4, 3),
+			Position = Vector3.new(GAR_X - GAR_W / 2 + 3.4, 4.2, GAR_Z + GAR_D / 2 - 3.5),
+			Color = Color3.fromRGB(72, 96, 74),
+			Material = Enum.Material.CorrodedMetal,
+		})
+		bin.Parent = model
+	end
+
 	local exit = part({
 		Name = "GarageExit",
 		Size = Vector3.new(10, 0.3, 10),
@@ -2879,7 +3128,564 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	signPost.Parent = model
 
+	-- ======================================================================
+	-- AMBIENTACION EXTERIOR + ILUMINACION DE NOCHE
+	-- ======================================================================
+	-- Todo lo que lleva tagLight/tagNeon se PRENDE SOLO cuando anochece y se
+	-- apaga de dia (lo maneja el ciclo en SetupLighting). Antes afuera quedaba
+	-- boca de lobo: ni una luz en el lote.
+	local AMB = Config.Ambience
+	if AMB and AMB.Enabled then
+		local frontZ2 = D * 0.5
+		local colLamp = Color3.fromRGB(255, 236, 200)
+
+		-- ---------- lampara de pared (utilidad reutilizable) ----------
+		local function wallLamp(name, pos, rotateY: number?)
+			local arm = part({
+				Name = name .. "Arm",
+				Size = Vector3.new(0.4, 0.4, 1.2),
+				Position = pos,
+				Color = Color3.fromRGB(58, 60, 66),
+				Material = Enum.Material.Metal,
+				CanCollide = false,
+			})
+			arm.Parent = model
+			local bulb = part({
+				Name = name,
+				Size = Vector3.new(0.8, 0.5, 1.6),
+				Position = pos + Vector3.new(0, -0.5, 0),
+				Color = colLamp,
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+			})
+			bulb.Parent = model
+			if rotateY then
+				arm.CFrame = CFrame.new(arm.Position) * CFrame.Angles(0, rotateY, 0)
+				bulb.CFrame = CFrame.new(bulb.Position) * CFrame.Angles(0, rotateY, 0)
+			end
+			local pl = Instance.new("PointLight")
+			pl.Brightness = 1.7
+			pl.Range = 32
+			pl.Color = Color3.fromRGB(255, 240, 205)
+			pl.Parent = bulb
+			tagLight(pl, 1.7)
+			return bulb
+		end
+
+		-- ---------- lamparas de las esquinas de la fachada ----------
+		wallLamp("LotWallLamp", Vector3.new(-W * 0.5 + 3, H + 1.5, frontZ2 + 0.9))
+		wallLamp("LotWallLamp", Vector3.new(W * 0.5 - 3, H + 1.5, frontZ2 + 0.9))
+
+		-- ---------- letrero luminoso sobre el porton ----------
+		local gSign = part({
+			Name = "GateSign",
+			Size = Vector3.new(math.min(26, W * 0.5), 4.2, 0.5),
+			Position = Vector3.new(0, H + 4.2, frontZ2 + 1.2),
+			Color = Color3.fromRGB(28, 26, 32),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+		})
+		gSign.Parent = model
+		makeBillboard(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), 2)
+		local signGlow = part({
+			Name = "GateSignGlow",
+			Size = Vector3.new(math.min(26, W * 0.5) + 1.2, 0.35, 0.35),
+			Position = Vector3.new(0, H + 2.2, frontZ2 + 1.2),
+			Color = Color3.fromRGB(255, 200, 120),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+		signGlow.Parent = model
+		local sg = Instance.new("PointLight")
+		sg.Brightness = 1.4
+		sg.Range = 34
+		sg.Color = Color3.fromRGB(255, 214, 150)
+		sg.Parent = signGlow
+		tagLight(sg, 1.4)
+
+		-- ---------- reflector en el techo apuntando al patio ----------
+		local flood = part({
+			Name = "RoofFloodLight",
+			Size = Vector3.new(1.6, 0.6, 1.6),
+			Position = Vector3.new(-W * 0.28, H + 3.4, -D * 0.1),
+			Color = Color3.fromRGB(230, 226, 210),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		flood.CFrame = CFrame.new(flood.Position) * CFrame.Angles(math.rad(38), math.rad(180), 0)
+		flood.Parent = model
+		local fl2 = Instance.new("SpotLight")
+		fl2.Brightness = 2.4
+		fl2.Range = 90
+		fl2.Angle = 75
+		fl2.Face = Enum.NormalId.Back
+		fl2.Color = Color3.fromRGB(255, 244, 220)
+		fl2.Parent = flood
+		tagLight(fl2, 2.4)
+
+		-- ---------- luces DE ADENTRO de la nave (de noche) ----------
+		for i = -1, 1 do
+			local lamp = part({
+				Name = "NaveLamp",
+				Size = Vector3.new(4, 0.4, 8),
+				Position = Vector3.new(0, H - 1.2, i * (D * 0.24)),
+				Color = Color3.fromRGB(232, 226, 210),
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+			})
+			lamp.Parent = model
+			local pl = Instance.new("PointLight")
+			pl.Brightness = 1.1
+			pl.Range = 42
+			pl.Color = Color3.fromRGB(255, 246, 228)
+			pl.Parent = lamp
+			tagLight(pl, 1.1)
+		end
+
+		-- ---------- aires acondicionados en el techo ----------
+		if AMB.Roof then
+			for _, rx in ipairs({-W * 0.22, W * 0.2}) do
+				local ac = part({
+					Name = "RoofAC",
+					Size = Vector3.new(6, 3, 5),
+					Position = Vector3.new(rx, H + 1.5, -D * 0.18),
+					Color = Color3.fromRGB(176, 178, 182),
+					Material = Enum.Material.Metal,
+				})
+				ac.Parent = model
+				local grill = part({
+					Name = "RoofACGrill",
+					Size = Vector3.new(4.6, 0.2, 3.6),
+					Position = Vector3.new(rx, H + 3.1, -D * 0.18),
+					Color = Color3.fromRGB(96, 98, 104),
+					Material = Enum.Material.CorrodedMetal,
+					CanCollide = false,
+				})
+				grill.Parent = model
+			end
+			-- ventilas
+			for _, vx in ipairs({0, W * 0.34}) do
+				local vent = part({
+					Name = "RoofVent",
+					Size = Vector3.new(2.2, 2.6, 2.2),
+					Position = Vector3.new(vx, H + 1.3, D * 0.2),
+					Color = Color3.fromRGB(140, 142, 148),
+					Material = Enum.Material.Metal,
+				})
+				vent.Parent = model
+			end
+		end
+
+		-- ---------- patio de concreto frente al porton ----------
+		local apron = part({
+			Name = "LotApron",
+			Size = Vector3.new(math.min(W + 40, 200), 0.3, 30),
+			Position = Vector3.new(0, 0.36, frontZ2 + 16),
+			Color = Color3.fromRGB(86, 84, 80),
+			Material = Enum.Material.Asphalt,
+			CanCollide = false,
+		})
+		apron.Parent = model
+		-- franjas de estacionamiento
+		for i = -2, 2 do
+			local stripe = part({
+				Name = "ApronStripe",
+				Size = Vector3.new(0.5, 0.32, 9),
+				Position = Vector3.new(i * 11, 0.37, frontZ2 + 12),
+				Color = Color3.fromRGB(224, 214, 176),
+				Material = Enum.Material.Asphalt,
+				CanCollide = false,
+			})
+			stripe.Parent = model
+		end
+
+		if AMB.Props then
+			-- ---------- macetas grandes a los lados del porton ----------
+			for _, px in ipairs({-W * 0.5 + 8, W * 0.5 - 8}) do
+				local pot = part({
+					Name = "Planter",
+					Size = Vector3.new(4, 3, 4),
+					Position = Vector3.new(px, 1.6, frontZ2 + 4),
+					Color = Color3.fromRGB(96, 70, 52),
+					Material = Enum.Material.Concrete,
+				})
+				pot.Parent = model
+				local bush = part({
+					Name = "PlanterBush",
+					Size = Vector3.new(4.4, 3, 4.4),
+					Position = Vector3.new(px, 4.4, frontZ2 + 4),
+					Color = Color3.fromRGB(58, 108, 62),
+					Material = Enum.Material.Grass,
+					CanCollide = false,
+				})
+				bush.Parent = model
+				local top = part({
+					Name = "PlanterTop",
+					Size = Vector3.new(3, 2.2, 3),
+					Position = Vector3.new(px, 6.2, frontZ2 + 4),
+					Color = Color3.fromRGB(72, 126, 72),
+					Material = Enum.Material.Grass,
+					CanCollide = false,
+				})
+				top.Parent = model
+			end
+
+			-- ---------- bolardos amarillos en la orilla del patio ----------
+			for i = -3, 3 do
+				local bol = part({
+					Name = "Bollard",
+					Size = Vector3.new(1.1, 3.4, 1.1),
+					Position = Vector3.new(i * 14, 1.9, frontZ2 + 30),
+					Color = Color3.fromRGB(214, 176, 62),
+					Material = Enum.Material.Metal,
+				})
+				bol.Parent = model
+				local cap = part({
+					Name = "BollardCap",
+					Size = Vector3.new(1.3, 0.4, 1.3),
+					Position = Vector3.new(i * 14, 3.7, frontZ2 + 30),
+					Color = Color3.fromRGB(48, 48, 54),
+					Material = Enum.Material.Metal,
+					CanCollide = false,
+				})
+				cap.Parent = model
+			end
+
+			-- ---------- toldo sobre la puerta de la oficina ----------
+			local canW = 12
+			local canopy = part({
+				Name = "OfficeCanopy",
+				Size = Vector3.new(3.4, 0.4, canW),
+				Position = Vector3.new(W * 0.5 + 36.4, 15.6, OFF_CZ),
+				Color = Color3.fromRGB(126, 46, 44),
+				Material = Enum.Material.Fabric,
+				CanCollide = false,
+			})
+			canopy.CFrame = CFrame.new(canopy.Position) * CFrame.Angles(0, 0, math.rad(-12))
+			canopy.Parent = model
+			for _, cz in ipairs({OFF_CZ - canW / 2 + 1, OFF_CZ + canW / 2 - 1}) do
+				local post = part({
+					Name = "CanopyPost",
+					Size = Vector3.new(0.5, 13, 0.5),
+					Position = Vector3.new(W * 0.5 + 37.8, 8.5, cz),
+					Color = Color3.fromRGB(78, 78, 84),
+					Material = Enum.Material.Metal,
+				})
+				post.Parent = model
+			end
+			wallLamp("OfficeDoorLamp", Vector3.new(W * 0.5 + 34.6, 13.6, OFF_CZ + 5))
+
+			-- ---------- botes de basura y escombros ----------
+			local dump = part({
+				Name = "Dumpster",
+				Size = Vector3.new(6, 4, 4),
+				Position = Vector3.new(W * 0.5 + 12, 4.2, frontZ2 + 12),
+				Color = Color3.fromRGB(52, 92, 66),
+				Material = Enum.Material.CorrodedMetal,
+			})
+			dump.Parent = model
+			local lid = part({
+				Name = "DumpsterLid",
+				Size = Vector3.new(6.4, 0.4, 4.4),
+				Position = Vector3.new(W * 0.5 + 12, 6.3, frontZ2 + 12),
+				Color = Color3.fromRGB(40, 72, 52),
+				Material = Enum.Material.CorrodedMetal,
+				CanCollide = false,
+			})
+			lid.Parent = model
+
+			-- ---------- banquita junto a la puerta ----------
+			local benchSeat = part({
+				Name = "LotBench",
+				Size = Vector3.new(6, 0.5, 2),
+				Position = Vector3.new(-W * 0.5 + 16, 2.9, frontZ2 + 6),
+				Color = Color3.fromRGB(112, 84, 56),
+				Material = Enum.Material.Wood,
+			})
+			benchSeat.Parent = model
+			for _, bx in ipairs({-W * 0.5 + 13.6, -W * 0.5 + 18.4}) do
+				local leg2 = part({
+					Name = "BenchFoot",
+					Size = Vector3.new(0.6, 2.4, 1.6),
+					Position = Vector3.new(bx, 1.4, frontZ2 + 6),
+					Color = Color3.fromRGB(64, 64, 70),
+					Material = Enum.Material.Metal,
+				})
+				leg2.Parent = model
+			end
+		end
+
+		-- ---------- poste de luz del lote ----------
+		if AMB.LampPosts then
+			local px = W * 0.5 + 26
+			local pz = frontZ2 + 26
+			local mast = part({
+				Name = "LampPost",
+				Size = Vector3.new(1, 26, 1),
+				Position = Vector3.new(px, 13.2, pz),   -- arranca en el pasto (y=0.2)
+				Color = Color3.fromRGB(74, 76, 82),
+				Material = Enum.Material.Metal,
+			})
+			mast.Parent = model
+			local arm = part({
+				Name = "LampPostArm",
+				Size = Vector3.new(1, 0.7, 6),
+				Position = Vector3.new(px - 2.5, 28, pz),
+				Color = Color3.fromRGB(74, 76, 82),
+				Material = Enum.Material.Metal,
+				CanCollide = false,
+			})
+			arm.Parent = model
+			local head = part({
+				Name = "LampPostHead",
+				Size = Vector3.new(3, 0.6, 4),
+				Position = Vector3.new(px - 4.6, 27.6, pz),
+				Color = colLamp,
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+			})
+			head.Parent = model
+			local hl = Instance.new("PointLight")
+			hl.Brightness = 2.2
+			hl.Range = 52
+			hl.Color = Color3.fromRGB(255, 238, 200)
+			hl.Parent = head
+			tagLight(hl, 2.2)
+		end
+	end
+
 	return model
+end
+
+----------------------------------------------------------------------
+-- VEHICULOS
+----------------------------------------------------------------------
+-- Un solo constructor para los dos casos:
+--   parked = true  -> adorno estacionado en el cajon (anclado, sin fisica)
+--   parked = false -> auto manejable (chasis con fisica, ruedas con bisagra
+--                     y asiento de conductor)
+-- Antes los dos eran un ladrillo con 4 bolas. Ahora: carroceria por tipo
+-- (van / sedan / pickup / deportivo), vidrios, faros que se prenden de
+-- noche, rines, espejos, placas y defensas.
+local CAR_SPEC = {
+	van    = {len = 18, wid = 8.6, clr = 1.9, bodyH = 4.6, cabZ = {-6.0, 3.0}, cabH = 4.4,
+		         bed = nil,  rack = true,  spoiler = false},
+	sedan  = {len = 17.5, wid = 8.2, clr = 1.5, bodyH = 3.2, cabZ = {-4.4, 3.6}, cabH = 3.4,
+		         bed = nil,  rack = false, spoiler = false},
+	pickup = {len = 18.5, wid = 8.6, clr = 2.0, bodyH = 3.6, cabZ = {0.6, 5.2}, cabH = 3.6,
+		         bed = {-7.4, 0.2},  rack = true,  spoiler = false},
+	sport  = {len = 17, wid = 8.8, clr = 1.2, bodyH = 2.8, cabZ = {-4.0, 2.6}, cabH = 2.6,
+		         bed = nil,  rack = false, spoiler = true},
+}
+
+function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
+	local spec = CAR_SPEC[info and info.Id] or CAR_SPEC.sedan
+	local col = (info and info.Color) or Color3.fromRGB(150, 40, 40)
+	local L, Wd, CLR = spec.len, spec.wid, spec.clr
+
+	local m = Instance.new("Model")
+	m.Name = (parked and "Parked_" or "Car_") .. tostring((info and info.Id) or "car")
+
+	-- helper: crea una pieza relativa al centro del carro (+Z = hacia adelante)
+	local function cp(name, size, off, color, mat, opts)
+		local o = opts or {}
+		local pp = part({
+			Name = name,
+			Size = size,
+			CFrame = cf * CFrame.new(off) * (o.rot or CFrame.new()),
+			Color = color,
+			Material = mat or Enum.Material.SmoothPlastic,
+			Transparency = o.tr or 0,
+			Reflectance = o.ref or 0,
+			Shape = o.shape or Enum.PartType.Block,
+		})
+		pp.CanCollide = o.collide == true
+		pp.Massless = true
+		if parked then
+			pp.Anchored = true
+		else
+			pp.Anchored = false
+		end
+		pp.Parent = m
+		return pp
+	end
+
+	local dark = Color3.fromRGB(32, 34, 38)
+	local chrome = Color3.fromRGB(178, 182, 190)
+	local glass = Color3.fromRGB(140, 172, 190)
+
+	-- ===== chasis (la pieza que manda) =====
+	local body = cp("Body", Vector3.new(Wd, spec.bodyH, L * 0.78), Vector3.new(0, CLR + spec.bodyH / 2, 0), col)
+	body.Reflectance = 0.14
+	body.CanCollide = not parked
+	m.PrimaryPart = body
+
+	-- falda (oscura) para que tenga altura visual
+	cp("Skirt", Vector3.new(Wd + 0.15, spec.bodyH * 0.45, L * 0.8),
+		Vector3.new(0, CLR + spec.bodyH * 0.24, 0), dark)
+
+	-- cofre y cajuela
+	local hoodZ = L * 0.30
+	cp("Hood", Vector3.new(Wd - 0.5, 0.45, L * 0.26),
+		Vector3.new(0, CLR + spec.bodyH + 0.1, hoodZ), col)
+	if spec.bed then
+		-- batea de la pickup
+		cp("BedFloor", Vector3.new(Wd - 0.6, 0.4, math.abs(spec.bed[1] - spec.bed[2])),
+			Vector3.new(0, CLR + spec.bodyH + 0.1, (spec.bed[1] + spec.bed[2]) / 2), dark)
+		for _, bz in ipairs({spec.bed[1], spec.bed[2]}) do
+			cp("BedWall", Vector3.new(Wd - 0.6, 1.6, 0.4),
+				Vector3.new(0, CLR + spec.bodyH + 0.9, bz), col)
+		end
+		for _, bx in ipairs({-(Wd / 2 - 0.4), Wd / 2 - 0.4}) do
+			cp("BedWall", Vector3.new(0.4, 1.6, math.abs(spec.bed[1] - spec.bed[2])),
+				Vector3.new(bx, CLR + spec.bodyH + 0.9, (spec.bed[1] + spec.bed[2]) / 2), col)
+		end
+	else
+		cp("Trunk", Vector3.new(Wd - 0.5, 0.5, L * 0.16),
+			Vector3.new(0, CLR + spec.bodyH + 0.05, -L * 0.30), col)
+	end
+
+	-- ===== cabina =====
+	local cz0, cz1 = spec.cabZ[1], spec.cabZ[2]
+	local cabLen = cz1 - cz0
+	local cabC = (cz0 + cz1) / 2
+	local cabY = CLR + spec.bodyH + spec.cabH / 2
+	cp("Cabin", Vector3.new(Wd - 0.7, spec.cabH, cabLen), Vector3.new(0, cabY, cabC), col)
+	cp("Roof", Vector3.new(Wd - 1.0, 0.3, cabLen - 0.6),
+		Vector3.new(0, cabY + spec.cabH / 2 + 0.15, cabC), col)
+
+	-- vidrios (parabrisas inclinado, medallon y laterales)
+	local wsY = CLR + spec.bodyH + spec.cabH * 0.45
+	cp("Windshield", Vector3.new(Wd - 1.5, spec.cabH * 1.15, 0.25),
+		Vector3.new(0, wsY + 0.25, cz1 + 0.15), glass, Enum.Material.Glass,
+		{ tr = 0.45, ref = 0.3, rot = CFrame.Angles(math.rad(-22), 0, 0) })
+	cp("RearGlass", Vector3.new(Wd - 1.5, spec.cabH * 1.05, 0.25),
+		Vector3.new(0, wsY + 0.2, cz0 - 0.15), glass, Enum.Material.Glass,
+		{ tr = 0.45, ref = 0.3, rot = CFrame.Angles(math.rad(20), 0, 0) })
+	for _, sx in ipairs({-(Wd / 2 - 0.35), Wd / 2 - 0.35}) do
+		cp("SideGlass", Vector3.new(0.2, spec.cabH * 0.65, cabLen - 1.2),
+			Vector3.new(sx, cabY + 0.2, cabC), glass, Enum.Material.Glass,
+			{ tr = 0.45, ref = 0.3 })
+	end
+
+	-- espejos
+	for _, sx in ipairs({-(Wd / 2 + 0.5), Wd / 2 + 0.5}) do
+		cp("Mirror", Vector3.new(1.1, 0.6, 0.5), Vector3.new(sx, cabY - 0.4, cz1 + 0.2), dark)
+	end
+
+	-- ===== defensas, parrilla y luces =====
+	local bumperY = CLR + spec.bodyH * 0.35
+	cp("BumperF", Vector3.new(Wd + 0.2, 1.0, 0.8), Vector3.new(0, bumperY, L * 0.40), dark)
+	cp("BumperR", Vector3.new(Wd + 0.2, 1.0, 0.8), Vector3.new(0, bumperY, -L * 0.40), dark)
+	cp("Grille", Vector3.new(Wd - 1.6, 0.9, 0.4),
+		Vector3.new(0, CLR + spec.bodyH * 0.75, L * 0.40), dark)
+	cp("ChromeBar", Vector3.new(Wd - 1.4, 0.18, 0.3),
+		Vector3.new(0, CLR + spec.bodyH * 0.75 + 0.5, L * 0.42), chrome, Enum.Material.Metal)
+
+	for _, sx in ipairs({-(Wd / 2 - 1.0), Wd / 2 - 1.0}) do
+		local hl = cp("Headlight", Vector3.new(1.7, 0.75, 0.35),
+			Vector3.new(sx, CLR + spec.bodyH * 0.78, L * 0.41),
+			Color3.fromRGB(255, 246, 214), Enum.Material.Neon)
+		local pl = Instance.new("PointLight")
+		pl.Brightness = 1.4
+		pl.Range = 30
+		pl.Color = Color3.fromRGB(255, 240, 200)
+		pl.Parent = hl
+		tagLight(pl, 1.4)
+
+		cp("Taillight", Vector3.new(1.5, 0.65, 0.35),
+			Vector3.new(sx, CLR + spec.bodyH * 0.78, -L * 0.41),
+			Color3.fromRGB(210, 48, 44), Enum.Material.Neon)
+	end
+
+	-- placas
+	cp("PlateF", Vector3.new(2.4, 0.7, 0.2),
+		Vector3.new(0, bumperY, L * 0.41), Color3.fromRGB(228, 228, 220))
+	cp("PlateR", Vector3.new(2.4, 0.7, 0.2),
+		Vector3.new(0, bumperY, -L * 0.41), Color3.fromRGB(228, 228, 220))
+
+	-- tubo de escape
+	cp("Exhaust", Vector3.new(0.7, 0.5, 0.9),
+		Vector3.new(-Wd * 0.22, CLR + 0.35, -L * 0.42), chrome, Enum.Material.Metal)
+
+	if spec.spoiler then
+		cp("Spoiler", Vector3.new(Wd - 1.0, 0.25, 1.8),
+			Vector3.new(0, CLR + spec.bodyH + 1.1, -L * 0.36), dark)
+		for _, sx in ipairs({-(Wd / 2 - 1.2), Wd / 2 - 1.2}) do
+			cp("SpoilerPost", Vector3.new(0.4, 1.1, 0.4),
+				Vector3.new(sx, CLR + spec.bodyH + 0.6, -L * 0.36), dark)
+		end
+	end
+	if spec.rack then
+		cp("RoofRack", Vector3.new(Wd - 1.4, 0.25, cabLen - 1.0),
+			Vector3.new(0, cabY + spec.cabH / 2 + 0.5, cabC), chrome, Enum.Material.Metal)
+	end
+
+	-- ===== ruedas =====
+	local wheelR = CLR + 0.1
+	local wheelY = wheelR          -- la llanta toca el piso: cf va a nivel de piso
+	local wOff = {{-Wd / 2 - 0.15, L * 0.28}, {Wd / 2 + 0.15, L * 0.28},
+		          {-Wd / 2 - 0.15, -L * 0.28}, {Wd / 2 + 0.15, -L * 0.28}}
+	for i, wp in ipairs(wOff) do
+		local tire = cp("Wheel", Vector3.new(1.5, wheelR * 2, wheelR * 2),
+			Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(26, 26, 30),
+			Enum.Material.Rubber, { shape = Enum.PartType.Cylinder, collide = not parked,
+				rot = CFrame.Angles(0, 0, math.rad(90)) })
+		-- rin (se ve de los dos lados)
+		cp("Rim", Vector3.new(1.6, wheelR * 1.05, wheelR * 1.05),
+			Vector3.new(wp[1], wheelY, wp[2]), chrome, Enum.Material.Metal,
+			{ shape = Enum.PartType.Cylinder, rot = CFrame.Angles(0, 0, math.rad(90)) })
+
+		if not parked then
+			-- bisagra para que gire al manejar (mismo truco que antes, pero
+			-- ahora la rueda es un cilindro de verdad)
+			local att0 = Instance.new("Attachment", body)
+			att0.Position = Vector3.new(wp[1], wheelY, wp[2]) - Vector3.new(0, CLR + spec.bodyH / 2, 0)
+			local att1 = Instance.new("Attachment", tire)
+			local hinge = Instance.new("HingeConstraint")
+			hinge.Attachment0 = att0
+			hinge.Attachment1 = att1
+			hinge.Parent = body
+			tire:SetAttribute("WheelIndex", i)
+		end
+	end
+
+	-- ===== asiento (solo el manejable) =====
+	if not parked then
+		local seat = Instance.new("VehicleSeat")
+		seat.Name = "Seat"
+		seat.Size = Vector3.new(3, 0.6, 3)
+		seat.CFrame = cf * CFrame.new(0, CLR + spec.bodyH + 0.3, cabC - 0.6)
+		seat.MaxSpeed = (info and info.Speed) or 80
+		seat.Torque = 60
+		seat.TurnSpeed = 20
+		seat.Transparency = 0.15
+		seat.Color = Color3.fromRGB(48, 48, 54)
+		seat.Parent = m
+		-- el asiento NO lleva weld constraint: el chasis lo carga solo
+		for _, d in ipairs(m:GetChildren()) do
+			if d:IsA("BasePart") and d ~= seat and d ~= body then
+				if d.Name ~= "Wheel" then
+					local wc = Instance.new("WeldConstraint")
+					wc.Part0 = body
+					wc.Part1 = d
+					wc.Parent = body
+				end
+			end
+		end
+		local swc = Instance.new("WeldConstraint")
+		swc.Part0 = body
+		swc.Part1 = seat
+		swc.Parent = body
+	else
+		-- estacionado: que las ruedas no se vean flotando
+		for _, d in ipairs(m:GetChildren()) do
+			if d:IsA("BasePart") then d.Anchored = true end
+		end
+	end
+
+	m.PrimaryPart = body
+	return m
 end
 
 local function buildWarehouseTemplate(folder: Folder)
