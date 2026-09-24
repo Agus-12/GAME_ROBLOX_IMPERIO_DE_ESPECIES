@@ -26,7 +26,14 @@ local remotes = Instance.new("Folder") ; remotes.Name="Remotes" ; remotes.Parent
 local NEEDED={"StateUpdate","PhoneAlert","Toast","MissionUpdate","IncomingCall","OpenUpgrades","OpenVault","Sfx","Shoot","TerritoryUpdate","Action"}
 for _,n in ipairs(NEEDED) do
   local e=Instance.new(n=="Action" and "RemoteFunction" or "RemoteEvent")
-  e.Name=n ; e.OnClientEvent=newSignal() ; e.InvokeServer=function() return {ok=true} end
+  e.Name=n ; e.OnClientEvent=newSignal()
+  if n == "Action" and os.getenv("MOCK_SERVER_MUDO") == "1" then
+    -- servidor atorado (por ejemplo esperando a DataStore): la llamada NUNCA
+    -- regresa. Es el caso que dejaba la portada en "Cargando la ciudad..."
+    e.InvokeServer=function() while true do task.wait(1) end end
+  else
+    e.InvokeServer=function() return {ok=true} end
+  end
   e.Parent=remotes end
 local cfgSrc = dofile(TOOLS .. "/cfgload.lua")
 rs.WaitForChild=function(s,n)

@@ -2987,11 +2987,23 @@ RF_Action.OnServerInvoke = function(player: Player, action: string, arg1: any, a
 	local ok, msg
 	if action == "sync" then
 		-- el cliente acaba de cargar y pide su estado
+		--
+		-- >>> CUIDADO: NUNCA dejar que este handler ESPERE <<<
+		-- Un OnServerInvoke que se queda esperando deja el InvokeServer del
+		-- cliente COLGADO PARA SIEMPRE. Y aqui habia una trampa: setupPlayer
+		-- llama a DataService.Load -> store:GetAsync, que en Studio (o con
+		-- DataStores lentos) puede tardar muchisimo. Si eso pasaba, la
+		-- pantalla de entrada se quedaba en "Cargando la ciudad..." y el
+		-- jugador no podia entrar NUNCA (no habia timeout del otro lado).
+		-- Ahora: si el perfil no esta listo, se carga EN SEGUNDO PLANO y se
+		-- responde al instante.
 		if not DataService.Get(player) then
-			setupPlayer(player)
+			task.spawn(setupPlayer, player)
+			return {ok = false, msg = "cargando"}
 		end
 		push(player)
-		if sendMission then pcall(sendMission, player) end
+		-- la mision tambien en segundo plano: no debe retrasar la respuesta
+		if sendMission then task.spawn(function() pcall(sendMission, player) end) end
 		return {ok = true}
 	elseif action == "harvest" then ok, msg = doHarvest(player)
 	elseif action == "press" then ok, msg = doPress(player)

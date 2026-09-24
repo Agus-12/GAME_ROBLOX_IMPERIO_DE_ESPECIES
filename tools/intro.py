@@ -47,20 +47,35 @@ print(string.format("  se abrio a los %%s s virtuales", tostring(__INTRO_AT or "
 '''
 
 escenarios = [
-    # (nombre, ciudad, personaje, retraso del personaje, tope en segundos virtuales)
-    ("A) servidor listo (ciudad + personaje)", "1", "1", "0", 0.6),
-    ("B) el personaje tarda 0.8 s en aparecer", "1", "0", "0.8", 1.4),
-    ("C) servidor lento (sin ciudad todavia)", "0", "0", "0", 3.2),
+    # (nombre, ciudad, personaje, retraso, servidor mudo, tope en segundos, rompe)
+    ("A) servidor listo (ciudad + personaje)", "1", "1", "0", "0", 0.6, None),
+    ("B) el personaje tarda 0.8 s en aparecer", "1", "0", "0.8", "0", 1.4, None),
+    ("C) servidor lento (sin ciudad todavia)", "0", "0", "0", "0", 3.2, None),
+    # ESTE es el caso del usuario: el servidor nunca contesta la llamada.
+    # Antes: la portada se quedaba en "Cargando la ciudad..." PARA SIEMPRE.
+    ("D) el servidor NUNCA contesta (DataStore colgado)", "1", "1", "0", "1", 0.6, None),
+    # Y este otro: el script TRUENA despues de construir la portada. Prueba que
+    # el abridor este ARRIBA: si volviera al final del archivo, no correria.
+    ("E) el script truena mas abajo (falla simulada)", "1", "1", "0", "0", 0.6,
+     ("setHud(true)", "error('falla simulada a proposito')")),
 ]
 
 fallos = 0
-for nombre, city, char, char_delay, tope in escenarios:
+for nombre, city, char, char_delay, mudo, tope, rompe in escenarios:
     print(nombre)
+    src_uso = src
+    if rompe:
+        antes, despues = rompe
+        assert antes in src_uso, "no encontre el punto para romper: " + antes
+        src_uso = src_uso.replace(antes, despues, 1)
+        print("  (nota: el '!! el cliente trono' de abajo ES LA FALLA QUE YO INYECTO;"
+              + " si la portada abre igual, la prueba pasa)")
     t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False)
-    t.write(BODY % (HERE, src))
+    t.write(BODY % (HERE, src_uso))
     t.close()
     env = dict(os.environ, MOCK_VW="896", MOCK_VH="414", MOCK_TOUCH="1",
-               MOCK_CITY=city, MOCK_CHAR=char, MOCK_CHAR_DELAY=char_delay, TOOLS=HERE)
+               MOCK_CITY=city, MOCK_CHAR=char, MOCK_CHAR_DELAY=char_delay,
+               MOCK_SERVER_MUDO=mudo, TOOLS=HERE)
     r = subprocess.run([LUA, t.name], capture_output=True, text=True, env=env, timeout=180)
     os.unlink(t.name)
     salida = (r.stdout + r.stderr).strip()

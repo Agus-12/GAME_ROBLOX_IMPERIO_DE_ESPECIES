@@ -368,3 +368,39 @@ roto.
 **Regla:** si una herramienta no ejecuta el código, no lo está probando. Y `function() end`
 en un stub es una **mentira silenciosa**: mejor que truene (así se descubre y se tapa) a
 que diga "todo bien".
+
+---
+
+## 11. 🚫 Un `OnServerInvoke` que espera deja al cliente colgado PARA SIEMPRE (v31)
+
+`Main` cargaba el perfil dentro del handler de `sync`:
+
+```lua
+if not DataService.Get(player) then
+    setupPlayer(player)          -- llama store:GetAsync
+end
+```
+
+Si esa espera se alarga (DataStores lentos o apagados en Studio), el
+`RF_Action:InvokeServer("sync")` del cliente **no regresa nunca**. Del otro lado no hay
+timeout: la pantalla de entrada se queda en *"Cargando la ciudad..."* para siempre y el
+jugador **no puede entrar**.
+
+**Regla:** los handlers de `RemoteFunction` responden **siempre** y rápido. Cualquier cosa
+lenta (DataStore, generación, espera de instancias) va en `task.spawn` y se responde con
+`{ok = false, msg = "cargando"}` — el cliente reintenta y sigue vivo.
+
+---
+
+## 12. 🧱 El código crítico va ARRIBA (v31)
+
+El abridor de la portada vivía al **final** de `ClientUI` (~1900 de 2200 líneas). Un error
+en cualquier parte de en medio (un panel, el HUD, un dato raro) detenía el script y el
+botón **nunca aparecía** — sin ningún mensaje, porque el error es de otra parte.
+
+**Regla:** en un script largo, **lo que el jugador necesita para entrar va primero**
+(portada, botón, entrada, resolución de pantalla). Lo demás, después. Y si algo puede
+fallar, **envuelve ese bloque aparte** en vez de dejarlo tumbado todo lo de abajo.
+
+*Prueba permanente:* `tools/intro.py` escenario E inyecta `error('falla simulada')` justo
+después del bloque de la portada y exige que el botón **siga saliendo**.

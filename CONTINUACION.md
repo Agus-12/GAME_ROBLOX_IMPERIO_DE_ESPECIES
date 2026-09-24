@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v30** · 24 sep 2026
+> Última actualización: **v31** · 24 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v30 |
+| **Versión actual** | v31 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -123,6 +123,23 @@ pidio copiar y pegar sin salir de ahí.
    real no se puede medir y vuelve mentiroso al validador.
 3. Al encender los hilos en el mock aparecieron 2 huecos que escondian codigo roto
    (`Lighting.ClockTime` y `InputBegan`): **si el mock no ejecuta el codigo, no lo prueba.**
+
+### ✅ Qué se cerró en la v31 (la portada, parte 2)
+
+| Bug | Causa real | Estado |
+|---|---|---|
+| La portada seguia trabada en "Cargando la ciudad..." | **Dos causas**: (1) el abridor del boton vivia al FINAL de `ClientUI` (~linea 1900 de 2200): cualquier error anterior detiene el script y el boton nunca salia; (2) `Main.sync` llamaba a `setupPlayer` EN SERIE, que hace `store:GetAsync`. Un `OnServerInvoke` que espera deja el `InvokeServer` del cliente **colgado para siempre** (no hay timeout del otro lado) -> portada trabada eternamente en Studio | OK v31 (abridor al INICIO del bloque de la portada + `sync` nunca espera: carga en segundo plano y responde ya) |
+
+**Reglas nuevas (duras):**
+
+1. **`OnServerInvoke` JAMAS hace esperas** (nada de `WaitForChild`, `GetAsync`, `task.wait`):
+   si hay algo lento, se hace en `task.spawn` y se responde al instante.
+2. **El codigo critico va ARRIBA, no al final.** Todo lo que el jugador necesita para
+   entrar (portada, boton, entrada) se define ANTES de cualquier otra cosa: en un script
+   largo, un error de abajo se lleva a todo lo que viene despues.
+3. **Lo que se rompe, se prueba rompiendolo**: `tools/intro.py` escenario E inyecta un
+   error a proposito y exige que la portada siga abriendo (escenario D simula un servidor
+   que NUNCA contesta).
 
 ### ⚠️ Reglas que NO puedes romper
 
