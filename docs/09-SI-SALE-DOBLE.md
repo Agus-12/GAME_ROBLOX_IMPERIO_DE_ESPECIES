@@ -112,7 +112,7 @@ para pegar encima sin crear copias: [`10-COPIAR-Y-PEGAR.md`](10-COPIAR-Y-PEGAR.m
 
 ---
 
-## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v37)
+## 🧹 Que se puede hacer mas rapido: el LIMPIADOR (v38)
 
 Todo lo de arriba se hace a mano en el Explorer. Si quieres que se haga solo:
 
@@ -133,20 +133,20 @@ Hace esto:
 * borra **todas** las carpetas `Remotes` (el juego crea la suya al dar Play);
 * te dice **que archivo hay que volver a pegar** si el que tienes es de otra ronda.
 
-**Y desde la v37 el cartel rojo ya no sale cuando el juego en realidad si
+**Y desde la v38 el cartel rojo ya no sale cuando el juego en realidad si
 funciona** (la carpeta buena es de esta ronda y tiene los 11 remotes): en ese caso
 sale un **avisito azul chiquito** abajo durante 14 segundos y puedes jugar normal.
 El cartel rojo queda solo para cuando de verdad hay que arreglar algo.
 
 ---
 
-## 🧾 El juego te dice DONDE esta la copia (v37)
+## 🧾 El juego te dice DONDE esta la copia (v38)
 
 Al arrancar, el servidor imprime en el **Output** un inventario completo con la **ruta** de
 cada archivo del juego y marca las copias:
 
 ```
-[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v37, al arrancar) ====
+[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (v38, al arrancar) ====
 [SpiceEmpire]  OK     ServerScriptService > Main
 [SpiceEmpire]  OK     StarterPlayer > StarterPlayerScripts > ClientUI
 [SpiceEmpire]  COPIA  StarterGui > ClientUI   <- borra esta (clic derecho > Delete)
@@ -161,10 +161,44 @@ Busca en el Output la palabra **INVENTARIO**. Ahi sale exactamente que borrar y 
 Cada copia deja un "latido" con su version. La que sobra **se apaga sola** y avisa:
 
 ```
-[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v37) *** esta copia (v37) se apaga sola...
+[SpiceEmpire] *** HAY OTRA ClientUI CORRIENDO (v38) *** esta copia (v38) se apaga sola...
 ```
 
 **Ojo importante:** la `ClientUI` va **solo** en `StarterPlayer > StarterPlayerScripts`.
 Si la pegas en `StarterGui` tambien corre, y eso hace que salgan dos HUD y que un cartel
 viejo te confunda (paso de verdad: un cartel de la ronda v32 culpando al `Main` cuando el
 `Main` estaba bien).
+
+
+---
+
+## 🆕 v37/v38: "no cambio nada" aunque pegues todo
+
+Hay **dos** formas de que el juego se vea igual aunque pegues los archivos nuevos.
+Las dos ya estan arregladas, pero conviene saberlas:
+
+### 1. Una interfaz GUARDADA dentro del lugar
+
+Un `ScreenGui` del juego que quedo guardado en **`StarterGui`** viaja con el lugar: Roblox
+lo mete en la pantalla **al arrancar**, sin que corra ningun script. Se ve como "el
+tablero anterior", y como no lo dibuja nadie, **no cambia nunca**.
+
+* Esa basura se borra: Explorer > `StarterGui` > clic derecho en el `ScreenGui` > `Delete`.
+* La v38 la **borra sola** al arrancar (avisa en el Output con la marca `BASURA`).
+
+### 2. La ClientUI que no corre
+
+Un `Script` **normal** puesto en `StarterPlayerScripts` **no corre**: no dibuja nada y
+no avisa. Igual con `Enabled = false`. La v38 lo revisa y lo grita en el Output:
+
+```
+MAL    StarterPlayer > StarterPlayerScripts > ClientUI (es Script)
+APAGAD StarterPlayer > StarterPlayerScripts > ClientUI (Disabled)
+```
+
+### Como saber, en 10 segundos, que ronda esta corriendo
+
+* **Placa verde** arriba al centro (cliente): `RONDA v38 ...`.
+* **Letrero** flotando arriba del spawn (servidor): `SERVIDOR v38`.
+* **Letrerito chiquito** `v38` (se queda siempre, arriba al centro).
+* **INVENTARIO** en el Output con la ronda de **cada** archivo.

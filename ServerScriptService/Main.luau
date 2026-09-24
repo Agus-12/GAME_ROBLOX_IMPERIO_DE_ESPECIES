@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v37 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v38 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -323,22 +323,58 @@ local function inventario(momento: string)
 		end
 	end
 
-	-- ===== INTERFACES GUARDADAS EN EL LUGAR (v37) =====
+	-- ===== INTERFACES GUARDADAS EN EL LUGAR (v37, ahora las borra la v38) =====
 	-- CASO REAL: al usuario le seguia saliendo el tablero viejo y el cliente nuevo
 	-- se apagaba solo. Causa: un ScreenGui del juego GUARDADO dentro del lugar
 	-- (StarterGui). Roblox lo mete en la pantalla al arrancar, y el cliente lo
-	-- tomaba por "otra copia corriendo". Aqui se reporta para que se borre de una
-	-- vez (es basura que viaja dentro del lugar, no se quita sola).
+	-- tomaba por "otra copia corriendo". Es basura que VIAJA dentro del lugar.
+	-- La v38 ademas la BORRA: asi deja de salir en cada Play.
 	do
 		local StarterGui = game:GetService("StarterGui")
 		local ok, hijos = pcall(function() return StarterGui:GetChildren() end)
 		if ok and hijos then
+			local basura = {}
 			for _, g in ipairs(hijos) do
 				local okc, cls = pcall(function() return g.ClassName end)
 				if okc and (cls == "ScreenGui" or cls == "BillboardGui" or cls == "SurfaceGui")
 					and string.sub(g.Name or "", 1, 11) == "SpiceEmpire" then
-					apunta("BASURA", rutaLarga(g), "<- interfaz guardada en el lugar, borrala")
+					apunta("BASURA", rutaLarga(g), "<- interfaz guardada en el lugar (la borro yo)")
+					table.insert(basura, g)
 					problemas += 1
+				end
+			end
+			if #basura > 0 then
+				for _, g in ipairs(basura) do pcall(function() g:Destroy() end) end
+				warn("[SpiceEmpire] borre " .. #basura .. " interfaz(es) VIEJAS guardadas dentro del" ..
+					" lugar: eran las que seguian saliendo en pantalla aunque pegaras los archivos" ..
+					" nuevos. Si el aviso vuelve, borralas tu en StarterGui (docs/09).")
+			end
+		end
+	end
+
+	-- ===== ¿LA CLIENTUI DE VERDAD VA A CORRER? (v38) =====
+	-- Otra forma de que "no cambie nada": que la ClientUI haya quedado como
+	-- Script normal (un Script ahi NO corre: no dibuja nada) o con Enabled = false.
+	-- Eso no se ve en pantalla, asi que se avisa por aqui.
+	do
+		local StarterPlayer = game:GetService("StarterPlayer")
+		local sps = StarterPlayer:FindFirstChild("StarterPlayerScripts")
+		if sps then
+			for _, o in ipairs(sps:GetChildren()) do
+				if o.Name == "ClientUI" or o.Name == "SpiceEmpireClient" then
+					local okc, cls = pcall(function() return o.ClassName end)
+					local okn, prendido = pcall(function() return o.Enabled end)
+					if okc and cls ~= "LocalScript" then
+						apunta("MAL   ", rutaLarga(o) .. " (es " .. tostring(cls) .. ")",
+							"<- un Script AQUI NO CORRE: borralo y crea un LocalScript", o)
+						problemas += 1
+					elseif okn and prendido == false then
+						apunta("APAGAD", rutaLarga(o) .. " (Disabled)",
+							"<- marcale la casilla Enabled para que corra", o)
+						problemas += 1
+					else
+						apunta("CLIENT", rutaLarga(o) .. " si va a correr", "", o)
+					end
 				end
 			end
 		end

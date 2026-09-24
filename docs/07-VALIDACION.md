@@ -331,6 +331,8 @@ Simula **el caso real del usuario** (captura con el cartel "HAY COPIAS PEGADAS")
 | 6. **la carrera**: el servidor crea su carpeta 0.6 s despues | el cliente se **muda solo** a la carpeta del servidor (se cuentan las conexiones por carpeta) y **no** sale cartel |
 | 7. **dos `ClientUI` corriendo** | el juego sale **una sola vez** y la copia avisa que se apago |
 | 8. **interfaz vieja guardada** en el lugar (nombre renombrado) | el cliente **no se apaga**: borra la basura, llega al final y su contenido queda **visible** |
+| 9. **testigo del cliente** (placa de ronda) | la placa existe, esta **visible** y dice la ronda del codigo |
+| 10. **testigo del servidor** (letrero del spawn) | el letrero dice `SERVIDOR` + la ronda del `GameConfig` |
 
 Probado quitando el arreglo a proposito: con el avisito convertido en `if false` fallan
 los escenarios 2 y 5; desactivando el **cambio en caliente** de los remotes falla el

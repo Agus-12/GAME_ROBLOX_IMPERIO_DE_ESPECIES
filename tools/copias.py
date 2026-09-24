@@ -28,6 +28,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from check import strip_luau
@@ -380,6 +381,101 @@ else:
           % ("OK   " if ok else "FALLA", "si" if llego else "NO", guis, visibles))
     if not ok:
         print("         (esperado: llegar al final, 1 sola interfaz y su contenido visible)")
+        fallas += 1
+
+# ------------------------------- 9) TESTIGOS DE RONDA (v38)
+# El usuario probaba y no podia saber si el codigo que dibujaba era el nuevo. La
+# v38 pone un TESTIGO: una placa que dice la ronda (cliente) y un letrero arriba
+# del spawn (servidor). Aqui se prueba que los dos salen con la ronda del codigo.
+print()
+print("=== 9. testigo de ronda del CLIENTE (la placa en pantalla) ===")
+
+
+def corre_testigo_cliente():
+    guion = 'dofile("%s/mockclient.lua")\n' % HERE
+    guion += "local __cli = function()\n" + CLIENTE + "\nend\n__cli()\n"
+    guion += '''
+local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+local sg = pg:FindFirstChild("AvisoRonda")
+if not sg then print("__RESULTADO__ no hay placa") return end
+local textos = {}
+for _, d in ipairs(sg:GetDescendants()) do
+  if d.Text and #d.Text > 0 then table.insert(textos, d.Text) end
+end
+local placa = sg:FindFirstChild("Placa")
+local vis = placa ~= nil
+for _, d in ipairs(sg:GetDescendants()) do
+  if d.Visible then vis = true end
+end
+print("__RESULTADO__ " .. tostring(vis) .. "||" .. table.concat(textos, " | "))
+'''
+    return lua(guion, env=ENTORNO)
+
+
+sal = corre_testigo_cliente()
+m = re.search(r"__RESULTADO__ (.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    cuerpo = m.group(1)
+    partes = cuerpo.split("||")
+    visible = partes[0] == "true"
+    textos = partes[1] if len(partes) > 1 else ""
+    ronda = re.search(r"v\d+", textos)
+    dicho = "RONDA " in textos or "ronda" in textos
+    ok = visible and dicho and ronda is not None
+    print("  %s  placa visible: %s | dice: %s"
+          % ("OK   " if ok else "FALLA", "si" if visible else "NO", textos[:90]))
+    if not ok:
+        print("         (la placa tiene que estar visible y decir la ronda)")
+        fallas += 1
+
+print()
+print("=== 10. testigo de ronda del SERVIDOR (letrero arriba del spawn) ===")
+
+
+def corre_testigo_servidor():
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local rs = game:GetService("ReplicatedStorage")
+rs.WaitForChild = function(s, n) if n == "GameConfig" then return "__CFG__" end end
+require = function(x) return _cfg end
+local City = (function()
+'''
+    guion += L("ServerScriptService/CityGenerator.luau")
+    guion += '''
+end)()
+local ok, city = pcall(City.Build)
+if not ok then print("__RESULTADO__ ciudad fallo: " .. tostring(city)) return end
+local sp = city:FindFirstChild("CitySpawn")
+local bb = sp and sp:FindFirstChild("TestigoRonda")
+if not bb then print("__RESULTADO__ no hay letrero") return end
+local textos = {}
+for _, d in ipairs(bb:GetDescendants()) do
+  if d.Text and #d.Text > 0 then table.insert(textos, d.Text) end
+end
+print("__RESULTADO__ " .. table.concat(textos, " | "))
+'''
+    return lua(guion, env=dict(ENTORNO, MOCK_CITY="1"))
+
+
+sal = corre_testigo_servidor()
+m = re.search(r"__RESULTADO__ (.*)", sal)
+if not m:
+    print("  FALLA  no pude leer el resultado")
+    for linea in sal.strip().splitlines()[-6:]:
+        print("         | " + linea[:140])
+    fallas += 1
+else:
+    textos = m.group(1)
+    tiene = "SERVIDOR" in textos and re.search(r"v\d+|sin numero", textos) is not None
+    print("  %s  letrero: %s" % ("OK   " if tiene else "FALLA", textos[:90]))
+    if not tiene:
+        print("         (el letrero tiene que decir SERVIDOR + la ronda)")
         fallas += 1
 
 print()

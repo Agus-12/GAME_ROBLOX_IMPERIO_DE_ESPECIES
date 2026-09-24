@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v37 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v38 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v37"
+local MI_VERSION = "v38"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -604,11 +604,112 @@ if playerGui then
 	end
 end
 
+----------------------------------------------------------------------
+-- TESTIGO DE RONDA (v38): la prueba de que ESTE archivo es el que corre
+----------------------------------------------------------------------
+-- El usuario reporto: "estoy copiando todo tal cual y sigue igual". Desde una
+-- captura no habia como saber si el codigo que dibuja es el nuevo o una copia
+-- vieja. Ahora, apenas arranca, sale una PLACA verde arriba de la pantalla:
+--
+--    "RONDA v38  (arrancando...)"  -> el archivo SI esta corriendo
+--    "RONDA v38  OK"               -> corrio TODO (interfaz completa)
+--    ninguna placa                 -> esta ClientUI no es la que corre
+--                                     (o no es LocalScript / esta Disabled)
+--
+-- y a los 14 segundos se encoge a un letrerito chiquito que se queda para
+-- siempre (asi cualquier captura futura dice de que ronda es lo que se ve).
+--
+-- El ScreenGui se llama "AvisoRonda" a proposito (sin la palabra SpiceEmpire):
+-- asi NINGUN barrido de copias viejas lo puede borrar.
+do
+	local pg = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui", 10)
+	if pg then
+		local sg = Instance.new("ScreenGui")
+		MIS_GUIS[sg] = true
+		sg.Name = "AvisoRonda"
+		sg.ResetOnSpawn = false
+		sg.IgnoreGuiInset = true
+		sg.DisplayOrder = 120          -- arriba de la interfaz (50), debajo del cartel (999)
+		sg.Parent = pg
+
+		local placa = Instance.new("Frame")
+		placa.Name = "Placa"
+		placa.Size = UDim2.new(0, 430, 0, 106)
+		placa.Position = UDim2.new(0.5, -215, 0, 44)
+		placa.BackgroundColor3 = Color3.fromRGB(10, 16, 12)
+		placa.BackgroundTransparency = 0.08
+		placa.BorderSizePixel = 0
+		placa.Parent = sg
+		do
+			local esquina = Instance.new("UICorner")
+			esquina.CornerRadius = UDim.new(0, 12)
+			esquina.Parent = placa
+			local canto = Instance.new("UIStroke")
+			canto.Color = Color3.fromRGB(120, 255, 150)
+			canto.Thickness = 3
+			canto.Parent = placa
+			local titulo = Instance.new("TextLabel")
+			titulo.Name = "Titulo"
+			titulo.BackgroundTransparency = 1
+			titulo.Size = UDim2.new(1, -20, 0, 54)
+			titulo.Position = UDim2.new(0, 10, 0, 8)
+			titulo.Font = Enum.Font.GothamBold
+			titulo.TextScaled = true
+			titulo.TextColor3 = Color3.fromRGB(140, 255, 160)
+			titulo.TextStrokeTransparency = 0.35
+			titulo.TextStrokeColor3 = Color3.new(0, 0, 0)
+			titulo.Text = "RONDA " .. MI_VERSION .. "  (arrancando...)"
+			titulo.Parent = placa
+			local pie = Instance.new("TextLabel")
+			pie.Name = "Pie"
+			pie.BackgroundTransparency = 1
+			pie.Size = UDim2.new(1, -20, 0, 32)
+			pie.Position = UDim2.new(0, 10, 0, 68)
+			pie.Font = Enum.Font.Gotham
+			pie.TextScaled = true
+			pie.TextColor3 = Color3.fromRGB(230, 235, 245)
+			pie.TextStrokeTransparency = 0.5
+			pie.TextStrokeColor3 = Color3.new(0, 0, 0)
+			pie.Text = "si no dice " .. MI_VERSION .. ", lo que ves NO es de esta ronda"
+			pie.Parent = placa
+		end
+
+		-- el letrerito chiquito que se queda para siempre (arriba al centro)
+		local chico = Instance.new("TextLabel")
+		chico.Name = "RondaChica"
+		chico.BackgroundColor3 = Color3.fromRGB(10, 16, 12)
+		chico.BackgroundTransparency = 0.35
+		chico.Size = UDim2.new(0, 78, 0, 22)
+		chico.Position = UDim2.new(0.5, -39, 0, 152)
+		chico.Font = Enum.Font.GothamBold
+		chico.TextSize = 14
+		chico.TextColor3 = Color3.fromRGB(150, 255, 170)
+		chico.Text = MI_VERSION
+		chico.Visible = false
+		chico.Parent = sg
+		do
+			local esquina2 = Instance.new("UICorner")
+			esquina2.CornerRadius = UDim.new(0, 8)
+			esquina2.Parent = chico
+		end
+
+		task.delay(14, function()
+			pcall(function() placa.Visible = false end)
+			pcall(function() chico.Visible = true end)
+		end)
+		print("[SpiceEmpire] TESTIGO: placa 'RONDA " .. MI_VERSION .. "' dibujada en la pantalla.")
+	end
+end
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "SpiceEmpireUI"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset = true
+-- v38: dibuja POR ENCIMA de cualquier interfaz que haya quedado pegada en el
+-- lugar (una viuda con DisplayOrder mas alto tapaba la nueva y parecia que
+-- "no cambio nada"). El cartel rojo (999) sigue arriba de todo.
+gui.DisplayOrder = 50
 gui.Parent = playerGui or player:WaitForChild("PlayerGui")
 
 ----------------------------------------------------------------------
@@ -2702,3 +2803,20 @@ RE_Terr.OnClientEvent:Connect(function(list)
 		capBar.Visible = false
 	end
 end)
+
+----------------------------------------------------------------------
+-- TESTIGO DE RONDA (v38): avisar que corrio TODO
+----------------------------------------------------------------------
+-- Si llegamos hasta aqui, la interfaz entera se construyo. Se cambia el texto
+-- de la placa ("arrancando..." -> "OK") buscandola por nombre: asi no se gasta
+-- ni una variable local mas (este archivo anda justo de locales, ver docs/03).
+do
+	local pg = player:FindFirstChild("PlayerGui")
+	local sg = pg and pg:FindFirstChild("AvisoRonda")
+	local placa = sg and sg:FindFirstChild("Placa")
+	local titulo = placa and placa:FindFirstChild("Titulo")
+	if titulo then
+		titulo.Text = "RONDA " .. MI_VERSION .. "  OK"
+	end
+	print("[SpiceEmpire] TESTIGO: interfaz completa de la " .. MI_VERSION .. " dibujada.")
+end

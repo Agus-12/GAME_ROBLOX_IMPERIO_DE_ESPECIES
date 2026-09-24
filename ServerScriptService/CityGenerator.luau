@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v37 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v38 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -4021,6 +4021,69 @@ function CityGenerator.Build(): Folder
 	sp.Material = Enum.Material.Neon
 	sp.Duration = 0
 	sp.Parent = city
+
+	-- >>> TESTIGO DEL SERVIDOR (v38) <<<
+	-- Letrero flotando ARRIBA DEL SPAWN con la RONDA de los archivos del SERVIDOR.
+	-- Para que sirve: el jugador reporto "pegue todo y no cambia nada". Con este
+	-- letrero, CUALQUIER captura del juego dice de que ronda son los archivos del
+	-- servidor (si no dice la ronda nueva, ese archivo no se pego). Junto con la
+	-- placa del cliente se ve CUAL de los dos lados esta viejo.
+	do
+		local ronda = tostring(Config.Build or "(sin numero)")
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "TestigoRonda"
+		bb.Size = UDim2.new(0, 320, 0, 92)
+		bb.StudsOffsetWorldSpace = Vector3.new(0, 10, 0)
+		bb.AlwaysOnTop = false          -- respeta la altura (nada de letreros encima de todo)
+		bb.MaxDistance = 500
+		bb.LightInfluence = 0
+		bb.Parent = sp
+
+		local fondo = Instance.new("Frame")
+		fondo.Name = "Placa"
+		fondo.Size = UDim2.fromScale(1, 1)
+		fondo.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
+		fondo.BackgroundTransparency = 0.12
+		fondo.BorderSizePixel = 0
+		fondo.Parent = bb
+		do
+			local esquina = Instance.new("UICorner")
+			esquina.CornerRadius = UDim.new(0, 10)
+			esquina.Parent = fondo
+			local canto = Instance.new("UIStroke")
+			canto.Color = Color3.fromRGB(130, 255, 150)
+			canto.Thickness = 3
+			canto.Parent = fondo
+		end
+
+		local linea1 = Instance.new("TextLabel")
+		linea1.Name = "Ronda"
+		linea1.BackgroundTransparency = 1
+		linea1.Size = UDim2.new(1, -16, 0, 46)
+		linea1.Position = UDim2.new(0, 8, 0, 6)
+		linea1.Font = Enum.Font.GothamBold
+		linea1.TextScaled = true
+		linea1.TextColor3 = Color3.fromRGB(140, 255, 160)
+		linea1.TextStrokeTransparency = 0.3
+		linea1.TextStrokeColor3 = Color3.new(0, 0, 0)
+		linea1.Text = "SERVIDOR " .. ronda
+		linea1.Parent = fondo
+
+		local linea2 = Instance.new("TextLabel")
+		linea2.Name = "QueEs"
+		linea2.BackgroundTransparency = 1
+		linea2.Size = UDim2.new(1, -16, 0, 30)
+		linea2.Position = UDim2.new(0, 8, 0, 54)
+		linea2.Font = Enum.Font.Gotham
+		linea2.TextScaled = true
+		linea2.TextColor3 = Color3.fromRGB(225, 230, 240)
+		linea2.TextStrokeTransparency = 0.5
+		linea2.TextStrokeColor3 = Color3.new(0, 0, 0)
+		linea2.Text = "letrero del archivo CityGenerator"
+		linea2.Parent = fondo
+
+		print("[SpiceEmpire] TESTIGO: letrero del servidor (" .. ronda .. ") puesto arriba del spawn.")
+	end
 
 	CityGenerator.SetupLighting()
 

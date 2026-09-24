@@ -5,7 +5,7 @@ Juego de Roblox: **mundo abierto estilo GTA + tycoon empresarial**.
 Produces hojas de especia, las prensas en bloques, las vendes por la ciudad, evitas a la
 Unidad de Aduanas, defiendes tu bodega de asaltos y armas crew con tus amigos.
 
-> **Versión actual: v37**
+> **Versión actual: v38**
 
 ---
 
@@ -26,7 +26,7 @@ volver a intentar, y las reglas que no se pueden romper.
 > rondas distintas pegados en Studio: [`docs/08-SI-SALE-FALTAN-REMOTES.md`](docs/08-SI-SALE-FALTAN-REMOTES.md)
 >
 > 👯 ¿"Sale todo doble" (dos bodegas, dos interfaces) o hay **copias pegadas**?
-> Desde la **v37** no las caces a mano: pega el **PASO 0 (LIMPIADOR)** del HTML de la
+> Desde la **v38** no las caces a mano: pega el **PASO 0 (LIMPIADOR)** del HTML de la
 > ronda en la **Command Bar** de Studio (pestaña **View** de arriba > boton `Command Bar`,
 > sin dar Play) y las borra solo, avisandote que archivo te falta pegar. A mano tambien se
 > puede: en el Explorer, clic derecho sobre la carpeta `Remotes` > Delete (se pueden borrar

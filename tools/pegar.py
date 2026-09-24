@@ -44,6 +44,17 @@ def version():
 
 
 CSS = """
+.rescate{margin:0;background:#2a1414;border-bottom:2px solid #ff7a6b}
+.rescate summary{cursor:pointer;list-style:none;padding:9px 12px;font-weight:700;
+  color:#ffb3a7;font-size:14px}
+.rescate summary::-webkit-details-marker{display:none}
+.rescate .cuerpo{padding:2px 14px 14px;font-size:14px;color:#f0ded9}
+.rescate .cuerpo b{color:#ffd9d1}
+.rescate .cuerpo code{background:#1b1b24;padding:1px 5px;border-radius:5px;font-size:13px}
+.rescate .cuerpo pre{background:#12121a;border:1px solid #33334a;border-radius:8px;
+  padding:8px;overflow-x:auto;font-size:12px;color:#cfe8d4}
+.rescate .cuerpo ul{margin:6px 0 6px 18px;padding:0}
+.rescate .cuerpo li{margin:2px 0}
 *{box-sizing:border-box}
 body{margin:0;background:#0d0d12;color:#e8e8f0;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
@@ -190,7 +201,47 @@ def main():
   (View &gt; Command Bar, <b>sin</b> dar Play) y borra las copias solo.</p>
   <p>&#9888;&#65039; Pega SIEMPRE <b>encima</b> del script que ya existe (nunca "Insert Object" con el mismo
   nombre: eso crea copias y sale todo doble).</p>
+  <p class="destacado">&#128264; <b>LA PRUEBA DE 10 SEGUNDOS:</b> dale Play. Arriba al centro de la pantalla tiene
+  que salir una placa verde <b>"RONDA %(ver)s"</b>, y arriba de donde apareces un letrero
+  <b>"SERVIDOR %(ver)s"</b>. Si alguno no sale (o sale otra ronda), ese archivo no se pego:
+  toca el boton rojo <b>"PEGUE TODO Y SIGUE IGUAL"</b> aqui abajo (paso a paso).</p>
 </header>
+
+<details class="rescate">
+  <summary>&#128680; PEGUE TODO Y SIGUE IGUAL (tocalo: explicacion paso a paso)</summary>
+  <div class="cuerpo">
+    <p><b>Paso 1 &mdash; la prueba de 10 segundos.</b> Dale <b>Play</b> y mira <b>arriba al centro</b>
+    de la pantalla: tiene que salir una placa verde con la ronda
+    (<b>"RONDA %(ver)s"</b>), y arriba de donde apareces un letrero <b>"SERVIDOR %(ver)s"</b>.</p>
+    <ul>
+      <li>Sale <b>RONDA %(ver)s&nbsp;&nbsp;OK</b> &rarr; el archivo nuevo SI corre (lo que falte es otro archivo).</li>
+      <li>Se queda en <b>(arrancando...)</b> &rarr; la ClientUI corre pero <b>truena</b>: mira el Output (paso 3).</li>
+      <li><b>No sale placa</b> &rarr; esa ClientUI <b>no corre</b>: sigue el paso 2.</li>
+      <li>Sale <b>otra ronda</b> (v32, v36...) &rarr; estas corriendo un archivo viejo: vuelve a pegar.</li>
+    </ul>
+    <p><b>Paso 2 &mdash; la ClientUI tiene que ser LocalScript y estar prendida.</b> En el
+    Explorer: <code>StarterPlayer &gt; StarterPlayerScripts &gt; ClientUI</code>. Arriba del panel
+    de codigo debe decir <b>LocalScript</b> (si dice <b>Script</b>, ese NO corre ahi: borralo y crea
+    un LocalScript). Y en Propiedades, <b>Enabled</b> tiene que estar palomeado.</p>
+    <p><b>Paso 3 &mdash; mira el Output.</b> Pestana <b>View</b> (de adentro de Studio) &gt; boton
+    <b>Output</b>. Ahi el juego escribe un INVENTARIO con la ronda de <b>cada</b> archivo:</p>
+    <pre>[SpiceEmpire] ==== INVENTARIO DE ARCHIVOS DEL JUEGO (%(ver)s, al arrancar) ====
+[SpiceEmpire]   OK     ReplicatedStorage &gt; GameConfig
+[SpiceEmpire]   VIEJO  [v32] StarterPlayer &gt; StarterPlayerScripts &gt; ClientUI  &lt;- pegalo de nuevo
+[SpiceEmpire]   COPIA  [%(ver)s] ServerScriptService &gt; Main  &lt;- borra esta
+[SpiceEmpire]   BASURA StarterGui &gt; SpiceEmpireUI  &lt;- interfaz guardada en el lugar
+[SpiceEmpire]   FALTA  ServerScriptService &gt; DataService  &lt;- pegalo (falta por completo)</pre>
+    <p><b>FALTA</b> = pegalo. <b>VIEJO [vNN]</b> = es de otra ronda, pegalo otra vez.
+    <b>COPIA</b> = deja uno y borra los demas. <b>BASURA</b> = interfaz guardada dentro del lugar
+    (la ronda nueva ya la borra sola).</p>
+    <p><b>Paso 4 &mdash; la limpieza.</b> En el Explorer borra cualquier <b>SpiceEmpireUI</b> que
+    este dentro de <b>StarterGui</b> (es una interfaz GUARDADA: sale en pantalla en cada Play
+    aunque pegues todo). Deja <b>uno solo</b> de cada archivo y <b>una sola</b> carpeta Remotes.</p>
+    <p><b>Paso 5 &mdash; si sigue igual.</b> Mandame dos capturas: la de la <b>placa de ronda</b>
+    (arriba al centro) y la del <b>Output</b>. Con eso se sabe exactamente que archivo falta.</p>
+  </div>
+</details>
+
 <nav class="tabs">%(tabs)s</nav>
 <main>%(paneles)s</main>
 <div id="aviso" class="aviso"></div>
