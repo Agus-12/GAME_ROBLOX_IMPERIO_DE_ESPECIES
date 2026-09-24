@@ -11,9 +11,22 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local CollectionService = game:GetService("CollectionService")
 
-local Config = require(ReplicatedStorage:WaitForChild("GameConfig"))
-local CityGenerator = require(ServerScriptService:WaitForChild("CityGenerator"))
-local DataService = require(ServerScriptService:WaitForChild("DataService"))
+-- Si falta un script, 'WaitForChild' se queda esperando PARA SIEMPRE y el
+-- servidor nunca arranca: nada de remotes, nada de bodegas, nada. El jugador
+-- ve una pantalla muerta y en la consola no sale ni un error. Con timeout el
+-- mensaje dice exactamente QUE script hay que pegar.
+local function need(parent: Instance, name: string): any
+	local m = parent:WaitForChild(name, 15)
+	if not m then
+		error("[SpiceEmpire] FALTA " .. parent.Name .. "." .. name ..
+			". Pegalo en Studio (ver docs/01-INSTALACION.md) y vuelve a dar Play.", 0)
+	end
+	return m
+end
+
+local Config = require(need(ReplicatedStorage, "GameConfig"))
+local CityGenerator = require(need(ServerScriptService, "CityGenerator"))
+local DataService = require(need(ServerScriptService, "DataService"))
 
 ----------------------------------------------------------------------
 -- REMOTES
@@ -45,6 +58,10 @@ local RE_OpenVault = mkEvent("OpenVault")      -- server -> client, abrir la caj
 local RE_Shoot   = mkEvent("Shoot")            -- client -> server, disparo
 local RE_Terr    = mkEvent("TerritoryUpdate")  -- server -> todos, estado de territorios
 local RF_Action  = mkFunc("Action")           -- client -> server, todo lo demas
+-- OJO: IncomingCall se creaba 1700 lineas mas abajo. Si cualquier cosa
+-- fallaba antes de esa linea, el cliente se quedaba esperando este remote
+-- para siempre (y con el, TODA la interfaz). Se crea aqui con los demas.
+local RE_Call    = mkEvent("IncomingCall")    -- server -> client, te llama un cliente
 
 ----------------------------------------------------------------------
 -- MAPA
@@ -74,8 +91,23 @@ end
 local warehouses: {[Player]: Model} = {}
 local warehouseSlots: {[number]: Player?} = {}
 
-local WAREHOUSE_ORIGIN = Vector3.new(0, 0, -(Config.City.GridZ * (Config.City.BlockSize + Config.City.RoadWidth)) * 0.5 - 200)
-local WAREHOUSE_SPACING = 140
+-- ===== LOTES DE BODEGA =====
+-- Rejilla de lotes detras de la ciudad. Antes era UNA fila con 140 studs de
+-- separacion... pero una bodega de nivel 4 mide 190 de ancho MAS 46 del
+-- taller MAS 34 de la oficina = 271. O sea que la oficina de uno se metia
+-- dentro del taller del vecino y el taller tapaba la puerta de la oficina.
+-- La rejilla (5 por fila) y el espaciado viven en GameConfig.WarehouseLots,
+-- y CityGenerator.buildGround estira el suelo con esos mismos numeros.
+local LOTS = Config.WarehouseLots
+local WAREHOUSE_ORIGIN = LOTS.Origin
+local WAREHOUSE_PER_ROW = math.max(1, LOTS.PerRow)
+local WAREHOUSE_MAX_SLOTS = math.max(WAREHOUSE_PER_ROW, LOTS.MaxSlots)
+
+local function warehouseSlotPos(slot: number): Vector3
+	local col = (slot - 1) % WAREHOUSE_PER_ROW
+	local row = math.floor((slot - 1) / WAREHOUSE_PER_ROW)
+	return WAREHOUSE_ORIGIN + Vector3.new(col * LOTS.SpacingX, 0, -row * LOTS.SpacingZ)
+end
 
 -- definidas mas abajo (sistema de plantas / porton / empleados)
 local initPlants
@@ -96,7 +128,7 @@ local nextCallAt: {[Player]: number} = {}
 
 local function assignWarehouse(player: Player): Model
 	local slot
-	for i = 1, 20 do
+	for i = 1, WAREHOUSE_MAX_SLOTS do
 		if warehouseSlots[i] == nil then
 			slot = i
 			break
@@ -111,7 +143,7 @@ local function assignWarehouse(player: Player): Model
 	local clone = CityGenerator.BuildWarehouse(tier)
 	clone.Name = "Warehouse_" .. player.UserId
 	clone:SetAttribute("OwnerId", player.UserId)
-	clone:PivotTo(CFrame.new(WAREHOUSE_ORIGIN + Vector3.new((slot - 1) * WAREHOUSE_SPACING - 600, 0, 0)))
+	clone:PivotTo(CFrame.new(warehouseSlotPos(slot)))
 	clone.Parent = Workspace
 
 	-- letrero con el nombre
@@ -205,9 +237,15 @@ local function updateWarehouseScreen(player: Player, profile)
 	title.Text = "BODEGA  -  NIVEL " .. cur .. "/" .. #Config.WarehouseTiers
 
 	if not nextT then
+		-- OJO: aqui estaba 'T.StorageBonus', un campo que se quito de la
+		-- config en la v22. En Lua eso no truena al compilar: da nil, y
+		-- nil + numero revienta EN EJECUCION. Como esta funcion se llama
+		-- dentro de un pcall, el error se tragaba en silencio y la pantalla
+		-- de la bodega se quedaba congelada. Los topes reales son
+		-- VaultLeaves / VaultBlocks.
 		body.Text = string.format(
-			"%s\n\nNIVEL MAXIMO ALCANZADO.\n\nAlmacen: %d",
-			T.Name, Config.BaseStorage + T.StorageBonus)
+			"%s\n\nNIVEL MAXIMO ALCANZADO.\n\nCaja fuerte: %d hojas / %d bloques",
+			T.Name, T.VaultLeaves, T.VaultBlocks)
 		body.TextColor3 = Color3.fromRGB(150, 255, 190)
 		return
 	end
@@ -584,7 +622,11 @@ function setupGate(wh: Model)
 				local ch = pl.Character
 				local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
 				if hrp and hrp:IsA("BasePart") then
-					if (hrp.Position - sensor.Position).Magnitude <= 26 then
+					-- el sensor ya es una caja del tamano del hueco: se mide
+					-- contra su propia area (antes era un radio de 26 a ojo)
+					local dx = math.abs(hrp.Position.X - sensor.Position.X)
+					local dz = math.abs(hrp.Position.Z - sensor.Position.Z)
+					if dx <= sensor.Size.X * 0.5 + 4 and dz <= sensor.Size.Z * 0.5 + 6 then
 						anyNear = true
 						break
 					end
@@ -881,8 +923,15 @@ task.spawn(function()
 			local safe = wh and wh:FindFirstChild("SafePad") :: BasePart?
 			local char = player.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if safe and hrp and (hrp.Position - safe.Position).Magnitude < 14 then
-				decay = Config.Heat.LayLowRate
+			-- Antes era un radio fijo de 14 studs y el tapete mide 28x11: las
+			-- esquinas del tapete quedaban FUERA de la zona segura, aunque se
+			-- vieran dentro. Ahora se mide contra el tapete de verdad.
+			if safe and hrp then
+				local dx = math.abs(hrp.Position.X - safe.Position.X)
+				local dz = math.abs(hrp.Position.Z - safe.Position.Z)
+				if dx <= safe.Size.X * 0.5 + 1 and dz <= safe.Size.Z * 0.5 + 1 then
+					decay = Config.Heat.LayLowRate
+				end
 			end
 
 			if profile.Heat > 0 then
@@ -1704,7 +1753,8 @@ end
 ----------------------------------------------------------------------
 -- LLAMADAS AL CELULAR: te marca un desconocido y tu decides
 ----------------------------------------------------------------------
-local RE_Call = mkEvent("IncomingCall")
+-- RE_Call ya se creo arriba, junto a los otros remotes (no lo vuelvas a
+-- crear aqui: dos RemoteEvent con el mismo nombre confunden al cliente).
 
 local MC = Config.MissionCalls
 

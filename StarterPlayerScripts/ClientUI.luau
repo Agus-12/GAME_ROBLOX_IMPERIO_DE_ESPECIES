@@ -8,20 +8,101 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
-local Config = require(ReplicatedStorage:WaitForChild("GameConfig"))
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-local RE_State = Remotes:WaitForChild("StateUpdate") :: RemoteEvent
-local RE_Phone = Remotes:WaitForChild("PhoneAlert") :: RemoteEvent
-local RE_Toast = Remotes:WaitForChild("Toast") :: RemoteEvent
-local RE_Mission = Remotes:WaitForChild("MissionUpdate") :: RemoteEvent
-local RE_OpenUp  = Remotes:WaitForChild("OpenUpgrades") :: RemoteEvent
-local RE_Sfx     = Remotes:WaitForChild("Sfx") :: RemoteEvent
-local RE_OpenVault = Remotes:WaitForChild("OpenVault") :: RemoteEvent
-local RE_Shoot   = Remotes:WaitForChild("Shoot") :: RemoteEvent
-local RE_Terr    = Remotes:WaitForChild("TerritoryUpdate") :: RemoteEvent
-local RF_Action = Remotes:WaitForChild("Action") :: RemoteFunction
-
 local player = Players.LocalPlayer
+
+----------------------------------------------------------------------
+-- RECEPCION DE SCRIPTS Y REMOTES  (con TIMEOUT)
+----------------------------------------------------------------------
+-- Antes esto era WaitForChild a secas. Si faltaba UNA cosa (un script que
+-- no pegaste, o el servidor que trono antes de crear los remotes), el
+-- cliente se quedaba esperando PARA SIEMPRE: sin error, sin nada en
+-- pantalla, y todo lo que venia despues (el detector de cercania, los
+-- botones, los paneles) nunca se ejecutaba. Ese era el "no me deja hacer
+-- nada". Ahora espera 10 segundos, AVISA, y sigue.
+local AVISOS: {string} = {}
+
+-- cartel rojo de emergencia. Se dibuja a mano porque los helpers de UI
+-- todavia no existen en este punto del archivo.
+local function cartelDeError(lineas: {string})
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "SpiceEmpire_Error"
+	sg.ResetOnSpawn = false
+	sg.IgnoreGuiInset = true
+	sg.DisplayOrder = 999
+	sg.Parent = player:WaitForChild("PlayerGui")
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(1, 0, 0, 30 + 22 * #lineas)
+	box.BackgroundColor3 = Color3.fromRGB(120, 22, 22)
+	box.BorderSizePixel = 0
+	box.Parent = sg
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.new(1, -20, 1, -8)
+	t.Position = UDim2.new(0, 10, 0, 4)
+	t.BackgroundTransparency = 1
+	t.Font = Enum.Font.GothamBold
+	t.TextSize = 16
+	t.TextWrapped = true
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.TextYAlignment = Enum.TextYAlignment.Top
+	t.TextColor3 = Color3.fromRGB(255, 235, 235)
+	t.Text = table.concat(lineas, "\n")
+	t.Parent = box
+end
+
+local function need(parent: Instance, name: string): any
+	local found = parent:WaitForChild(name, 10)
+	if found then return found end
+	table.insert(AVISOS, parent.Name .. "." .. name)
+	warn("[SpiceEmpire] FALTA " .. parent.Name .. "." .. name .. " (revisa docs/01-INSTALACION.md)")
+	-- sustituto inerte: asi nada mas truena en cadena y la UI carga igual
+	return {
+		Name = name,
+		OnClientEvent = {Connect = function() return {Disconnect = function() end} end},
+		OnServerEvent  = {Connect = function() return {Disconnect = function() end} end},
+		Connect = function() return {Disconnect = function() end} end,
+		InvokeServer = function() return {ok = false, msg = "Falta un script en el servidor"} end,
+		FireServer = function() end,
+	}
+end
+
+-- 1) GameConfig: sin el no hay juego, asi que aqui si nos detenemos
+--    (con un cartel que dice QUE falta, en vez de una pantalla muerta).
+local cfgModule = ReplicatedStorage:WaitForChild("GameConfig", 10)
+if not cfgModule then
+	warn("[SpiceEmpire] FALTA ReplicatedStorage.GameConfig")
+	if player:WaitForChild("PlayerGui", 10) then
+		cartelDeError({
+			"FALTA UN SCRIPT:  ReplicatedStorage > GameConfig",
+			"Pega GameConfig.luau como ModuleScript en ReplicatedStorage y vuelve a probar.",
+			"(Guia paso a paso: docs/01-INSTALACION.md)",
+		})
+	end
+	return
+end
+local Config = require(cfgModule)
+
+-- 2) Remotes: si falta alguno seguimos, pero avisando.
+local Remotes = need(ReplicatedStorage, "Remotes")
+local RE_State = need(Remotes, "StateUpdate")
+local RE_Phone = need(Remotes, "PhoneAlert")
+local RE_Toast = need(Remotes, "Toast")
+local RE_Mission = need(Remotes, "MissionUpdate")
+local RE_OpenUp  = need(Remotes, "OpenUpgrades")
+local RE_Sfx     = need(Remotes, "Sfx")
+local RE_OpenVault = need(Remotes, "OpenVault")
+local RE_Shoot   = need(Remotes, "Shoot")
+local RE_Terr    = need(Remotes, "TerritoryUpdate")
+local RF_Action  = need(Remotes, "Action")
+
+-- si falto algo, que se vea: cartel + lista de lo que falta
+if #AVISOS > 0 then
+	local lineas = { "FALTAN SCRIPTS/REMOTES EN EL SERVIDOR (" .. #AVISOS .. "):" }
+	for i, a in ipairs(AVISOS) do
+		if i <= 4 then table.insert(lineas, "  - " .. a) end
+	end
+	table.insert(lineas, "Pega los scripts que faltan y vuelve a dar Play.")
+	pcall(cartelDeError, lineas)
+end
 local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, PressLevel = 1,
 	Employees = {Harvester=0,Presser=0,Guard=0}, Vehicles = {}, Properties = {}, Storage = 200}
 
@@ -639,13 +720,19 @@ renderTab = function(tab: string)
 			TextSize = 18, Text = "Nivel " .. cur .. ": " .. T.Name, TextColor3 = ACCENT})
 		label(info, {Size = UDim2.new(1, -24, 0, 18), Position = UDim2.new(0, 12, 0, 34),
 			TextSize = 13, Text = T.Desc, TextColor3 = Color3.fromRGB(180, 180, 195)})
+		-- T.StorageBonus ya no existe (se quito en la v22). Leerlo daba nil y
+		-- string.format reventaba -> la pestana Bodega se quedaba en blanco
+		-- justo cuando abrias la computadora. Los topes reales de la caja
+		-- son VaultLeaves (hojas) y VaultBlocks (bloques).
 		label(info, {Size = UDim2.new(1, -24, 0, 16), Position = UDim2.new(0, 12, 0, 50),
-			TextSize = 12, Text = string.format("Parcelas %d  |  Almacen +%d", T.Plots, T.StorageBonus),
+			TextSize = 12, Text = string.format("Parcelas %d  |  Caja %d hojas / %d bloques",
+				T.Plots, T.VaultLeaves, T.VaultBlocks),
 			TextColor3 = Color3.fromRGB(150, 200, 160)})
 
 		if nextT then
 			row(nextT.Name,
-				string.format("%s  |  Parcelas %d  |  Almacen +%d", nextT.Desc, nextT.Plots, nextT.StorageBonus),
+				string.format("%s  |  Parcelas %d  |  Caja %d hojas / %d bloques",
+					nextT.Desc, nextT.Plots, nextT.VaultLeaves, nextT.VaultBlocks),
 				"$" .. Config.Abbrev(nextT.Cost),
 				function() act("upgradeWarehouse") end)
 		else
@@ -1273,7 +1360,7 @@ end)
 ----------------------------------------------------------------------
 -- LLAMADA ENTRANTE (encargo: aceptas o rechazas)
 ----------------------------------------------------------------------
-local RE_Call = Remotes:WaitForChild("IncomingCall") :: RemoteEvent
+local RE_Call = need(Remotes, "IncomingCall")
 
 -- El celular entra deslizandose por la DERECHA, timbra y vibra.
 local CALL_W, CALL_H = 290, 330
@@ -1808,8 +1895,17 @@ do
 		task.delay(3, function() sd:Destroy() end)
 	end
 
-	local R_PRESS, R_COMPUTER, R_VAULT, R_TABLE, R_BUYER = 16, 13, 16, 14, 30
-		local R_GARAGE = 26
+	-- Los radios salen TODOS de GameConfig: el servidor valida con los
+	-- mismos numeros. Antes el cliente usaba 16 para la prensa y el server
+	-- 14, asi que entre 14 y 16 studs el boton salia pero te rebotaba con
+	-- "estas muy lejos". Si hay que ajustar, se ajusta en UN solo lugar.
+	local I = Config.Interact
+	local R_PRESS = Config.Press.UseRadius
+	local R_COMPUTER = I.Computer
+	local R_VAULT = Config.Carry.VaultRadius
+	local R_TABLE = Config.Growth.HarvestRadius
+	local R_BUYER = I.Buyer
+	local R_GARAGE = I.Garage
 
 	local function myWarehouse(): Model?
 		local w = workspace:FindFirstChild("Warehouse_" .. player.UserId)

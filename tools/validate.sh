@@ -22,6 +22,12 @@ python3 tools/globals.py \
   ServerScriptService/CityGenerator.luau \
   ServerScriptService/DataService.luau \
   ServerScriptService/Main.luau \
-  StarterPlayerScripts/ClientUI.luau || true
+  StarterPlayerScripts/ClientUI.luau
 echo "=== 5. PARTES DE LA BODEGA ==="
 python3 tools/parts.py
+echo "=== 6. CAMPOS DE GameConfig ==="
+python3 tools/fields.py
+echo "=== 7. SE PUEDE CAMINAR A TODO? ==="
+python3 tools/walk.py
+echo "=== 8. API DE ROBLOX (enums/clases) ==="
+python3 tools/api.py || true

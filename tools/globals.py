@@ -19,6 +19,11 @@ OK = {
  "NumberRange","UDim","UDim2","Rect","Region3","Ray","RaycastParams","BrickColor",
  "PhysicalProperties","TweenInfo","Enum","Random","Faces","Axes","DateTime","buffer",
  "_G","_VERSION","gcinfo","newproxy","loadstring","collectgarbage","string",
+ # '_SKIP' no es del juego: es la marca que deja este mismo script al
+ # sustituir 'goto cont' (el 'continue' de Luau). Sin esto, Main.luau
+ # salia como "global sospechoso" y TODO el archivo quedaba sin auditar:
+ # dentro estaba el bug de StorageBonus.
+ "_SKIP",
 }
 
 bad = 0

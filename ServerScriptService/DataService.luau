@@ -7,7 +7,12 @@ local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(ReplicatedStorage:WaitForChild("GameConfig"))
+local cfgModule = ReplicatedStorage:WaitForChild("GameConfig", 15)
+if not cfgModule then
+	error("[SpiceEmpire] FALTA ReplicatedStorage.GameConfig. Pegalo en Studio " ..
+		"(ver docs/01-INSTALACION.md) y vuelve a dar Play.", 0)
+end
+local Config = require(cfgModule)
 
 local DataService = {}
 

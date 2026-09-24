@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v27** · 23 sep 2026
+> Última actualización: **v28** · 23 sep 2026
 
 ---
 
@@ -13,8 +13,21 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v27 |
+| **Versión actual** | v28 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
+
+### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
+
+| Bug | Causa real | Estado |
+|---|---|---|
+| La computadora / la pestaña Bodega salía en blanco | `T.StorageBonus`: campo borrado de la config en la v22 y todavía leído en 3 lugares. Da `nil` (no error de compilación) y revienta dentro de un `pcall` → **silencio total** | ✅ v28 |
+| El garaje estaba sellado | `Wall2` (pared izquierda) se construía de una pieza, sin hueco: el garaje era una caja cerrada y los autos de adentro no se podían ni ver de cerca | ✅ v28 (pared en tramos + marco + letrero TALLER) |
+| Escalón de 1.8 studs en el portón | Piso de la bodega en y=2 vs calle en y=0.2; la bici tiene `MAX_STEP=1.6` y se atoraba | ✅ v28 (rampa `GateApron`) |
+| Las bodegas se encimaban | Espaciado fijo de 140 studs vs ancho real del nivel 4 **con anexos** (190 + 46 taller + 34 oficina = **271**) | ✅ v28 (`GameConfig.WarehouseLots`: rejilla 5×4, 340×260) |
+| Los últimos lotes caían fuera del suelo | El suelo de la ciudad no llegaba; al salir del portón, vacío | ✅ v28 (`buildGround` estira el suelo con los datos del lote) |
+| El cliente se colgaba en silencio | `WaitForChild` sin timeout + `IncomingCall` creado 1745 líneas después del arranque | ✅ v28 (remotes al arranque + timeout de 10 s + cartel rojo) |
+| "El botón sale pero me rebota" | Cliente 16 studs, servidor 14 en la prensa | ✅ v28 (radios desde `GameConfig.Interact` y los ya existentes) |
+| Zona segura con esquinas fuera | Radio fijo 14 vs tapete de 28×11 | ✅ v28 (mide contra el tapete real) |
 
 ### ⚠️ Reglas que NO puedes romper
 
@@ -55,6 +68,11 @@
 3. **Responde en español mexicano casual.** El usuario escribe así.
 
 4. **Valida SIEMPRE antes de entregar.** Ver sección 4.
+   - **Nunca** claves una distancia de interacción, una separación de lotes o el
+     tamaño de un anexo como número suelto en el código: va en `GameConfig`
+     (`Interact`, `WarehouseLots`). Dos veces ya nos mordió.
+   - Si agregas una herramienta de validación, **pruébala metiendo el bug a
+     propósito** y revierte. Un validador que siempre dice "OK" no vale nada.
 
 5. **Entrega por rondas.** El usuario dijo "aviéntate todo", pero se acordó ir por
    entregas. Cada ronda = un `CAMBIOS-vN.md` + explicación en el chat.
@@ -96,6 +114,7 @@ tools/                                Validadores. Corre bash tools/validate.sh
 | 2 | ~~Trabajadores invisibles~~ | ✅ v19 · v20 les quitó el diálogo de comprador y la flotación |
 | 3 | ~~Prensa pegada / HUD mentía / mercado apilado~~ | ✅ v20 |
 | 4 | ~~Raiders flotando / cosechadores duplicados~~ | ✅ v22 |
+| 5 | ~~Computadora / bóveda no abrían, oficina adentro, garaje sellado~~ | ✅ v28 (ver tabla de arriba) |
 
 ## 2.2 ✅ PASE VISUAL — COMPLETADO EN v23
 
@@ -162,7 +181,7 @@ No hay forma de correr Roblox Studio aquí. Se armó un simulador. **Úsalo siem
 bash tools/validate.sh
 ```
 
-Eso hace **cinco** cosas:
+Eso hace **ocho** cosas:
 1. **Sintaxis** — traduce Luau a Lua 5.4 y lo compila con `luac`
 2. **Servidor en runtime** — corre GameConfig → CityGenerator → DataService → Main
    bajo un mock de la API de Roblox, y construye los 4 niveles de bodega
@@ -171,6 +190,23 @@ Eso hace **cinco** cosas:
    Roblox **no existe**, el global es `workspace`) o constantes mal escritas
 5. **Partes de la bodega** (`tools/parts.py`) — construye los 4 niveles y verifica que
    sigan existiendo todas las partes que Main y ClientUI buscan por nombre
+6. **Campos de la config** (`tools/fields.py`) — compara cada `Config.algo.campo` y cada
+   alias (`T.VaultLeaves`, `b.Capacity`…) contra lo que la config tiene de verdad.
+   Caza la clase de bug de `StorageBonus`, que **no** truena al compilar: da `nil` y
+   revienta en tiempo de ejecución dentro de un `pcall`, o sea en silencio.
+7. **Alcanzabilidad** (`tools/walk.py`) — construye los 4 niveles, exporta la geometría
+   y tira un flood fill con el cuerpo de un jugador (radio 1.7) para comprobar que se
+   pueda **caminar** desde donde apareces hasta la oficina, la caja, la computadora,
+   la prensa, las mesas, el garaje (¡incluido el cajón 1!) y la calle. También revisa
+   que la oficina esté por fuera del muro y que los lotes quepan en el suelo.
+   Nació del garaje sellado: `parts.py` decía "todas las partes presentes" y el garaje
+   seguía siendo una caja cerrada.
+8. **API de Roblox** (`tools/api.py`) — valida `Enum.X.Y`, `Instance.new("Clase")`,
+   `GetService` y las props de los helpers de UI contra el API-Dump oficial. El mock
+   se traga cualquier typo; Studio no.
+
+> ⚠️ Toda herramienta nueva se prueba **metiendo el bug a propósito** y revirtiendo.
+> Ya van dos rondas donde un "validador verde" escondía un bug real.
 
 > ⚠️ Las etapas 4 y 5 nacieron de bugs reales: `Workspace` nil rompía **todo** el sistema
 > contextual en silencio (v22–v26), y en la v25 se borró la caja fuerte sin que ninguna
@@ -219,6 +255,11 @@ Tiene que salir todo OK. Detalles en `docs/07-VALIDACION.md`.
 
 Está todo en `docs/03-NO-HAGAS-ESTO.md`, pero estos tres son los que más tiempo costaron:
 
+0. **Un campo que no existe en la config NO truena al compilar.** Da `nil`, y si el
+   `nil` cae en un `string.format` o en una suma, revienta en tiempo de ejecución —
+   muchas veces dentro de un `pcall`, o sea **sin error visible**. Regla: si borras
+   un campo de `GameConfig`, corre `tools/fields.py` antes de dar la ronda por buena.
+   Y **no metas geometría nueva a `pcall`** sin dejar rastro: si algo falla ahí, imprime.
 1. **La bici: nada de física.** Cuatro intentos fallaron. La única que funciona es
    anclada + CFrame a mano. No vuelvas a intentar con constraints.
 2. **`Lighting.Ambient` ilumina los interiores**, `OutdoorAmbient` no. Si subes Ambient

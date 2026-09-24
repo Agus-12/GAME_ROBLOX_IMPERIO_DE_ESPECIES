@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre tres etapas. Tienen que salir las tres OK.
+Corre **ocho etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -24,6 +24,9 @@ Corre tres etapas. Tienen que salir las tres OK.
 | `findsfx.py` | Busca IDs de audio en el catálogo de Roblox |
 | `globals.py` | Lista los globales que toca cada script (caza typos tipo `Workspace`) |
 | `parts.py` | Construye los 4 niveles y verifica que existan las partes clave |
+| `fields.py` | Compara los campos `Config.x.y` que lee el código contra la config real |
+| `walk.py` | Flood fill con el cuerpo del jugador: ¿se puede *caminar* a cada máquina? |
+| `api.py` | Valida enums, clases y props contra el API-Dump de Roblox |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -107,3 +110,72 @@ caja fuerte** y ninguna validación lo detectó.
 - Que los IDs de audio suenen bien
 
 Para todo eso hace falta que el usuario pruebe en Studio y mande captura.
+
+## Etapa 6 — campos de la config (`tools/fields.py`)
+
+```bash
+python3 tools/fields.py
+```
+
+Carga `GameConfig` de verdad, saca su esquema y compara **todos** los accesos
+`Config.algo.campo` y de alias (`T.VaultLeaves`, `b.Capacity`, `tpl.Title`…) de los
+cuatro consumidores. Sale:
+
+```
+ServerScriptService/Main.luau
+   todos los campos que lee existen en GameConfig
+...
+OK
+```
+
+Nació del bug de `StorageBonus` (v28): un campo borrado de la config que tres
+lugares seguían leyendo. En Lua eso **no** falla al compilar; da `nil`, y el error
+revienta en tiempo de ejecución, muchas veces dentro de un `pcall` (silencio total).
+
+**Pruébalo siempre con un campo falso a propósito** antes de confiar en él:
+
+```bash
+# mete 'Config.WarehouseTiers[1].CampoFalso' en Main, corre fields.py,
+# confirma que lo reporta, y revierte.
+```
+
+## Etapa 7 — alcanzabilidad (`tools/walk.py`)
+
+```bash
+python3 tools/walk.py
+```
+
+Construye los 4 niveles bajo el mock, exporta **todas** las partes (nombre, tamaño,
+posición, colisión) y tira un flood fill en 2D a la altura del torso del jugador,
+tratando como muro toda parte con colisión que le tape el paso. Verifica que desde el
+punto donde apareces se pueda **caminar** hasta:
+
+```
+oficina · caja fuerte · computadora · prensa · mesa 1 · garaje · cajón 1 · la calle
+```
+
+Además comprueba que la oficina esté **por fuera** del muro de la nave, que el ancho
+total del anexo quepa en la separación entre lotes, y que **los 20 lotes caigan sobre
+el suelo** de la ciudad.
+
+`parts.py` decía "todas las partes presentes" mientras el garaje era una caja cerrada
+sin puerta. Existir no es lo mismo que poder llegar.
+
+## Etapa 8 — API de Roblox (`tools/api.py`)
+
+```bash
+python3 tools/api.py
+```
+
+Descarga (una vez, a `/tmp`) el `API-Dump.json` oficial y valida:
+
+- `Enum.Material.AlgoQueNoExiste`
+- `Instance.new("ClaseQueNoExiste")`
+- `GetService("ServicioQueNoExiste")`
+- propiedades en las tablas de los helpers (`part{...}`, `frame{...}`, `label{...}`)
+
+El mock del simulador acepta cualquier cosa: un enum mal escrito solo truena al darle
+Play en Studio, en inglés y sin decir en qué línea. Esta etapa lo caza antes.
+
+> Si no hay red, avisa y se salta (no bloquea la entrega): el `validate.sh` lo llama
+> con `|| true` a propósito.

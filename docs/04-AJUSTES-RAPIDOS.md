@@ -21,6 +21,23 @@ Perillas para cambiar cosas sin rediseñar nada.
 | Usar la caja desde más lejos | `GameConfig.Carry` | `VaultRadius = 16` |
 | Mochilas más baratas | `GameConfig.Carry.Backpacks` | baja los `Cost` |
 | Prensar desde más lejos | `GameConfig.Press` | `UseRadius = 14` |
+| Que se abran los paneles desde más lejos | `GameConfig.Interact` | `Computer`, `Garage`, `Buyer` |
+
+## Lotes de bodega (¡ojo!)
+
+Una bodega **no mide lo que dice su `Size`**: el nivel 4 mide 190 de ancho y además se
+le pegan el taller (46 a la izquierda) y la oficina (34 a la derecha) = **271 studs**.
+Todo lo que se siembra en el mundo usa estos números; si los tocas, corre
+`python3 tools/walk.py` (comprueba anexos, encimado y que los lotes caigan sobre el suelo).
+
+| Quiero… | Dónde | Cómo |
+|---|---|---|
+| Separar más las bodegas | `GameConfig.WarehouseLots` | sube `SpacingX` / `SpacingZ` |
+| Más bodegas por fila | idem | `PerRow` (hoy 5; con `MaxSlots = 20` son 4 filas) |
+| Mover la fila de lotes | idem | `Origin`, `HalfWidth`, `HalfDepth` |
+
+> El suelo de la ciudad se **estira solo** para cubrir los lotes (`buildGround` lee los
+> mismos números). No hay que tocar el tamaño del pasto a mano.
 
 ## Empleados
 

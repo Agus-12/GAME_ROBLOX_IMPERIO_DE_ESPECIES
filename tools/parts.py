@@ -18,6 +18,8 @@ REQUIRED = [
     "VaultBody", "VaultPad", "VaultScreen",      # caja fuerte
     "SafePad", "Couch", "BedFrame",              # oficina
     "OfficeWall", "OfficeDoorJamb",              # puerta de la oficina
+    "GarageDoorJamb", "GarageDoorHead",          # puerta del garaje
+    "GateApron", "ApronRail",                    # rampa de la entrada
     "GarageFloor", "GarageExit", "Bay1", "Bay4", # garaje
     "Plot1", "Plant", "Lookout",                 # cultivo y vigilante
     "Gate", "GateSensor",                        # porton

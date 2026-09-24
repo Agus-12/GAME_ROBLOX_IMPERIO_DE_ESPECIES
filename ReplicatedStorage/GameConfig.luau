@@ -337,6 +337,30 @@ GameConfig.City = {
 	Seed = 20260923,
 }
 
+-- ========== LOTES DE BODEGA ==========
+-- Donde se siembran las bodegas de los jugadores, detras de la ciudad.
+-- OJO: una bodega NO mide lo que dice su Size. El nivel 4 mide 190 de ancho
+-- y ademas se le pegan DOS anexos por fuera: el taller (46 a la izquierda)
+-- y la oficina (34 a la derecha). Total real: 271 studs.
+-- Con SpacingX = 140 (lo que habia antes) la oficina de uno se metia DENTRO
+-- del taller del vecino. Por eso los lotes ahora son una rejilla y el
+-- generador estira el suelo para que todos caigan sobre pasto.
+GameConfig.WarehouseLots = {
+	Enabled = true,
+	MaxSlots = 20,
+	PerRow = 5,
+	-- esquina nor-oeste del primer lote (el mas pegado a la ciudad)
+	Origin = Vector3.new(-600, 0, -660),
+	SpacingX = 340,          -- > 271 (ancho del nivel 4 con anexos) + pasillo
+	SpacingZ = 260,          -- > 156 (fondo del nivel 4 con muelle)
+	-- margen extra de pasto alrededor de los lotes
+	GroundPad = 90,
+	-- medio ancho / medio fondo maximos de una bodega con sus anexos:
+	-- los usa buildGround para saber cuanto estirar el suelo
+	HalfWidth = 150,
+	HalfDepth = 95,
+}
+
 -- Compradores repartidos por la ciudad. Multiplicador y riesgo.
 GameConfig.Buyers = {
 	{Id = "docks",   Name = "Muelles",        PriceMult = 0.85, HeatMult = 0.5, Cell = Vector2.new(0, 0)},
@@ -423,6 +447,19 @@ GameConfig.Properties = {
 	{Id = "mansion", Name = "Mansion",        Cost = 750000, Income = 900, Storage = 300},
 }
 GameConfig.PropertyPayoutInterval = 60
+
+-- ========== DISTANCIAS DE INTERACCION ==========
+-- A que distancia de cada maquina aparece su boton. El CLIENTE dibuja el
+-- boton con estos numeros y el SERVIDOR valida con los mismos: si se
+-- separan, pasa lo peor: el boton sale pero al pulsarlo te dice "estas
+-- muy lejos". Antes vivian duplicados (16 en el cliente, 14 en el
+-- servidor) y habia 2 studs de zona muerta.
+GameConfig.Interact = {
+	Computer = 13,   -- computadora del escritorio / mejoras
+	Garage   = 26,   -- cajon del garaje
+	Buyer    = 30,   -- comprador en la ciudad
+	Dialogue = 22,   -- globito de dialogo del NPC
+}
 
 -- La caja fuerte tiene un tope POR PRODUCTO (ver VaultLeaves/VaultBlocks
 -- en cada nivel de bodega). Esto es solo el piso minimo por si falta el dato.

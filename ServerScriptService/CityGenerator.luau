@@ -127,13 +127,36 @@ local function buildGround(folder: Folder)
 	-- el suelo se extiende MAS ALLA de la ciudad para que se vea pasto alrededor
 	local w = C.GridX * CELL + CELL * 3
 	local d = C.GridZ * CELL + CELL * 3
+	local gx0, gx1 = -w * 0.5, w * 0.5
+	local gz0, gz1 = -d * 0.5, d * 0.5
+
+	-- ... y tambien tiene que cubrir los LOTES DE BODEGA, que viven detras de
+	-- la ciudad. Con una sola fila pegada se salia del suelo y el jugador
+	-- caia al vacio al salir por el porton de su bodega.
+	local lots = Config.WarehouseLots
+	if lots and lots.Enabled then
+		local cols = math.max(1, math.min(lots.PerRow, lots.MaxSlots))
+		local rows = math.max(1, math.ceil(lots.MaxSlots / lots.PerRow))
+		local pad = lots.GroundPad or 80
+		local hw = lots.HalfWidth or 150
+		local hd = lots.HalfDepth or 95
+		local lx0 = lots.Origin.X - hw
+		local lx1 = lots.Origin.X + (cols - 1) * lots.SpacingX + hw
+		local lz0 = lots.Origin.Z - (rows - 1) * lots.SpacingZ - hd
+		local lz1 = lots.Origin.Z + hd
+		gx0 = math.min(gx0, lx0 - pad); gx1 = math.max(gx1, lx1 + pad)
+		gz0 = math.min(gz0, lz0 - pad); gz1 = math.max(gz1, lz1 + pad)
+	end
+
+	local gw, gd = gx1 - gx0, gz1 - gz0
+	local gcx, gcz = (gx0 + gx1) * 0.5, (gz0 + gz1) * 0.5
 
 	-- Techo del suelo en y = 0.2, justo debajo de calles (0.05) y banquetas.
 	-- No es coplanar con nada -> se acabo el parpadeo, y sigue siendo visible.
 	local ground = part({
 		Name = "Ground",
-		Size = Vector3.new(w, 6, d),
-		Position = Vector3.new(0, -2.8, 0),
+		Size = Vector3.new(gw, 6, gd),
+		Position = Vector3.new(gcx, -2.8, gcz),
 		Color = Color3.fromRGB(74, 96, 62),
 		Material = Enum.Material.Grass,
 	})
@@ -1272,9 +1295,23 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	local OFF_CZ = (OFF_Z0 + OFF_Z1) / 2
 	local OFF_DOOR = 8                   -- ancho del hueco en la pared
 
-	-- lo que estorbaria el paso hacia la oficina
+	-- ===== EL GARAJE (anexo pegado a la pared izquierda) =====
+	-- Los mismos numeros que usa el bloque del garaje mas abajo, pero
+	-- declarados aqui arriba porque la PARED IZQUIERDA necesita saber donde
+	-- va su hueco. Si no, se construye de una sola pieza y el garaje queda
+	-- SELLADO: los autos de adentro se ven desde el nave pero no hay puerta.
+	local GAR_W = 46
+	local GAR_D = 26
+	local GAR_X = -W * 0.5 - GAR_W / 2
+	local GAR_Z = -D * 0.5 + 24
+	local garH = 15
+	local GAR_DOOR = 14                  -- ancho del hueco hacia el garaje
+
+	-- lo que estorbaria el paso hacia la oficina o hacia el garaje
 	local function blocksOfficeDoor(x: number, z: number): boolean
-		return x > 0 and math.abs(z - OFF_CZ) < 13
+		if x > 0 and math.abs(z - OFF_CZ) < 13 then return true end
+		if x < 0 and math.abs(z - GAR_Z) < GAR_DOOR / 2 + 6 then return true end
+		return false
 	end
 
 	-- ===== PISO =====
@@ -1299,20 +1336,74 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	stripe.Parent = model
 
-	-- ===== PAREDES (fondo + laterales) =====
+	-- ===== PAREDES (fondo + izquierda + derecha) =====
+	-- El fondo va de una pieza. La IZQUIERDA y la DERECHA van en tramos,
+	-- porque cada una lleva un hueco: el garaje (izquierda) y la oficina
+	-- (derecha). Antes la izquierda era una sola pieza y el garaje quedaba
+	-- sellado por dentro: se veia desde la nave pero no se podia entrar.
 	local wallT = 2
-	local walls = {
-		{Vector3.new(W, H, wallT), Vector3.new(0, H * 0.5 + 2, -D * 0.5)},
-		{Vector3.new(wallT, H, D), Vector3.new(-W * 0.5, H * 0.5 + 2, 0)},
-	}
-	for i, w in ipairs(walls) do
-		local pw = part({
-			Name = "Wall" .. i,
-			Size = w[1], Position = w[2],
+
+	local back = part({
+		Name = "Wall1",
+		Size = Vector3.new(W, H, wallT),
+		Position = Vector3.new(0, H * 0.5 + 2, -D * 0.5),
+		Color = T.WallColor,
+		Material = Enum.Material.Brick,
+	})
+	back.Parent = model
+
+	-- Pared IZQUIERDA (Wall2) en tramos, con el hueco del garaje
+	do
+		local zFront, zBack = D * 0.5, -D * 0.5
+		local dz0 = GAR_Z - GAR_DOOR / 2
+		local dz1 = GAR_Z + GAR_DOOR / 2
+		local doorH = 12
+
+		for _, sg in ipairs({{zBack, dz0}, {dz1, zFront}}) do
+			local len = sg[2] - sg[1]
+			if len > 0.1 then
+				local pw = part({
+					Name = "Wall2",
+					Size = Vector3.new(wallT, H, len),
+					Position = Vector3.new(-W * 0.5, H * 0.5 + 2, (sg[1] + sg[2]) / 2),
+					Color = T.WallColor,
+					Material = Enum.Material.Brick,
+				})
+				pw.Parent = model
+			end
+		end
+
+		-- dintel del paso al garaje
+		local lint2 = part({
+			Name = "Wall2",
+			Size = Vector3.new(wallT, H - doorH, GAR_DOOR),
+			Position = Vector3.new(-W * 0.5, 2 + doorH + (H - doorH) / 2, GAR_Z),
 			Color = T.WallColor,
 			Material = Enum.Material.Brick,
 		})
-		pw.Parent = model
+		lint2.Parent = model
+
+		-- marco metalico del paso (es de taller, no de casa)
+		for _, dz in ipairs({dz0, dz1}) do
+			local jamb = part({
+				Name = "GarageDoorJamb",
+				Size = Vector3.new(wallT + 1.2, doorH, 1.2),
+				Position = Vector3.new(-W * 0.5, 2 + doorH / 2, dz),
+				Color = Color3.fromRGB(84, 88, 94),
+				Material = Enum.Material.Metal,
+			})
+			jamb.Parent = model
+		end
+		local head2 = part({
+			Name = "GarageDoorHead",
+			Size = Vector3.new(wallT + 1.2, 1.2, GAR_DOOR + 2.4),
+			Position = Vector3.new(-W * 0.5, 2 + doorH + 0.6, GAR_Z),
+			Color = Color3.fromRGB(84, 88, 94),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		head2.Parent = model
+		makeBillboard(head2, "TALLER", Color3.fromRGB(255, 205, 120), 2)
 	end
 
 	-- La pared DERECHA va en tramos, para dejar el hueco por donde se pasa
@@ -1498,6 +1589,44 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		pl.Range = 18
 		pl.Parent = lamp
 		tagLight(lamp, 2, Color3.fromRGB(255, 220, 160))
+	end
+
+	-- ===== RAMPON DE LA ENTRADA =====
+	-- El piso de la bodega esta a 2 studs y la calle a 0.2: habia un escalon
+	-- de 1.8. El jugador lo sube de milagro, pero la bici no (su MAX_STEP es
+	-- 1.6) y se quedaba atorada afuera del porton. Con la rampa entra y sale.
+	do
+		local drop = 1.8
+		local run = 5.5
+		local ang = math.atan(drop / run)
+		local largo = math.sqrt(drop * drop + run * run) + 0.4
+		-- la rampa va cargada al lado IZQUIERDO del porton: es el hueco que
+		-- queda libre entre el marco y el muelle de carga
+		local rw = math.min(12, gateW * 0.55)
+		local rx = -gateW * 0.30
+		local apron = part({
+			Name = "GateApron",
+			Size = Vector3.new(rw, 0.4, largo),
+			Position = Vector3.new(rx, 2 - drop / 2 - 0.2 * math.cos(ang), frontZ + run / 2),
+			Color = Color3.fromRGB(104, 102, 98),
+			Material = Enum.Material.Concrete,
+		})
+		apron.CFrame = CFrame.new(apron.Position) * CFrame.Angles(ang, 0, 0)
+		apron.Parent = model
+
+		-- guardas de orilla, para que se vea que es una rampa y no una tabla
+		for _, sx in ipairs({-1, 1}) do
+			local rail = part({
+				Name = "ApronRail",
+				Size = Vector3.new(0.4, 0.5, largo),
+				Position = Vector3.new(rx + sx * rw / 2, 2 - drop / 2 + 0.15, frontZ + run / 2),
+				Color = Color3.fromRGB(196, 168, 70),
+				Material = Enum.Material.SmoothPlastic,
+				CanCollide = false,
+			})
+			rail.CFrame = CFrame.new(rail.Position) * CFrame.Angles(ang, 0, 0)
+			rail.Parent = model
+		end
 	end
 
 	-- ===== TECHO A DOS AGUAS con vigas =====
@@ -2101,12 +2230,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- ===== GARAJE =====
 	-- Anexo pegado al costado izquierdo de la nave, con un cajon por
 	-- vehiculo. Main estaciona ahi los autos que compraste.
-	local GAR_W = 46
-	local GAR_D = 26
-	local GAR_X = -W * 0.5 - GAR_W / 2
-	local GAR_Z = -D * 0.5 + 24
-	local garH = 15
-
+	-- OJO: GAR_W/GAR_D/GAR_X/GAR_Z/garH se declaran ARRIBA (los necesita la
+	-- pared izquierda para saber donde va su hueco). No los vuelvas a
+	-- declarar aqui: si cambian de valor, la puerta deja de cuadrar.
 	local garFloor = part({
 		Name = "GarageFloor",
 		Size = Vector3.new(GAR_W, 2, GAR_D),

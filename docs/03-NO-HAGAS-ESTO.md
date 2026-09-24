@@ -254,3 +254,51 @@ Usa links markdown relativos clickeables, estilo v7 en adelante.
 - **Tema de drogas ilícitas** — viola el reglamento de Roblox. Ya se acordó el reskin.
 - **Proyecto Rojo** — el usuario no sabe usarlo.
 - **Bisagras físicas para la bici** — ver §1.
+
+---
+
+## 5. 🔇 El patrón más caro del proyecto: el error que se traga el `pcall`
+
+Tres bugs distintos de este proyecto fueron **la misma cosa**:
+
+| Ronda | Síntoma del usuario | Causa |
+|---|---|---|
+| v22–v26 | "Ningún botón contextual sale nunca" | `Workspace` (con mayúscula) es `nil`; el bucle de cercanía corría dentro de un `pcall` → moría en silencio cada 0.3 s |
+| v28 | "La computadora no me abre / sale en blanco" | `T.StorageBonus` ya no existía en la config: `string.format("%d", nil)` revienta; estaba dentro de un `pcall` |
+| v28 | "No me deja hacer nada" | `WaitForChild` sin timeout esperando un remote que se creaba 1745 líneas después |
+
+**Reglas que salen de esto:**
+
+1. **Un campo que no existe en la config no truena al compilar**: vale `nil`. Si ese
+   `nil` entra en `string.format`, en una suma o en un índice, revienta **en tiempo de
+   ejecución**. Corre `tools/fields.py`.
+2. **Si metes un bloque nuevo dentro de un `pcall`, deja rastro.** El `pcall` está bien
+   para no tirar el servidor, pero el error hay que **imprimirlo** (`warn`), no tragarlo.
+3. **Nada de `WaitForChild` sin timeout** para dependencias críticas: un script que no
+   se pegó debe dar un mensaje claro, no una pantalla muerta. Ya está resuelto en
+   `ClientUI` (cartel rojo + lista) y en `Main`/`DataService` (`need()` con `error`).
+4. **Los remotes se crean todos al arranque del servidor**, en un solo bloque, antes de
+   cualquier código que pueda fallar. El cliente espera máximo 10 s y avisa.
+
+---
+
+## 6. 🧱 Anécdotas de geometría (v28)
+
+1. **Existir no es poder llegar.** El garaje de la v26 tenía piso, 4 cajones, lámparas,
+   letrero y los autos estacionados… y **cero puertas**: la pared izquierda se construía
+   de una sola pieza. Cualquier validación de "¿existe la parte?" pasa feliz. Por eso
+   ahora existe `tools/walk.py` (flood fill con el cuerpo del jugador).
+2. **Una bodega no mide lo que dice su `Size`.** El nivel 4 mide 190 de ancho, pero con
+   el taller (46) y la oficina (34) pegados por fuera son **271**. Con las bodegas
+   sembradas cada 140 studs, tu oficina caía dentro del taller del vecino. Si agregas un
+   anexo, **actualiza `GameConfig.WarehouseLots.SpacingX`**.
+3. **Los anexos necesitan saber dónde van ANTES de construir la pared.** El hueco de la
+   puerta se calcula arriba, en las constantes del anexo (`GAR_Z`, `OFF_CZ`…), y la
+   pared se construye en tramos con ese dato. Si mueves el anexo, mueve también el hueco
+   (o el cuarto queda sellado otra vez).
+4. **Un radio fijo no cuadra con una caja.** La zona segura usaba "14 studs de radio"
+   sobre un tapete de 28×11: las esquinas del tapete **no** eran seguras aunque se
+   vieran dentro. Cuando el área tiene forma, mide contra su tamaño (`safe.Size`), no
+   contra un radio inventado.
+5. **El piso de la bodega está a 2 studs y la calle a 0.2.** Sin rampa, la bici
+   (`MAX_STEP = 1.6`) se atora en el portón. Ya hay `GateApron`.
