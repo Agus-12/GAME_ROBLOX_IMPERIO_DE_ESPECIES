@@ -206,6 +206,51 @@ confirmar que lo cazan (no sirve de nada un validador que dice "todo bien" siemp
 
 ---
 
+## 🚨 Extra: el cartel "FALTAN SCRIPTS/REMOTES EN EL SERVIDOR"
+
+> Esto salió de tu propia captura: te apareció el cartel con **2** remotes faltantes.
+
+**No es un bug del juego: es la mezcla de rondas en Studio.** En una misma ronda, el
+servidor tiene que crear **11** canales (`Remotes`) y el cliente pide esos mismos 11.
+Si el `Main.luau` pegado en Studio es viejo, crea menos de los que el cliente nuevo pide
+y sale el cartel.
+
+Tu caso, exactamente: el `ClientUI` ya era de la v28 (por eso el cartel existe: es
+nuevo) pero el `Main.luau` seguía siendo de la **v17 o v18** → faltaban **`Shoot`**
+(del arma, v21) y **`TerritoryUpdate`** (de territorios, v24). Por eso decía *"FALTAN 2"*.
+
+**Arreglo: pega los 5 archivos completos de la ronda.** Y para que nunca más quede la
+duda, la v28 ahora te lo dice sola:
+
+| Nuevo en la v28 | Qué hace |
+|---|---|
+| `GameConfig.Build` | La config dice su ronda (`"v28"`) |
+| Sello en `Remotes` | El servidor estampa su versión y **la imprime en Output**: `========== IMPERIO DE ESPECIAS v28 ==========` + cuántos remotes creó |
+| `MI_VERSION` en ClientUI | El cliente compara las 3 versiones |
+| Cartel explicativo | Si no cuadran: *"ARCHIVOS VIEJOS EN STUDIO"*, qué dice cada archivo, **qué remote falta y desde qué ronda existe** |
+| Aviso del CityGenerator | Si la bodega llega sin la rampa `GateApron` (v28), sale un `warn` diciendo que el CityGenerator quedó viejo |
+
+📄 La guía completa, con la tabla de "de qué ronda es cada remote", está en
+[`docs/08-SI-SALE-FALTAN-REMOTES.md`](docs/08-SI-SALE-FALTAN-REMOTES.md).
+
+### 🕳️ Y de paso: la validación tenía otro agujero (arreglado)
+
+Mientras probaba esto descubrí que `validate.sh` **daba por buenas dos etapas aunque
+los scripts tronaran**: el test del cliente y el del servidor imprimían el error
+(`!! ...`) pero **salían con código 0**, así que para el validador era "todo bien".
+Justo la clase de agujero que ya nos había mordido. Ya fallan de verdad (probado
+metiendo un error a propósito y confirmando que las etapas marcan FALLA), y hay una
+**etapa 9** nueva que revisa el contrato cliente/servidor y que las versiones cuadren
+en los 5 archivos:
+
+```
+=== 9. CONTRATO CLIENTE/SERVIDOR (remotes y versiones) ===
+  OK     el servidor crea todos los remotes que el cliente pide
+  OK     GameConfig.Build             v28
+  OK     ClientUI MI_VERSION          v28
+```
+
+---
 ## 🧪 Cómo probar
 
 1. Pega **los 5 archivos** y dale **Play**.

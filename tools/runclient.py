@@ -24,9 +24,18 @@ t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False); t.write(body)
 CASES = {"ESCRITORIO 1920x1080": (1920,1080,"0"),
          "CELULAR    896x414":   (896,414,"1"),
          "TABLET     1180x820":  (1180,820,"1")}
+fallos = 0
 for name,(w,h,touch) in CASES.items():
     env = dict(os.environ, MOCK_VW=str(w), MOCK_VH=str(h), MOCK_TOUCH=touch, TOOLS=HERE)
     print(name)
     r = subprocess.run([LUA, t.name], capture_output=True, text=True, env=env, timeout=120)
-    print(r.stdout.strip() or r.stderr.strip()[:700])
+    salida = r.stdout.strip() or r.stderr.strip()[:700]
+    print(salida)
+    # OJO: antes este script imprimia "!! ..." y salia con codigo 0, asi que
+    # validate.sh daba la etapa por buena aunque el cliente tronara.
+    if r.returncode != 0 or "!!" in salida or "OK" not in salida:
+        fallos += 1
 os.unlink(t.name)
+if fallos:
+    print("  FALLA  el cliente trono en %d de %d tamanos" % (fallos, len(CASES)))
+    sys.exit(1)

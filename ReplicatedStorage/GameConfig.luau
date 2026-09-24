@@ -4,6 +4,15 @@
 
 local GameConfig = {}
 
+-- ========== VERSION ==========
+-- Numero de la ronda. El servidor lo estampa en la carpeta Remotes, el cliente
+-- lo compara con el suyo, y si no coinciden sale un CARTEL EN PANTALLA diciendo
+-- que archivo quedo viejo. Esto salio de un caso real: el usuario tenia el
+-- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
+-- "faltan remotes" sin ninguna pista de que pegar.
+-- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
+GameConfig.Build = "v28"
+
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
 

@@ -47,6 +47,45 @@ El mapa se genera solo. Borra el `Baseplate` y el `SpawnLocation` que trae por d
 ### ▶️ Dale Play
 Deberías ver la ciudad construirse sola y aparecer en tu bodega.
 
+En la ventana **Output** (menú **View › Output**) tiene que salir:
+
+```
+========== IMPERIO DE ESPECIAS v28 ==========
+  remotes creados: 11
+```
+
+Si sale otro número, o no sale esa línea, es que un archivo quedó viejo: mira
+[`08-SI-SALE-FALTAN-REMOTES.md`](08-SI-SALE-FALTAN-REMOTES.md).
+
+---
+
+## 📋 Cómo copiar los archivos desde GitHub
+
+El repo es **público**, así que puedes copiar sin iniciar sesión:
+
+👉 **https://github.com/Agus-12/GAME_ROBLOX_IMPERIO_DE_ESPECIES**
+
+1. Entra a la carpeta (`ReplicatedStorage`, `ServerScriptService` o `StarterPlayerScripts`).
+2. Haz clic en el archivo (por ejemplo `Main.luau`).
+3. Arriba a la derecha del contenido hay un **ícono de copiar** 📋. Dale.
+4. En Studio: selecciona el script → **`Ctrl+A`** (selecciona TODO) → **`Ctrl+V`**.
+
+> ⚠️ **Las 5 piezas se pegan siempre juntas y de la misma ronda.** Nunca mezcles un
+> archivo de una ronda con otro de otra: es la causa #1 de que "no abra nada".
+> Si te sale un **cartel rojo** en pantalla, el juego te dice exactamente qué falta.
+
+---
+
+## 🩺 Si algo sale mal
+
+| Síntoma | Qué pasa | Solución |
+|---|---|---|
+| Cartel rojo *"FALTAN SCRIPTS/REMOTES"* | Hay archivos de rondas distintas pegados en Studio | Pega los 5 de la ronda actual, completos. Ver [`08-SI-SALE-FALTAN-REMOTES.md`](08-SI-SALE-FALTAN-REMOTES.md) |
+| Cartel rojo *"ARCHIVOS VIEJOS EN STUDIO"* | Igual, y además el juego te dice **cuál** archivo quedó viejo | Pega ese archivo |
+| La línea `IMPERIO DE ESPECIAS vNN` no sale en Output | El `Main.luau` pegado no es el de esta ronda | Pega `Main.luau` |
+| `remotes creados: 9` (o menos de 11) | Igual: `Main.luau` viejo | Pega `Main.luau` |
+| No pasa nada al acercarme a la computadora | Algún script no corrió | Revisa Output y el cartel rojo |
+
 ---
 
 ## 🎮 Controles

@@ -94,14 +94,52 @@ local RE_Shoot   = need(Remotes, "Shoot")
 local RE_Terr    = need(Remotes, "TerritoryUpdate")
 local RF_Action  = need(Remotes, "Action")
 
--- si falto algo, que se vea: cartel + lista de lo que falta
+-- ===== ¿LOS ARCHIVOS QUE PEGASTE SON DE ESTA RONDA? =====
+-- Esto nace de un caso real: el cliente ya era de la ronda nueva pero el
+-- Main.luau del servidor seguia siendo de 8 rondas atras. El unico sintoma
+-- era "faltan 2 remotes", sin decir cual de los 5 archivos pegar ni por que.
+-- Ahora el servidor estampa su version en la carpeta Remotes, GameConfig trae
+-- la suya, y aqui se comparan las tres cosas.
+local MI_VERSION = "v28"
+-- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
+local DESDE = {
+	OpenVault = "v18", Shoot = "v21", TerritoryUpdate = "v24",
+	IncomingCall = "v28",   -- en la v28 se crea al arranque del servidor
+}
+
+local servidor = (typeof(Remotes) == "Instance") and Remotes:GetAttribute("Build") or nil
+local lineas: {string} = {}
+local viejo = false
+
+if servidor ~= MI_VERSION then
+	viejo = true
+	local dice = servidor and ("'" .. tostring(servidor) .. "'") or "NADA (es viejo, ni siquiera dice version)"
+	table.insert(lineas, " - Main.luau del servidor dice " .. dice .. "; esta ronda es " .. MI_VERSION)
+end
+if Config.Build ~= MI_VERSION then
+	viejo = true
+	table.insert(lineas, " - GameConfig dice '" .. tostring(Config.Build) ..
+		"'; esta ronda es " .. MI_VERSION)
+end
 if #AVISOS > 0 then
-	local lineas = { "FALTAN SCRIPTS/REMOTES EN EL SERVIDOR (" .. #AVISOS .. "):" }
+	local faltan = {}
 	for i, a in ipairs(AVISOS) do
-		if i <= 4 then table.insert(lineas, "  - " .. a) end
+		if i <= 4 then
+			local n = string.match(a, "([^%.]+)$") or a      -- "Remotes.Shoot" -> "Shoot"
+			local d = DESDE[n]
+			table.insert(faltan, a .. (d and ("  (existe desde " .. d .. ")") or ""))
+		end
 	end
-	table.insert(lineas, "Pega los scripts que faltan y vuelve a dar Play.")
-	pcall(cartelDeError, lineas)
+	table.insert(lineas, " - el servidor NO creo: " .. table.concat(faltan, " , "))
+end
+
+-- si falta algo O los archivos son de otra ronda: cartel explicando que pegar
+if viejo or #AVISOS > 0 then
+	local box = { (viejo and ("ARCHIVOS VIEJOS EN STUDIO  --  esta ronda es " .. MI_VERSION))
+		or ("FALTAN REMOTES EN EL SERVIDOR (" .. #AVISOS .. ")") }
+	for _, l in ipairs(lineas) do table.insert(box, l) end
+	table.insert(box, "Pega los 5 archivos de la ronda COMPLETOS (Ctrl+A y Ctrl+V) y vuelve a dar Play.")
+	pcall(cartelDeError, box)
 end
 local State: any = {Cash = 0, Leaves = 0, Blocks = 0, Heat = 0, Plots = 0, PressLevel = 1,
 	Employees = {Harvester=0,Presser=0,Guard=0}, Vehicles = {}, Properties = {}, Storage = 200}

@@ -9,7 +9,7 @@ simulador. **Úsalo antes de entregar cualquier ronda.**
 bash tools/validate.sh
 ```
 
-Corre **ocho etapas**. Tienen que salir todas OK.
+Corre **nueve etapas**. Tienen que salir todas OK.
 
 ## Qué hay en `tools/`
 
@@ -27,6 +27,7 @@ Corre **ocho etapas**. Tienen que salir todas OK.
 | `fields.py` | Compara los campos `Config.x.y` que lee el código contra la config real |
 | `walk.py` | Flood fill con el cuerpo del jugador: ¿se puede *caminar* a cada máquina? |
 | `api.py` | Valida enums, clases y props contra el API-Dump de Roblox |
+| `remotes.py` | El cliente pide los mismos remotes que el servidor crea, y las versiones cuadran |
 | `validate.sh` | Corre todo lo anterior |
 
 ## Etapa 1 — sintaxis
@@ -179,3 +180,39 @@ Play en Studio, en inglés y sin decir en qué línea. Esta etapa lo caza antes.
 
 > Si no hay red, avisa y se salta (no bloquea la entrega): el `validate.sh` lo llama
 > con `|| true` a propósito.
+
+## Etapa 9 — contrato cliente/servidor (`tools/remotes.py`)
+
+```bash
+python3 tools/remotes.py
+```
+
+Dos cosas:
+
+1. **Remotes.** Saca de `Main.luau` los nombres que crea (`mkEvent` / `mkFunc`) y de
+   `ClientUI.luau` los que pide (`need(Remotes, "X")`, `WaitForChild`, `FindFirstChild`).
+   Si el cliente pide uno que el servidor no crea, la UI se queda sin esa función y
+   aparece el cartel **"FALTAN SCRIPTS/REMOTES"** en Studio.
+
+   > Así se cazó el caso real del usuario: `Main.luau` de la v20 + `ClientUI` de la v28
+   > → faltaban `Shoot` (v21) y `TerritoryUpdate` (v24).
+
+2. **Versiones.** `GameConfig.Build`, el `MI_VERSION` de `ClientUI`, el último
+   `CAMBIOS-vN.md` de la raíz, el `README` y `CONTINUACION.md` tienen que decir el
+   mismo número. Si no cuadran, la ronda no sale.
+
+**Cuando subas de ronda:** cambia el número en `GameConfig.Build`, en `MI_VERSION` de
+`ClientUI.luau` y en `README` / `CONTINUACION.md`, y esta etapa te avisa si se te olvidó
+alguno.
+
+## ⚠️ Las etapas 2 y 3 tienen que FALLAR cuando algo truena
+
+`runmain.py` y `runclient.py` salían con código 0 aunque el script reventara, así que
+`validate.sh` daba la ronda por buena con el cliente roto. Ya no: si el cliente truena
+en cualquiera de los 3 tamaños, o si Main no llega al final, **la etapa marca FALLA**.
+Probado a propósito:
+
+```
+runclient EXIT=1   FALLA  el cliente trono en 3 de 3 tamanos
+runmain   EXIT=1   FALLA  el servidor trono en runtime (ver arriba)
+```

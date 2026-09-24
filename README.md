@@ -22,6 +22,9 @@ volver a intentar, y las reglas que no se pueden romper.
 
 ### 👉 Lee [`docs/01-INSTALACION.md`](docs/01-INSTALACION.md)
 
+> 🚨 ¿Te sale un cartel rojo *"FALTAN SCRIPTS/REMOTES"* en el juego? Son archivos de
+> rondas distintas pegados en Studio: [`docs/08-SI-SALE-FALTAN-REMOTES.md`](docs/08-SI-SALE-FALTAN-REMOTES.md)
+
 Son 5 archivos que se copian y pegan en Roblox Studio. Unos 10 minutos.
 
 ---

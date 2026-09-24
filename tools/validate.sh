@@ -31,3 +31,5 @@ echo "=== 7. SE PUEDE CAMINAR A TODO? ==="
 python3 tools/walk.py
 echo "=== 8. API DE ROBLOX (enums/clases) ==="
 python3 tools/api.py || true
+echo "=== 9. CONTRATO CLIENTE/SERVIDOR (remotes y versiones) ==="
+python3 tools/remotes.py

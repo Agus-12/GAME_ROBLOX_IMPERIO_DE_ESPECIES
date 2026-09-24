@@ -63,6 +63,18 @@ local RF_Action  = mkFunc("Action")           -- client -> server, todo lo demas
 -- para siempre (y con el, TODA la interfaz). Se crea aqui con los demas.
 local RE_Call    = mkEvent("IncomingCall")    -- server -> client, te llama un cliente
 
+-- ===== SELLO DE VERSION =====
+-- El cliente lee este atributo y lo compara con el suyo: si el servidor que
+-- corre es de OTRA ronda, sale un cartel en pantalla diciendo que archivo
+-- quedo viejo. Paso de verdad: cliente v28 con un Main.luau de la v20 pegado
+-- -> el usuario solo veia "faltan remotes" y no sabia que pegar.
+Remotes:SetAttribute("Build", Config.Build or "?")
+print("========== IMPERIO DE ESPECIAS " .. tostring(Config.Build) .. " ==========")
+print("  remotes creados: " .. #Remotes:GetChildren())
+if Config.Build == nil then
+	warn("[SpiceEmpire] Tu GameConfig NO trae numero de version: es VIEJO. Pega el GameConfig de esta ronda.")
+end
+
 ----------------------------------------------------------------------
 -- MAPA
 ----------------------------------------------------------------------
@@ -126,6 +138,8 @@ local missionCooldown: {[Player]: number} = {}
 local pendingCall: {[Player]: any} = {}
 local nextCallAt: {[Player]: number} = {}
 
+local warnedCityGen = false
+
 local function assignWarehouse(player: Player): Model
 	local slot
 	for i = 1, WAREHOUSE_MAX_SLOTS do
@@ -145,6 +159,13 @@ local function assignWarehouse(player: Player): Model
 	clone:SetAttribute("OwnerId", player.UserId)
 	clone:PivotTo(CFrame.new(warehouseSlotPos(slot)))
 	clone.Parent = Workspace
+
+	-- ¿el CityGenerator es de esta ronda? La rampa del porton (GateApron) llego
+	-- en la v28. Si no esta, hay un CityGenerator viejo pegado: se avisa una vez.
+	if not warnedCityGen and not clone:FindFirstChild("GateApron", true) then
+		warnedCityGen = true
+		warn("[SpiceEmpire] CityGenerator VIEJO: la bodega no trae la rampa GateApron. Pega el CityGenerator de esta ronda.")
+	end
 
 	-- letrero con el nombre
 	local sign = Instance.new("BillboardGui")

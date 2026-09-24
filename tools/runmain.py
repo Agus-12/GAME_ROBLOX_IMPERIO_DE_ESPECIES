@@ -49,5 +49,13 @@ print(ok and ">>> Main.luau CORRIO COMPLETO <<<" or ("!! Main TRONO: "..tostring
 t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False); t.write(h); t.close()
 r = subprocess.run([LUA, t.name], capture_output=True, text=True, timeout=180)
 os.unlink(t.name)
-print(r.stdout[-3000:])
+salida = r.stdout[-3000:]
+print(salida)
 if r.stderr: print("STDERR:", r.stderr[-900:])
+# OJO: antes este script salia con codigo 0 aunque Main tronara, asi que
+# validate.sh daba la etapa por buena. Ahora falla de verdad.
+malo = ("!!" in salida) or ("CORRIO COMPLETO" not in salida) or r.returncode != 0
+if r.stderr: malo = True
+if malo:
+    print("  FALLA  el servidor trono en runtime (ver arriba)")
+    sys.exit(1)

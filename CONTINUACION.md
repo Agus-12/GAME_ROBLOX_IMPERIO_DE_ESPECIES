@@ -28,7 +28,26 @@
 | El cliente se colgaba en silencio | `WaitForChild` sin timeout + `IncomingCall` creado 1745 líneas después del arranque | ✅ v28 (remotes al arranque + timeout de 10 s + cartel rojo) |
 | "El botón sale pero me rebota" | Cliente 16 studs, servidor 14 en la prensa | ✅ v28 (radios desde `GameConfig.Interact` y los ya existentes) |
 | El panel no se reabría al revivir | El detector guarda "ya estabas cerca" para no abrir el panel cada 0.3 s; si morías junto a la máquina ese `true` quedaba pegado y el cruce nunca volvía a disparar. Solo se arreglaba alejándose y regresando | ✅ v28 (al morir se limpia `near` y se cierran los paneles) |
+| Cartel "FALTAN SCRIPTS/REMOTES" con N=2 | El usuario tenía un `Main.luau` VIEJO pegado en Studio. La v28 se sumó al final del juego: todo remote que el cliente pide ya existía desde la v21/v24, así que la única causa posible era un archivo de otra ronda | ✅ v28 (sello de versión + cartel que dice cuál archivo quedó viejo + `tools/remotes.py`) |
 | Zona segura con esquinas fuera | Radio fijo 14 vs tapete de 28×11 | ✅ v28 (mide contra el tapete real) |
+
+### 🔖 Regla de las VERSIONES (nueva en la v28)
+
+Una ronda **solo se suma al final**: ningún remote se borra ni se renombra. Por eso, si
+el cliente pide un remote que el servidor no crea, **la causa es siempre la misma**: hay
+un archivo de otra ronda pegado en Studio. Para que el usuario no tenga que adivinar:
+
+| Dónde | Qué dice |
+|---|---|
+| `GameConfig.Build` | La ronda de la config (`"v28"`) |
+| `Main.luau`, al arrancar | Estampa la versión en la carpeta `Remotes` (atributo `Build`) y **la imprime en Output**: `========== IMPERIO DE ESPECIAS v28 ==========` + cuántos remotes creó |
+| `ClientUI.luau` | `MI_VERSION` + la tabla `DESDE` (desde qué ronda existe cada remote) |
+| Cartel rojo | Compara las 3 versiones y dice **qué archivo pegó viejo el usuario** |
+
+**Al subir de ronda, cambia el número en los 5 lugares** (`GameConfig.Build`,
+`MI_VERSION`, `README`, `CONTINUACION.md`, y crea `CAMBIOS-vN.md`): `tools/remotes.py`
+(etapa 9) falla si se te olvida alguno. Detalle completo en
+`docs/08-SI-SALE-FALTAN-REMOTES.md`.
 
 ### ⚠️ Reglas que NO puedes romper
 

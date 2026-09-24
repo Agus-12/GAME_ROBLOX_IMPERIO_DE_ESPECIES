@@ -66,6 +66,7 @@ function Instance_.new(cls,parent)
   o.FireClient=function() end
   local proxy
   proxy=setmetatable({},{
+    __isinstance=true,
     __index=function(_,k) return o[k] end,
     __newindex=function(_,k,v)
       if k=="Parent" and v~=nil then
@@ -77,6 +78,15 @@ function Instance_.new(cls,parent)
   return proxy
 end
 Instance=Instance_
+-- typeof() de Roblox: distingue una Instance de una tabla normal. Lo usa
+-- ClientUI para saber si Remotes es de verdad una carpeta o un sustituto.
+function typeof(v)
+  if type(v)=="table" then
+    local mt=getmetatable(v)
+    if mt and mt.__isinstance then return "Instance" end
+  end
+  return type(v)
+end
 local services={}
 local function svc(n)
   if not services[n] then
