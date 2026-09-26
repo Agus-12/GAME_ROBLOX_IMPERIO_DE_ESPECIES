@@ -113,6 +113,19 @@ CFmt.__index=function(t,k)
       return c
     end
   end
+  -- v50: PointToObjectSpace / VectorToObjectSpace (los usa el spawn de la bici
+  -- para comprobar que el punto quede FUERA del patio). Sin ellos, la prueba
+  -- tronaba con "attempt to call a nil value".
+  if k=="PointToObjectSpace" or k=="VectorToObjectSpace" then
+    return function(a, b)
+      return Vector3.new(b.X - a.p.X, b.Y - a.p.Y, b.Z - a.p.Z)
+    end
+  end
+  if k=="PointToWorldSpace" or k=="VectorToWorldSpace" then
+    return function(a, b)
+      return Vector3.new(b.X + a.p.X, b.Y + a.p.Y, b.Z + a.p.Z)
+    end
+  end
   if k=="Inverse" then
     return function(a)
       local c = mkCF(Vector3.new(-a.p.X, -a.p.Y, -a.p.Z))
@@ -762,7 +775,12 @@ function SCHED.Raycast(desde, direccion, filtro)
   end
   local mejorT, mejorParte, mejorN = nil, nil, Vector3.new(0, 1, 0)
   for _, o in ipairs(lista) do
-    if not omitir[o] and not excluido(o) and cerca(o) then
+    -- v50: ROBLOX IGNORA las piezas con CanCollide = false en los raycasts.
+    -- El simulador las contaba, asi que el "cielo abierto" de la bici era
+    -- mentira: veia techos decorativos que en el juego no detienen un rayo.
+    local coll = o.CanCollide
+    if coll == nil then coll = true end
+    if not omitir[o] and not excluido(o) and coll and cerca(o) then
       local mn, mx = cajaDeParte(o)
       local t0, t1 = 0, largo
       for _, e in ipairs({{desde.X, d.X, mn.X, mx.X}, {desde.Y, d.Y, mn.Y, mx.Y}, {desde.Z, d.Z, mn.Z, mx.Z}}) do

@@ -86,6 +86,43 @@ problemas = []
 guion = cabeza() + '''
 local malos, lineas = 0, {}
 local chicos = {}
+-- v50: ademas de chico, un cartel puede quedar TAPADO: si esta pintado en una
+-- cara y otra pieza va pegada enfrente (la puerta de la caja fuerte, la pantalla
+-- del monitor) el texto se ve "adentro de la cosa" (reporte del usuario).
+-- Un cartel esta BIEN si al menos una de sus caras pintadas se ve libre.
+local EJES = {Back = "Z", Front = "Z", Left = "X", Right = "X", Top = "Y", Bottom = "Y"}
+local function caraTapada(parte, cara)
+  local eje = EJES[cara.Name]
+  if not eje then return false end
+  local signo = (cara.Name == "Back" or cara.Name == "Left" or cara.Name == "Bottom") and -1 or 1
+  local medio = parte.Position
+  if eje == "X" then medio = medio + Vector3.new(signo * parte.Size.X * 0.5, 0, 0) end
+  if eje == "Y" then medio = medio + Vector3.new(0, signo * parte.Size.Y * 0.5, 0) end
+  if eje == "Z" then medio = medio + Vector3.new(0, 0, signo * parte.Size.Z * 0.5) end
+  for _, o in ipairs(BUILD:GetDescendants()) do
+    if o ~= parte and o:IsA("BasePart") then
+      local d = o.Position - medio
+      local a = (eje == "X") and d.X or ((eje == "Y") and d.Y or d.Z)
+      if a * signo > 0 and math.abs(a) <= 2 then
+        -- ¿la otra pieza cubre el centro de esta cara?
+        local cubreY = (o.Size.Y * 0.5) >= math.abs(d.Y) - 0.4
+        local cubreX = (o.Size.X * 0.5) >= math.abs(d.X) - 0.4
+        local cubreZ = (o.Size.Z * 0.5) >= math.abs(d.Z) - 0.4
+        if cubreX and cubreY and cubreZ then return true, o.Name end
+      end
+    end
+  end
+  return false
+end
+-- todas las caras pintadas de cada pieza (para decidir por PIEZA, no por cara)
+local carasPorPieza = {}
+for _, d in ipairs(BUILD:GetDescendants()) do
+  if d:IsA("SurfaceGui") and d.Parent then
+    local q = carasPorPieza[d.Parent]
+    if not q then q = {} ; carasPorPieza[d.Parent] = q end
+    table.insert(q, d)
+  end
+end
 for _, d in ipairs(BUILD:GetDescendants()) do
   if d:IsA("SurfaceGui") and d.Name == "Rotulo" then
     local l = d:FindFirstChild("Texto")
@@ -113,6 +150,18 @@ for _, d in ipairs(BUILD:GetDescendants()) do
       if (l.TextSize or 0) <= 0 then
         malos = malos + 1
         table.insert(chicos, p.Name .. " no tiene TextSize (quedo a TextScaled)")
+      end
+      -- ¿TODAS las caras pintadas de esta pieza quedan tapadas por otra?
+      local suyas = carasPorPieza[p] or {}
+      local todasTapadas, quien = #suyas > 0, "?"
+      for _, q in ipairs(suyas) do
+        local t, nom = caraTapada(p, q.Face)
+        if not t then todasTapadas = false break end
+        if nom then quien = nom end
+      end
+      if todasTapadas then
+        malos = malos + 1
+        table.insert(chicos, string.format("%s: TODAS sus caras pintadas quedan tapadas por %s (el cartel se ve 'adentro' de la pieza)", p.Name, quien))
       end
     end
   end
@@ -147,9 +196,10 @@ else:
 problemas = []
 guion = cabeza() + '''
 local R = (_cfg.Garage and _cfg.Garage.OpenRadius) or 0
-local doors, franjas, ventanas, manijas = 0, 0, 0, 0
+local doors, franjas, ventanas, manijas, rieles = 0, 0, 0, 0, 0
 local huecoBien, pegado = 0, 0
 for _, d in ipairs(BUILD:GetDescendants()) do
+  if d.Name == "DoorRail" then rieles = rieles + 1 end
   if d:IsA("Model") and d.Name == "GarageDoor" then
     doors = doors + 1
     for _, c in ipairs(d:GetChildren()) do
@@ -191,8 +241,8 @@ for _, d in ipairs(BUILD:GetDescendants()) do
     end
   end
 end
-print(string.format("__PORTON__ cajones=%d franjas=%d ventanas=%d manijas=%d hueco=%d pegado=%d radio=%.0f cilindros=%d palitos=%d [%s]",
-  doors, franjas, ventanas, manijas, huecoBien, pegado, R, cilindros, #palitos, table.concat(palitos, " ; ")))
+print(string.format("__PORTON__ cajones=%d rieles=%d franjas=%d ventanas=%d manijas=%d hueco=%d pegado=%d radio=%.0f cilindros=%d palitos=%d [%s]",
+  doors, rieles, franjas, ventanas, manijas, huecoBien, pegado, R, cilindros, #palitos, table.concat(palitos, " ; ")))
 '''
 sal = lua(guion)
 m = re.search(r"__PORTON__ (.+)", sal.stdout + sal.stderr)
@@ -206,6 +256,9 @@ else:
     e = kv(m.group(1))
     if int(e.get("cajones", 0)) < 1:
         problemas.append("no hay portones en el lote")
+    if int(e.get("rieles", 0)) < 2:
+        problemas.append("el porton no tiene rieles laterales: cuando esta abierto el "
+                         "hueco se ve vacio y parece que no hay puerta")
     if int(e.get("franjas", 0)) < 6:
         problemas.append("el porton no trae la franja de seguridad (rojo/blanco): "
                          "se ve como un hueco negro")
@@ -311,10 +364,75 @@ else:
         print("  OK     el panel se abre en el cajon y SE CIERRA al alejarte (400 studs), "
               "sin depender de como lo abriste")
 
+# ============================================ 4) LA BICI: BIEN LEJOS DE LA ORILLA
+problemas = []
+MAIN = L("ServerScriptService/Main.luau")
+ini = MAIN.find("-- INICIO BICI AFUERA")
+fin = MAIN.find("basePos = Vector3.new(basePos.X")
+if ini == -1 or fin == -1:
+    problemas.append("no encuentro el pedazo de spawnBike")
+else:
+    guion = 'dofile("%s/mock.lua")\n' % HERE
+    guion += "local _cfg=(function()\n" + L("ReplicatedStorage/GameConfig.luau") + "\nend)()\n"
+    guion += '''
+local rs=game:GetService("ReplicatedStorage")
+rs.WaitForChild=function(s,n) if n=="GameConfig" then return "__CFG__" end end
+require=function(x) if x=="__CFG__" then return _cfg end return {} end
+local City=(function() ''' + L("ServerScriptService/CityGenerator.luau") + ''' end)()
+local L_ = _cfg.WarehouseLots
+local base = Vector3.new(L_.Origin.X, L_.Origin.Y, L_.Origin.Z)
+local m = City.BuildWarehouse(1)
+m.Name = "Warehouse_1"
+m:PivotTo(CFrame.new(base))
+m.Parent = workspace
+local patio = m:FindFirstChild("LotApron", true)
+local player = {UserId = 1}
+local warehouses = {[player] = m}
+local wh = m
+local hrp = {CFrame = CFrame.new(m.PrimaryPart.Position + Vector3.new(0, 6, 0)),
+  Position = m.PrimaryPart.Position + Vector3.new(0, 6, 0)}
+local Workspace = workspace ; local RaycastParams = RaycastParams ; local Enum = Enum
+local TEXTO = [==[
+''' + MAIN[ini:fin] + '''
+]==]
+local env = setmetatable({wh = wh, hrp = hrp, player = player, warehouses = warehouses,
+  CFrame = CFrame, Vector3 = Vector3, workspace = workspace, pcall = pcall,
+  Workspace = workspace, RaycastParams = RaycastParams, Enum = Enum}, {__index = _G})
+local f, err = load(TEXTO .. string.char(10) .. "return basePos", "bici", "t", env)
+if not f then print("__BICI49__ no compila: " .. tostring(err)) return end
+local ok, basePos = pcall(f)
+if not ok then print("__BICI49__ trono: " .. tostring(basePos)) return end
+local rel = patio.CFrame:PointToObjectSpace(basePos)
+print(string.format("__BICI49__ z=%.1f fueraDelPatio=%.1f (patio mide %.1f de fondo) x=%.1f",
+  basePos.Z, rel.Z - patio.Size.Z * 0.5, patio.Size.Z, basePos.X))
+'''
+    sal = lua(guion)
+    m6 = re.search(r"__BICI49__ (.+)", sal.stdout + sal.stderr)
+    if not m6:
+        problemas.append("no se pudo medir la bici")
+        for x in (sal.stdout + sal.stderr).strip().splitlines()[-4:]:
+            print("         | " + x[:150])
+    else:
+        print("  medidas: " + m6.group(1))
+        e6 = kv(m6.group(1))
+        fuera = float(e6.get("fueraDelPatio", "-99"))
+        if fuera < 10:
+            problemas.append("la bici nace a solo %.1f studs de la orilla del patio: se ve "
+                             "DENTRO del terreno (el jugador reporto que aparecia adentro)"
+                             % fuera)
+if problemas:
+    fallas += 1
+    print("  FALLA  (la bici adentro)")
+    for x in problemas:
+        print("         - " + x)
+else:
+    print("  OK     la bici nace 12 studs mas alla de la orilla del patio, con el lote "
+          "completo puesto (ya no se ve dentro del terreno)")
+
 print()
 if fallas == 0:
-    print("OK: las letras se miden, el porton se ve cerrado, el mercado se cierra siempre "
-          "y el piso quedo limpio")
+    print("OK: las letras se miden (y no quedan tapadas), el porton trae rieles, el mercado "
+          "se cierra siempre, la bici nace afuera y el piso quedo limpio")
 else:
     print("FALLA: %d problema(s) de la ronda v49" % fallas)
 sys.exit(1 if fallas else 0)

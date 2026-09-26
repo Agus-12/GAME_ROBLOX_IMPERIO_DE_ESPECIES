@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v49 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v50 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -3148,13 +3148,36 @@ function spawnBike(player: Player)
 		hacia = Vector3.new(z.X, 0, z.Z)
 		if hacia.Magnitude < 0.01 then hacia = Vector3.new(0, 0, 1) end
 		hacia = hacia.Unit
-		local orilla = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 6)).Position
+		-- v50: 6 studs de la orilla no se veian "afuera": el patio termina y
+		-- sigue el pasto, asi que la bici quedaba pegada a la linea de los
+		-- bolardos y se veia DENTRO del terreno (reporte del jugador otra vez).
+		-- Ahora nace 12 studs mas alla de la orilla del patio, en el llano que
+		-- da a la calle, y ademas se COMPRUEBA que de verdad quede fuera del
+		-- patio (si no, se empuja hacia afuera sin preguntarle a los rayos).
+		local orilla = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 12)).Position
 		basePos = buscarLibre(orilla, hacia, patio.Position.Y + patio.Size.Y * 0.5)
+		if basePos then
+			local rel = patio.CFrame:PointToObjectSpace(basePos)
+			local minimoZ = patio.Size.Z * 0.5 + 4
+			if rel.Z < minimoZ then
+				-- esta adentro del patio (o encima de el): se saca a la fuerza
+				basePos = (patio.CFrame * CFrame.new(0, 0, minimoZ + 6)).Position
+			end
+		end
 	elseif wh and wh.PrimaryPart then
+		-- sin patio (config vieja): media nave + 34 ya cae fuera del lote
 		hacia = Vector3.new(0, 0, 1)
 		local fondo = (wh.PrimaryPart.CFrame
 			* CFrame.new(0, 0, wh.PrimaryPart.Size.Z * 0.5 + 34)).Position
 		basePos = buscarLibre(fondo, hacia, wh.PrimaryPart.Position.Y)
+		-- y nunca mas cerca que media nave + 26: ahi todavia es el lote
+		if basePos then
+			local rel = wh.PrimaryPart.CFrame:PointToObjectSpace(basePos)
+			local minimoZ = wh.PrimaryPart.Size.Z * 0.5 + 26
+			if rel.Z < minimoZ then
+				basePos = (wh.PrimaryPart.CFrame * CFrame.new(0, 0, minimoZ + 6)).Position
+			end
+		end
 	end
 
 	if not basePos then

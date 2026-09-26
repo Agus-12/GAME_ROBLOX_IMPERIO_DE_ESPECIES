@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v49 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v50 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -171,8 +171,12 @@ local function textoPlano(parte: BasePart, texto: string, color: Color3?, opts: 
 				lbl.Size = UDim2.fromScale(1, 1)
 				lbl.Position = UDim2.fromScale(0, 0)
 			else
+				-- v50: la banda se puede EMPUJAR hacia arriba o abajo (o.bandaPos).
+				-- El cartel de la caja fuerte se pinta en la PUERTA, y en el centro
+				-- esta la rueda: la banda sube para que el texto se vea.
+				local pos = math.clamp(tonumber(o.bandaPos) or 0.5, alto * 0.5, 1 - alto * 0.5)
 				lbl.Size = UDim2.fromScale(1, alto)
-				lbl.Position = UDim2.fromScale(0, 0.5 - alto * 0.5)
+				lbl.Position = UDim2.fromScale(0, pos - alto * 0.5)
 			end
 			lbl.Font = o.font or Enum.Font.GothamBold
 			lbl.TextWrapped = false
@@ -2454,11 +2458,22 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	vaultBody.Parent = model
 	-- v44: pintado en la cara de la caja (antes flotaba encima y tapaba la bodega)
-	-- v49: la caja es un cubo ALTISIMO (10 x 11): sin banda el texto se estiraba
-	-- en once studs de alto y el motor lo dejaba en ~2. Ahora va en una banda a
-	-- media caja con la letra pedida (1.5 studs = 6.5% del alto, se lee de lejos)
-	textoPlano(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190),
-		{ pixels = 64, banda = 0.14, letra = 1.5 })
+	-- v50: EL CARTEL SE MUDO A SU PROPIA PLAQUITA ARRIBA DE LA CAJA. Antes iba
+	-- pintado en el cuerpo (10 x 11 x 6), pero la PUERTA (7.6 x 7.6) y la rueda
+	-- van pegadas enfrente y lo tapaban: el usuario lo vio como "el cartel
+	-- aparece adentro de la cosa". Esta plaquita sobresale por arriba y se lee
+	-- desde cualquier lado de la nave.
+	local vaultLabel = part({
+		Name = "VaultLabel",
+		Size = Vector3.new(6.4, 1.3, 0.3),
+		Position = Vector3.new(vaultX, 12.6, vaultZ + 3.5),
+		Color = Color3.fromRGB(24, 28, 34),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+	})
+	vaultLabel.Parent = model
+	textoPlano(vaultLabel, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190),
+		{ pixels = 96, letra = 0.9 })
 
 	local vaultFrame = part({
 		Name = "VaultFrame",
@@ -2730,6 +2745,35 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			slat.Parent = doorModel
 		rememberCF(slat)
 		end
+
+		-- ===== v50: RIELES LATERALES FIJOS =====
+		-- El usuario: "sigue sin aparecer el porton de la cochera". Y tenia razon
+		-- en el sentido de que, cuando el porton esta abierto (te acercas y se
+		-- sube), el hueco se ve VACIO y parece que no hay puerta. Los rieles
+		-- (las guias por donde corre la cortina) NO se mueven: se ven siempre,
+		-- arriba y a los lados del hueco, y con eso el cajon se lee como
+		-- cochera con porton aunque este abierto.
+		for _, rx in ipairs({-1, 1}) do
+			local riel = part({
+				Name = "DoorRail",
+				Size = Vector3.new(0.45, altoPorton + 1.2, 0.7),
+				Position = Vector3.new(bx + rx * (anchoPorton * 0.5 + 0.25),
+					2 + (altoPorton + 1.2) * 0.5 - 0.3, frontZ - 0.4),
+				Color = Color3.fromRGB(88, 92, 100),
+				Material = Enum.Material.DiamondPlate,
+			})
+			riel.Parent = model
+		end
+		-- la caja del rollo (donde se enrolla la cortina): va UNA por cajon
+		local caja = part({
+			Name = "DoorRollBox",
+			Size = Vector3.new(4.2, 2.0, 2.2),
+			Position = Vector3.new(bx, 2 + doorH + 1.0, frontZ - 0.7),
+			Color = Color3.fromRGB(78, 82, 90),
+			Material = Enum.Material.CorrodedMetal,
+			CanCollide = false,
+		})
+		caja.Parent = model
 
 		-- ===== v49: franja de seguridad abajo (rojo/blanco) =====
 		-- El usuario no veia el porton: era una hoja gris que se perdia en el
@@ -3640,13 +3684,25 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	deskLight.Range = 14
 	deskLight.Parent = screen
 
-	-- v44: pintado en la pantalla del monitor (antes flotaba encima)
+	-- v44: pintado en el monitor (antes flotaba encima)
+	-- v50: la PANTALLA (que va 0.3 delante) tapaba el texto: "el cartel aparece
+	-- adentro de la computadora" (reporte del usuario). Ahora va en una PLAQUITA
+	-- que sale arriba del monitor, como el letrerito de una caja.
+	local placa = part({
+		Name = "MonitorLabel",
+		Size = Vector3.new(5.6, 1.0, 0.18),
+		Position = Vector3.new(deskX, 11.4, deskZ + 0.1),
+		Color = Color3.fromRGB(18, 20, 26),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+	})
+	placa.Parent = model
 	if nextTier then
-		textoPlano(monitor, "MEJORAS [G]", Color3.fromRGB(160, 200, 255),
-			{ pixels = 64, letra = 1.0 })
+		textoPlano(placa, "MEJORAS [G]", Color3.fromRGB(160, 200, 255),
+			{ pixels = 96, letra = 0.7 })
 	else
-		textoPlano(monitor, "NIVEL MAXIMO", Color3.fromRGB(160, 200, 255),
-			{ pixels = 64, letra = 1.0 })
+		textoPlano(placa, "NIVEL MAXIMO", Color3.fromRGB(160, 200, 255),
+			{ pixels = 96, letra = 0.7 })
 	end
 
 	-- ===== VIGILANTE junto a la entrada, mirando a la calle =====

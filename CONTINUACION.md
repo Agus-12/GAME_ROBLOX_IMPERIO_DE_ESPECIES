@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v49** · 26 sep 2026
+> Última actualización: **v50** · 26 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v49 |
+| **Versión actual** | v50 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,21 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v50 (ronda de SOLO BUGS: los 3 que reportaste)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "la puerta que no esta es la del garaje" (2o reporte del porton) | el porton **si existia** (24.3 x 10.4, tapando el hueco entero) y ya se abria a 7 studs: el problema es que **abierto no quedaba NADA de puerta a la vista** (hueco vacio = "no hay porton") | se le pusieron al cajon las partes que **no se mueven nunca**: **2 rieles laterales** (`DoorRail`, 0.45 x 11.6 x 0.7) a los lados del hueco y la **caja del rollo** (`DoorRollBox`, 4.2 x 2.0 x 2.2) arriba. La placa sigue a y=15.6 (arriba del techo del garaje, y=13): no la tapa nada |
+| "la bici de nuevo aparecio adentro de la bodega" (3er reporte) | nacia a **6 studs** de la orilla del patio, y entre el patio y la calle hay pasto y la linea de bolardos: **6 studs siguen siendo tu terreno** | dos candados: nace **12 studs mas alla de la orilla** y ademas se **comprueba la geometria** (si el punto cae dentro del patio se empuja hacia afuera a la fuerza, sin rayos). Medido: `z=-589.0` contra orilla `-601.0` = **12.0 studs afuera**, con cielo abierto |
+| "los carteles de la computadora y la boveda aparecen adentro de las cosas" | el texto estaba pintado en el **cuerpo** del objeto, y delante de ese cuerpo hay otra pieza: la **puerta** de la caja fuerte (7.6 x 7.6 a 3.4 studs) y su **rueda** (a 3.9) tapaban el rotulo del `VaultBody`; la **pantalla** del monitor (a 0.3) tapaba el del `MonitorBody`. Estaba pintado, pero adentro | cada rotulo se mudo a **su propia plaquita**: `VaultLabel` (6.4 x 1.3 x 0.3) **arriba de la caja** (y=12.6) y `MonitorLabel` (5.6 x 1.0 x 0.18) **arriba del monitor** (y=11.4). El pintor `textoPlano` aprendio `banda`/`bandaPos` para mover el renglon sin salirse de la cara |
+| "mandame la vista del lote... y si puedes reconstruir literal todo... el lote y los lotes vecinales... tambien la ciudad" | la vista de la v49 solo traia el lote | nuevo `tools/mapa.py` -> **`mapa-mundo.png`** con **4 cuadros**: (1) el mundo completo de arriba (suelo 1840 x 2401, la ciudad con 10 calles y 7 tiendas, y la zona de los 20 lotes), (2) los 20 lotes en rejilla 5x4 (271 x 160 cada uno), (3) tu lote de arriba con sus **550 piezas** y el punto donde nace la bici, (4) **las dos fachadas** de frente (la nave y el cajon). El mapa se arma del juego real con el simulador |
+
+> OJO con el simulador (`tools/mock.lua`), la v50 le arreglo **DOS mentiras mas**:
+> (1) los raycast **no respetaban `CanCollide`** (Roblox ignora las piezas no-colisionables)
+> y contaba techos decorativos, asi que el "cielo abierto" de la bici era mentira;
+> (2) faltaba `PointToObjectSpace`, que es justo lo que usa el spawn de la bici para
+> comprobar que el punto quede fuera del patio.
 
 ### 🆕 Qué se cerró en la v49 (4a ronda del mismo reporte)
 

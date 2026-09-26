@@ -40,6 +40,23 @@ BUGS = [
      "				lbl.TextSize = 0 -- BUG: sin tamaño medido\n				lbl.TextScaled = true",
      "no tiene TextSize"),
 
+    ("2b. el cartel de la caja fuerte pintado en el CUERPO (la puerta y la rueda lo "
+     "tapan: 'el cartel aparece adentro de la caja')",
+     CITY,
+     """	textoPlano(vaultLabel, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190),
+		{ pixels = 96, letra = 0.9 })""",
+     """	textoPlano(vaultLabel, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190),
+		{ pixels = 96, letra = 0.9, unaCara = true, face = Enum.NormalId.Back })
+	vaultLabel.Size = Vector3.new(6.4, 12.0, 0.3) -- BUG: la pieza tapa su propia cara""",
+     "TODAS sus caras pintadas"),
+
+    ("2c. la bici otra vez pegada a la orilla del patio (6 studs: se ve dentro del "
+     "terreno)",
+     MAIN,
+     "		local orilla = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 12)).Position",
+     "		local orilla = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 6)).Position -- BUG",
+     "se ve"),
+
     ("3. el porton cerrado a 10 studs (se abria en cuanto andabas el patio: "
      "el usuario nunca lo veia)",
      GC,
@@ -95,7 +112,19 @@ for nombre, archivo, bueno, malo, esperado in BUGS:
                   % (nombre, s.count(bueno)))
             fallas += 1
             continue
-        open(archivo, "w", encoding="utf-8").write(s.replace(bueno, malo))
+        s = s.replace(bueno, malo)
+        if archivo == MAIN and "PointToObjectSpace(basePos)" in s:
+            # para reproducir el bug de verdad: tambien se quita la garantia
+            # geometrica (que fue el arreglo de la v50)
+            s = s.replace("""		if basePos then
+			local rel = patio.CFrame:PointToObjectSpace(basePos)
+			local minimoZ = patio.Size.Z * 0.5 + 4
+			if rel.Z < minimoZ then
+				-- esta adentro del patio (o encima de el): se saca a la fuerza
+				basePos = (patio.CFrame * CFrame.new(0, 0, minimoZ + 6)).Position
+			end
+		end""", "		-- BUG: sin la garantia de estar fuera del patio")
+        open(archivo, "w", encoding="utf-8").write(s)
 
         code, salida = corre_etapa()
         linea = ""
