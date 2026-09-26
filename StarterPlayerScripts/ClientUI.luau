@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v47 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v48 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v47"
+local MI_VERSION = "v48"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -2827,6 +2827,10 @@ do
 	-- cruce se volvia a disparar —al caminar dentro del taller, al moverte entre
 	-- cajones— el panel reaparecia. Ahora se abre UNA VEZ por entrada: si lo
 	-- cierras, se queda cerrado hasta que salgas del taller y vuelvas a entrar.
+	-- v48: ademas el panel se CIERRA SOLO al alejarte, igual que el de la
+	-- computadora y el de la boveda ("me gustaria mas que al alejarme se quitara
+	-- como el de la computadora o la boveda"): sacas la van, caminas a la calle
+	-- y el menu ya no se queda tapando la pantalla.
 	local cocheraAuto = false
 
 	local function update()
@@ -2892,8 +2896,10 @@ do
 
 		local enCochera = false
 		local enLote = false
+		local pisoTaller = nil
 		if wh then
 			local piso = wh:FindFirstChild("GarageFloor", true)
+			pisoTaller = piso
 			enCochera = aLaCaja(piso, 2)
 			-- el LOTE completo (el patio): sirve para saber si de verdad te fuiste.
 			-- Si no hay patio, se usa el piso con holgura grande.
@@ -2963,7 +2969,7 @@ do
 					-- caminas dentro del taller): asi, si cierras el panel, no vuelve
 					-- a aparecer mientras andas por tu patio/cochera. Al volver de la
 					-- calle, si se abre una vez mas (llegaste a tu bodega otra vez).
-					if not enLote then
+					if not v or not enLote then
 						cocheraAuto = false
 					end
 					if v and not cocheraAuto and not shop.Visible then
@@ -2971,6 +2977,13 @@ do
 						sound("Gate")
 						shop.Visible = true
 						renderTab("autos")
+					elseif not v and shop.Visible and currentTab == "autos"
+						and not aLaCaja(pisoTaller, 8) then
+						-- v48: te alejaste del taller (y del lote): el panel se
+						-- cierra solo, como el de la computadora y el de la boveda.
+						-- Si lo tienes abierto en OTRA pestaña (bodega, negocios...)
+						-- se respeta: eso no lo abrio la cochera.
+						shop.Visible = false
 					end
 				end
 			end

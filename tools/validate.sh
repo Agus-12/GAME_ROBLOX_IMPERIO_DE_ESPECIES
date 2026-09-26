@@ -53,6 +53,8 @@ echo "=== 21. LA NOCHE: LUCES, PORTON, LETREROS, EL MERCADO Y LA VAN (v46) ==="
 python3 tools/reportes46.py
 echo "=== 22. LA CINTA, LA BICI, EL LETRERO Y EL MERCADO (v47) ==="
 python3 tools/reportes47.py
+echo "=== 23. EL AUTO CONDUCIBLE, LA BICI AFUERA, EL LETRERO GRANDE Y LA BODEGA CON DETALLES (v48) ==="
+python3 tools/reportes48.py
 echo "=== 18. EL DOCK DE CELULAR (los botones responden al toque) ==="
 python3 tools/dock43.py
 echo "=== 14. LA PAGINA DE COPIAR: cada pestana muestra su archivo ==="

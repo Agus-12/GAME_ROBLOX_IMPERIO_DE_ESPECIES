@@ -20,12 +20,13 @@ Lo que reporto el usuario (capturas del 26-sep 1:17/1:18 a.m.):
           cortada. Ahora el tablero se para sobre el techo (completo, visible) y es
           mas grande. Aqui se mide que el tablero quede ARRIBA del techo y que la
           letra sea grande.
-  4. "si no quiero spawnear nada y me alejo el menu sigue ahi apareciendo"
-       -> el detector reaccionaba al cruce y el panel no se cierra al salir: si lo
+  4. "si no quiero spawnear nada y me alejo el menu sigue ahi apareciendo" (v47)
+     y "me gustaria mas que al alejarme se quitara como el de la computadora o la
+     boveda" (v48)
+       -> el detector reaccionaba al cruce y el panel no se cerraba al salir: si lo
           cerrabas y te movias dentro del taller, volvia a aparecer. Ahora se abre
-          UNA VEZ por entrada. Aqui se ARRANCA la ClientUI, se entra, se cierra el
-          mercado, se camina dentro y se comprueba que NO vuelve a abrirse; y que
-          saliendo y volviendo a entrar SI se abre.
+          UNA VEZ por entrada y se CIERRA SOLO al alejarte. Aqui se ARRANCA la
+          ClientUI, se entra, se camina, se sale y se comprueba TODO eso.
 
 Probado al reves (v47): regresando la cinta a `math.abs(gl.Position.X)`, la bici al
 piso de la nave, el letrero a y=14.5 y el auto-abrir sin la marca de entrada, la
@@ -81,6 +82,9 @@ TROZO_BICI = (
     'local base = Vector3.new(L_.Origin.X, L_.Origin.Y, L_.Origin.Z)\n'
     'local m = City.BuildWarehouse(1)\n'
     'm:PivotTo(CFrame.new(base))\n'
+    'm.Parent = workspace   -- v48: el lote tiene que ESTAR en el mundo; si no,\n'
+    '                       -- los raycast de la bici no ven la bodega y la\n'
+    '                       -- prueba pasaba sin probar nada\n'
     'local patio = m:FindFirstChild("LotApron", true)\n'
     'local piso = m.PrimaryPart\n'
     'local player = {UserId = 1}\n'
@@ -92,7 +96,8 @@ TROZO_BICI = (
     '__CODIGO__\n'
     ']==]\n'
     'local env = setmetatable({wh = wh, hrp = hrp, player = player, warehouses = warehouses,\n'
-    '  CFrame = CFrame, Vector3 = Vector3, workspace = workspace, pcall = pcall},\n'
+    '  CFrame = CFrame, Vector3 = Vector3, workspace = workspace, pcall = pcall,\n'
+    '  Workspace = workspace, RaycastParams = RaycastParams, Enum = Enum},\n'
     '  {__index = _G})\n'
     'local f, err = load(TEXTO .. string.char(10) .. "return basePos", "bici", "t", env)\n'
     'if not f then print("__BICI__ trono al compilar: " .. tostring(err)) return end\n'
@@ -196,7 +201,9 @@ else:
 # Asi, si alguien vuelve a mover ese calculo, la prueba lo caza.
 problemas = []
 MAIN = L("ServerScriptService/Main.luau")
-ini = MAIN.find("local basePos")
+ini = MAIN.find("-- INICIO BICI AFUERA")
+if ini == -1:
+    ini = MAIN.find("local basePos")
 fin = MAIN.find("basePos = Vector3.new(basePos.X")
 if ini == -1 or fin == -1:
     fallas += 1
@@ -298,18 +305,24 @@ else:
     if abajo < pared:
         problemas.append("el tablero arranca DEBAJO del dintel (%.2f < %.2f): la pared "
                          "lo tapa" % (abajo, pared))
-    if float(d["alto"]) < 3.6:
+    if float(d["alto"]) < 5:
         problemas.append("el tablero mide %.1f de alto: la letra sale chica" % float(d["alto"]))
+    if float(d["ancho"]) < 22:
+        problemas.append("el tablero mide %.1f de ancho: 'GARAJE DE PEPE' no cabe "
+                         "grande" % float(d["ancho"]))
     if int(d["postes"]) < 2:
         problemas.append("el tablero no tiene postes: se ve flotando")
-    if d["dosRenglones"] != "true":
-        problemas.append("'GARAJE DE PEPE' no va en dos renglones")
+    if d["dosRenglones"] == "true":
+        problemas.append("el texto va en DOS renglones: cada renglon cabe en la mitad "
+                         "del tablero y la letra sale chiquita (reporte del usuario: "
+                         "'aun siguen las letras muy pequeñas')")
     if d["scaled"] != "true":
         problemas.append("el texto no es TextScaled (no llena el tablero)")
-    # letra estimada: alto del tablero entre los renglones
-    letra = float(d["alto"]) / 2.4
-    if letra < 1.5:
-        problemas.append("la letra queda de %.2f studs (deberia pasar de 1.5)" % letra)
+    # letra estimada: lo que la limite (alto del renglon o el ancho del tablero
+    # repartido entre las letras de "GARAJE DE PEPE" = 14 caracteres)
+    letra = min(float(d["alto"]) * 0.78, float(d["ancho"]) / (0.62 * 14))
+    if letra < 2.4:
+        problemas.append("la letra queda de %.2f studs (deberia pasar de 2.4)" % letra)
     if problemas:
         fallas += 1
         print("  FALLA  (el letrero del garaje)")
@@ -317,9 +330,10 @@ else:
             print("         - " + x)
     else:
         print("  OK     el tablero queda completo ARRIBA del techo (%.1f..%.1f, techo "
-              "%.1f) con letra de ~%.1f studs y 2 postes" % (abajo, arriba, techo, letra))
+              "%.1f), mide %.0fx%.1f y la letra sale de ~%.1f studs"
+              % (abajo, arriba, techo, float(d["ancho"]), float(d["alto"]), letra))
 
-# ============================= 4) EL MERCADO: NO REAPARECE AL CAMINAR ADENTRO
+# ============ 4) EL MERCADO: SE ABRE AL ENTRAR Y SE CIERRA AL ALEJARSE (v48)
 problemas = []
 CLIENTE = L("StarterPlayerScripts/ClientUI.luau")
 guion = 'dofile("%s/mockclient.lua")\n' % HERE
@@ -350,25 +364,26 @@ paso(0, 20)                   -- en la calle: no debe abrir
 r.calle = abierto()
 paso(0, 0)                    -- entra al taller: debe abrirse SOLO
 r.entroAbrio = abierto()
-if panel() then panel().Visible = false end     -- lo cierro (como el usuario)
+paso(0, 30)                   -- se ALEJA (fuera del taller): debe CERRARSE SOLO
+r.cerroAlAlejarme = not abierto()
+paso(0, 0)                    -- vuelve a entrar: se abre otra vez (como la compu)
+r.reentroAbrio = abierto()
+if panel() then panel().Visible = false end     -- lo cierro yo (como el usuario)
 paso(0, 6)                    -- camino adentro
 r.sigueCerrado = not abierto()
 paso(0, -4)                   -- sigo adentro, del otro lado
 r.sigueCerrado2 = not abierto()
-paso(0, 22)                   -- salgo del taller pero sigo en MI PATIO
-r.patioCerrado = not abierto()
-paso(0, 0)                    -- vuelvo a entrar al taller
-r.otraVezCerrado = not abierto()
-paso(0, 60)                   -- ahora si: me voy a la calle, fuera del lote
-r.afuera = abierto()
-paso(0, 0)                    -- vuelvo a la bodega y entro: SI debe abrirse
-r.reentroAbrio = abierto()
+paso(0, 40)                   -- me voy del todo (y ya estaba cerrado)
+r.afueraCerrado = not abierto()
+paso(0, 0)                    -- vuelvo a entrar: se abre de nuevo
+r.alVolver = abierto()
 print("__MERCADO__ calle=" .. tostring(r.calle) .. "|entroAbrio=" .. tostring(r.entroAbrio) ..
+  "|cerroAlAlejarme=" .. tostring(r.cerroAlAlejarme) ..
+  "|reentroAbrio=" .. tostring(r.reentroAbrio) ..
   "|cerradoTrasCerrar=" .. tostring(r.sigueCerrado) ..
   "|cerradoCaminando=" .. tostring(r.sigueCerrado2) ..
-  "|cerradoEnPatio=" .. tostring(r.patioCerrado) ..
-  "|cerradoAlVolver=" .. tostring(r.otraVezCerrado) ..
-  "|afuera=" .. tostring(r.afuera) .. "|reentroAbrio=" .. tostring(r.reentroAbrio))
+  "|afueraCerrado=" .. tostring(r.afueraCerrado) ..
+  "|alVolver=" .. tostring(r.alVolver))
 '''
 sal = lua(guion, env={"MOCK_CHAR": "1"})
 m = re.search(r"__MERCADO__ (.+)", sal.stdout + sal.stderr)
@@ -388,24 +403,26 @@ else:
         problemas.append("lo cierro y al caminar adentro VUELVE a abrirse (el reporte)")
     if d.get("cerradoCaminando") != "true":
         problemas.append("sigue reabriendose mientras camino adentro")
-    if d.get("cerradoEnPatio") != "true":
-        problemas.append("salgo del taller pero me quedo en mi patio y el panel VUELVE "
-                         "a aparecer (el 'me alejo y sigue apareciendo')")
-    if d.get("cerradoAlVolver") != "true":
-        problemas.append("entro y salgo del taller y el panel reaparece cada vez")
-    if d.get("afuera") == "true":
-        problemas.append("al salir del taller el panel se queda abierto")
+    # v48: el usuario pidio que al ALEJARSE se cierre solo, como el de la
+    # computadora y el de la boveda.
+    if d.get("cerroAlAlejarme") != "true":
+        problemas.append("me alejo del taller y el panel SE QUEDA ABIERTO (el usuario: "
+                         "'me gustaria mas que al alejarme se quitara')")
+    if d.get("afueraCerrado") == "true" and d.get("alVolver") != "true":
+        problemas.append("me voy, vuelvo y entro: ya no se abre (deberia abrirse como "
+                         "el de la computadora)")
     if d.get("reentroAbrio") != "true":
-        problemas.append("me voy a la calle, vuelvo y entro: ya no se abre (deberia "
-                         "abrirse al llegar de nuevo)")
+        problemas.append("entro, me alejo y vuelvo a entrar: no se vuelve a abrir")
+    if d.get("alVolver") != "true":
+        problemas.append("vuelvo a entrar al taller y el panel no se abre")
     if problemas:
         fallas += 1
         print("  FALLA  (el mercado que reaparece)")
         for x in problemas:
             print("         - " + x)
     else:
-        print("  OK     el mercado se abre SOLO al entrar, se queda cerrado si lo "
-              "cierras (aunque camines adentro) y se vuelve a abrir al entrar de nuevo")
+        print("  OK     el mercado se abre SOLO al entrar, SE CIERRA SOLO al alejarte "
+              "(v48), no reaparece si lo cierras y vuelve al taller")
 
 print()
 if fallas:

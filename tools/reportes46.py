@@ -340,14 +340,17 @@ local caja = wh:FindFirstChild("BayPlate", true)
 local sgC = caja and caja:FindFirstChild("Rotulo")
 local texto = lbl and lbl.Text or "?"
 local dosRenglones = string.find(texto, string.char(10)) ~= nil
--- letra estimada: el tablero alto 3.2 con dos renglones => cada renglon ~1.4
-local altoLetra = lbl and (gar.Size.Y / 3) or 0
+-- letra estimada (v48): el texto va en UN renglon en un tablero ancho; la letra
+-- mas grande que cabe es la menor de (el alto del tablero) o (el ancho repartido
+-- entre las letras pintadas). Se cuentan las letras del texto.
+local letras = 0
+for _ in string.gmatch(texto, "[%w]") do letras = letras + 1 end
 print(string.format("__LETRERO__ anchoTablero=%.1f|altoTablero=%.1f|px=%s|pxCaja=%s|" ..
-  "scaled=%s|wrapped=%s|dosRenglones=%s|altoLetra=%.2f|texto=%s",
+  "scaled=%s|wrapped=%s|dosRenglones=%s|letras=%d|texto=%s",
   gar and gar.Size.X or 0, gar and gar.Size.Y or 0,
   sg and sg.PixelsPerStud or 0, sgC and sgC.PixelsPerStud or 0,
   tostring(lbl and lbl.TextScaled), tostring(lbl and lbl.TextWrapped),
-  tostring(dosRenglones), altoLetra, string.gsub(texto, string.char(10), " + ")))
+  tostring(dosRenglones), letras, string.gsub(texto, string.char(10), " + ")))
 '''
 sal = lua(guion)
 m = re.search(r"__LETRERO__ (.+)", sal.stdout + sal.stderr)
@@ -359,14 +362,20 @@ if not m:
 else:
     d = dict(kv.split("=") for kv in m.group(1).split("|") if "=" in kv)
     print("  medidas: " + m.group(1))
-    # v47: el tablero se PARO sobre el techo (para que se vea completo) y crecio a
-    # 15 x 4. Lo que importa no es el ancho del tablero, sino que la LETRA sea
-    # grande: se estima con el alto entre los renglones.
-    letra = float(d["altoTablero"]) / 2.4
-    if float(d["anchoTablero"]) > 18:
-        problemas.append("el tablero mide %.1f de ancho" % float(d["anchoTablero"]))
-    if letra < 1.0:
-        problemas.append("la letra queda de ~%.2f studs de alto: chica" % letra)
+    # v48 (TERCER reporte del usuario: "aun siguen las letras muy pequeñas"): el
+    # tablero crecio a 26 x 5.4 y el nombre va en UN solo renglon. Con dos
+    # renglones cada uno cabia en medio tablero y la letra salia de ~1.7 studs.
+    # La letra mas grande que cabe = la menor de (el alto del tablero) o (el
+    # ancho repartido entre las letras que se pintan).
+    letras = max(1, int(float(d.get("letras", 1))))
+    letra = min(float(d["altoTablero"]) * 0.78,
+                float(d["anchoTablero"]) / (0.62 * letras))
+    if float(d["anchoTablero"]) < 20:
+        problemas.append("el tablero mide %.1f de ancho: con menos de 20 la letra no "
+                         "tiene de donde crecer" % float(d["anchoTablero"]))
+    if letra < 2.4:
+        problemas.append("la letra queda de ~%.2f studs de alto: sigue pequeña "
+                         "(el usuario lo reporto 3 veces)" % letra)
     if int(float(d["px"])) < 90:
         problemas.append("el tablero del garaje va a %s pixeles por stud: la letra "
                          "sale pixelada" % d["px"])
@@ -378,10 +387,9 @@ else:
     if d["wrapped"] == "true":
         problemas.append("el texto del garaje esta envuelto (TextWrapped): con eso "
                          "el escalado lo deja chiquito")
-    if d["dosRenglones"] != "true":
-        problemas.append("'GARAJE DE PEPE' no se partio en dos renglones")
-    if float(d["altoLetra"]) < 1.0:
-        problemas.append("la letra queda de %.2f studs de alto" % float(d["altoLetra"]))
+    if d["dosRenglones"] == "true":
+        problemas.append("'GARAJE DE PEPE' va en DOS renglones: cada uno cabe en medio "
+                         "tablero y la letra sale chiquita (la v48 lo pide en uno)")
     if problemas:
         fallas += 1
         print("  FALLA  (los letreros)")
@@ -389,9 +397,8 @@ else:
             print("         - " + x)
     else:
         print("  OK     el tablero del garaje mide %.1f x %.1f con letra de ~%.1f "
-              "studs, a %s px/stud, en dos renglones"
-              % (float(d["anchoTablero"]), float(d["altoTablero"]),
-                 float(d["altoLetra"]), d["px"]))
+              "studs, a %s px/stud, en UN renglon"
+              % (float(d["anchoTablero"]), float(d["altoTablero"]), letra, d["px"]))
 
 # ============================= 5) EL MERCADO NO SE ABRE EN LA CALLE
 problemas = []

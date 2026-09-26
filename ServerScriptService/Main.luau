@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v47 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v48 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -3095,17 +3095,83 @@ function spawnBike(player: Player)
 	-- 18), y esa cuenta cae todavia dentro del patio: el patio va 29 studs mas
 	-- alla de la pared. Ahora se mide desde el PATIO (LotApron): 6 studs MAS ALLA
 	-- de su orilla, o sea ya en la calle, fuera del lote.
-	local basePos
+	-- v48: el usuario volvio a reportar "la bici sigue apareciendo adentro" y
+	-- tenia razon: esa cuenta no COMPROBABA nada. Si el punto cae debajo de un
+	-- techo, dentro de un muro o dentro de otra bodega, nadie lo miraba. Ahora el
+	-- lugar se VERIFICA: se camina hacia afuera de 4 en 4 studs y se acepta el
+	-- primer punto con PISO SOLIDO abajo, CIELO ABIERTO arriba (si hay techo es
+	-- que estas adentro) y nada pegado a los lados.
+	-- INICIO BICI AFUERA (v48): de aqui para abajo se decide donde nace la bici.
+	-- (la etapa 22/23 del validador CORTA este pedazo y lo ejecuta de verdad)
 	local wh = warehouses[player]
 	local patio = wh and wh:FindFirstChild("LotApron", true)
+
+	local filtroYo = {}
+	if hrp then table.insert(filtroYo, hrp) end
+	if char then table.insert(filtroYo, char) end
+	-- devuelve la altura del piso si el punto esta LIBRE (cielo abierto y nada
+	-- pegado a los lados). Si no hay piso rayado (por ejemplo una pieza de
+	-- prueba sin ciudad), se usa la altura de referencia: el rayo decide si es
+	-- un lugar valido, la altura es un detalle.
+	local function libreEn(p: Vector3, yRef: number): number?
+		local rp = RaycastParams.new()
+		rp.FilterType = Enum.RaycastFilterType.Exclude
+		rp.FilterDescendantsInstances = filtroYo
+		local abajo = Workspace:Raycast(p + Vector3.new(0, 6, 0), Vector3.new(0, -120, 0), rp)
+		local arriba = Workspace:Raycast(p + Vector3.new(0, 1, 0), Vector3.new(0, 40, 0), rp)
+		if arriba then return nil end                         -- hay techo: es adentro
+		for _, lado in ipairs({Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0),
+			Vector3.new(0, 0, 1), Vector3.new(0, 0, -1)}) do
+			if Workspace:Raycast(p + Vector3.new(0, 2, 0), lado * 5, rp) then
+				return nil                                    -- algo pegado a los lados
+			end
+		end
+		if abajo then return abajo.Position.Y end
+		return yRef
+	end
+	-- v48: 14 pasos (56 studs) se quedaban cortos si el jugador estaba ADENTRO de
+	-- la nave de su lote: la bici no alcanzaba a salir y caia adentro otra vez.
+	-- 30 pasos = 120 studs: sale de cualquier bodega.
+	local function buscarLibre(desde: Vector3, hacia: Vector3, yRef: number): Vector3?
+		for paso = 0, 30 do
+			local p = desde + hacia * (paso * 4)
+			local y = libreEn(p, yRef)
+			if y then return Vector3.new(p.X, y, p.Z) end
+		end
+		return nil
+	end
+
+	local basePos
+	local hacia = Vector3.new(0, 0, 1)
 	if patio and patio:IsA("BasePart") then
-		basePos = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 6)).Position
+		local z = patio.CFrame.ZVector
+		hacia = Vector3.new(z.X, 0, z.Z)
+		if hacia.Magnitude < 0.01 then hacia = Vector3.new(0, 0, 1) end
+		hacia = hacia.Unit
+		local orilla = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 6)).Position
+		basePos = buscarLibre(orilla, hacia, patio.Position.Y + patio.Size.Y * 0.5)
 	elseif wh and wh.PrimaryPart then
-		local whCF = wh.PrimaryPart.CFrame
-		local size = wh.PrimaryPart.Size
-		basePos = (whCF * CFrame.new(0, 0, size.Z * 0.5 + 34)).Position
-	else
-		basePos = (hrp.CFrame * CFrame.new(7, 0, -7)).Position
+		hacia = Vector3.new(0, 0, 1)
+		local fondo = (wh.PrimaryPart.CFrame
+			* CFrame.new(0, 0, wh.PrimaryPart.Size.Z * 0.5 + 34)).Position
+		basePos = buscarLibre(fondo, hacia, wh.PrimaryPart.Position.Y)
+	end
+
+	if not basePos then
+		-- ultimo recurso: buscar alrededor del jugador. OJO: NUNCA "7 studs a su
+		-- izquierda" a ciegas: si el jugador esta adentro del taller (que es
+		-- justo donde aparece al entrar), esa cuenta dejaba la bici adentro.
+		local yo = hrp.Position or (hrp.CFrame and hrp.CFrame.Position) or Vector3.new(0, 0, 0)
+		local mirando = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z)
+		if mirando.Magnitude < 0.01 then mirando = Vector3.new(0, 0, 1) end
+		mirando = mirando.Unit
+		basePos = buscarLibre(yo, mirando, yo.Y)
+			or buscarLibre(yo, -mirando, yo.Y)
+			or buscarLibre(yo, Vector3.new(-mirando.Z, 0, mirando.X), yo.Y)
+			or buscarLibre(yo, Vector3.new(mirando.Z, 0, -mirando.X), yo.Y)
+		if not basePos then
+			basePos = yo   -- caso rarisimo: donde estes parado
+		end
 	end
 	basePos = Vector3.new(basePos.X, basePos.Y + 3, basePos.Z)
 
@@ -3750,8 +3816,197 @@ function syncGarage(player: Player)
 	end
 end
 
-local function spawnVehicle(player: Player, id: string, ySubir: boolean?)
-	local profile = DataService.Get(player)
+----------------------------------------------------------------------
+-- v48: MANEJAR EL AUTO (sin fisica, igual que la bici)
+----------------------------------------------------------------------
+-- EL PROBLEMA (reporte: "al spawnear la van o los autos me sube si pero no me
+-- deja conducirlo"): el auto usaba FISICA. El asiento es un VehicleSeat con
+-- Torque/MaxSpeed/TurnSpeed... y esas TRES propiedades estan deprecadas en
+-- Roblox: ya no empujan nada cuando las ruedas son HingeConstraint (solo
+-- funcionaban con las viejas bisagras de superficie). Resultado: te sentabas
+-- ("me sube si") y el vehiculo no se movia ni un stud. Fuente: foro de
+-- desarrolladores, "VehicleSeat.Torque not working".
+-- LA SOLUCION: el MISMO truco que la bici, que en este juego SI funciona:
+-- todo anclado (cero fisica), el servidor lee seat.Throttle / seat.Steer (los
+-- pone Roblox con W/S/A/D o con los botones del celular) y mueve el carro el
+-- mismo, con raycasts para el piso y las paredes. 100% predecible.
+local VEH_MAX_STEP = 1.6      -- escalon maximo (banqueta si, pared no)
+local VEH_GRAVITY = 70
+
+local function hacerConducible(model: Model, info: any, baseCF: CFrame)
+	local body = model.PrimaryPart
+	local seat = model:FindFirstChild("Seat")
+	if not (body and seat and seat:IsA("VehicleSeat")) then return end
+
+	-- ===== 1) juntar las piezas: ruedas (llanta + rin + maza + rayos) y rigidas
+	local ruedas = {}
+	local partes = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then table.insert(partes, d) end
+	end
+	local esRueda = {}
+	for _, d in ipairs(partes) do
+		if d.Name == "Wheel" then
+			table.insert(ruedas, {llanta = d, grupo = {d}, off = nil})
+			esRueda[d] = #ruedas
+		end
+	end
+	-- el rin, la maza y los rayos van PEGADOS a su llanta (el mas cercano)
+	for _, d in ipairs(partes) do
+		if d.Name == "Rim" or d.Name == "Hub" or d.Name == "Spoke" then
+			local mejor, mejorD = nil, math.huge
+			for i, r in ipairs(ruedas) do
+				local dd = (d.Position - r.llanta.Position).Magnitude
+				if dd < mejorD then mejor, mejorD = i, dd end
+			end
+			if mejor and mejorD < 3 then
+				table.insert(ruedas[mejor].grupo, d)
+				esRueda[d] = mejor
+			end
+		end
+	end
+
+	-- ===== 2) fuera bisagras (no sirven sin fisica) y todo ANCLADO
+	-- OJO: de un vehiculo fisico, UNA sola pieza anclada ya lo deja clavado
+	-- (es el otro clasico "no me deja conducirlo"). Aqui se ancla TODO a
+	-- proposito: el movimiento lo hace este script, no el motor de fisica.
+	local bisagras = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("HingeConstraint") then table.insert(bisagras, d) end
+	end
+	for _, d in ipairs(bisagras) do d:Destroy() end
+
+	local rigidas = {}
+	for _, d in ipairs(partes) do
+		d.Anchored = true
+		if d ~= body and not esRueda[d] then
+			table.insert(rigidas, {part = d, off = baseCF:ToObjectSpace(d.CFrame)})
+		end
+	end
+	local offBody = baseCF:ToObjectSpace(body.CFrame)
+	for _, r in ipairs(ruedas) do
+		local grupo = {}
+		for _, d in ipairs(r.grupo) do
+			table.insert(grupo, {part = d, off = baseCF:ToObjectSpace(d.CFrame)})
+		end
+		r.grupo = grupo
+		local tam = r.llanta.Size
+		r.radio = math.max(tam.Y, tam.Z) * 0.5
+		r.off = baseCF:ToObjectSpace(r.llanta.CFrame)
+	end
+
+	-- ===== 3) cuanto mide y a que altura va el chasis sobre el piso
+	local RIDE = body.Position.Y - baseCF.Position.Y   -- centro del chasis sobre el piso
+	local largo = body.Size.Z
+	local maxSpeed = (info and info.Speed) or 60
+
+	-- ===== 4) CONTROL (cinematico)
+	local heading = math.atan2(body.CFrame.ZVector.X, body.CFrame.ZVector.Z)
+	local pos = body.Position
+	local speed = 0
+	local spin = 0
+	local vertVel = 0
+
+	local function rayParams(char)
+		local rp = RaycastParams.new()
+		rp.FilterType = Enum.RaycastFilterType.Exclude
+		local list = {model}
+		if char then table.insert(list, char) end
+		rp.FilterDescendantsInstances = list
+		return rp
+	end
+
+	local conn
+	conn = RunService.Heartbeat:Connect(function(dt)
+		if not model.Parent or not body.Parent then
+			if conn then conn:Disconnect() end
+			return
+		end
+		dt = math.min(dt, 0.1)
+
+		local ocupante = seat.Occupant
+		local char = ocupante and ocupante.Parent
+		local rp = rayParams(char)
+
+		local throttle, steer = 0, 0
+		if ocupante then
+			throttle = tonumber(seat.Throttle) or 0
+			steer = tonumber(seat.Steer) or 0
+			-- v48: en el CELULAR y en la compu los botones del asiento mueven
+			-- estas dos; si el asiento no las trae (asiento raro), se usan las
+			-- del jugador para que NUNCA se quede sin responder.
+			if throttle == 0 then throttle = tonumber(seat.ThrottleFloat) or 0 end
+			if steer == 0 then steer = tonumber(seat.SteerFloat) or 0 end
+		end
+
+		-- rampa de velocidad: acelera suave, frena mas fuerte
+		local target = throttle * maxSpeed
+		local rate = (math.abs(target) > math.abs(speed)) and 26 or 48
+		speed = speed + math.clamp(target - speed, -rate * dt, rate * dt)
+		if math.abs(speed) < 0.4 then speed = 0 end
+
+		-- girar (solo si va andando, como un carro de verdad)
+		if math.abs(speed) > 1 then
+			local turnRate = 2.1 * math.clamp(math.abs(speed) / maxSpeed, 0.25, 1)
+			heading = heading - steer * turnRate * dt * (speed >= 0 and 1 or -1)
+		end
+
+		-- el frente del carro es +Z (ahi van el cofre y los faros)
+		local fwd = Vector3.new(math.sin(heading), 0, math.cos(heading))
+
+		-- 1) ¿pared enfrente? (media nariz adelante, a media altura)
+		if math.abs(speed) > 0.5 then
+			local dir = (speed >= 0) and fwd or -fwd
+			local nariz = pos + dir * (largo * 0.5 + 1.2)
+			local hit = Workspace:Raycast(pos - Vector3.new(0, RIDE * 0.35, 0), dir * (largo * 0.5 + 1.6), rp)
+			if hit and hit.Normal.Y < 0.5 then
+				speed = 0
+			end
+		end
+
+		-- 2) a donde queremos avanzar
+		local newPos = pos + fwd * (speed * dt)
+
+		-- 3) piso debajo del destino (o caida si no hay)
+		local down = Workspace:Raycast(newPos + Vector3.new(0, VEH_MAX_STEP + 1, 0),
+			Vector3.new(0, -80, 0), rp)
+		if down then
+			local groundY = down.Position.Y + RIDE
+			if groundY - pos.Y > VEH_MAX_STEP then
+				newPos = pos
+				speed = 0
+			else
+				newPos = Vector3.new(newPos.X, groundY, newPos.Z)
+			end
+			vertVel = 0
+		else
+			vertVel = vertVel - VEH_GRAVITY * dt
+			newPos = newPos + Vector3.new(0, vertVel * dt, 0)
+		end
+		pos = newPos
+		body.CFrame = CFrame.new(pos) * CFrame.Angles(0, heading, 0)
+
+		-- 4) el resto del carro sigue al chasis
+		local cf = body.CFrame
+		for _, r in ipairs(rigidas) do
+			r.part.CFrame = cf * r.off
+		end
+		-- 5) y las ruedas giran (todas las piezas de la rueda con ella)
+		spin = spin + speed * dt / math.max(0.5, (ruedas[1] and ruedas[1].radio) or 1)
+		for _, r in ipairs(ruedas) do
+			local base = cf * r.off
+			for _, d in ipairs(r.grupo) do
+				d.part.CFrame = base * (r.off:Inverse() * d.off) * CFrame.Angles(spin, 0, 0)
+			end
+		end
+	end)
+
+	model.AncestryChanged:Connect(function(_, parent)
+		if not parent and conn then conn:Disconnect() end
+	end)
+end
+
+local function spawnVehicle(player: Player, id: string, ySubir: boolean?)	local profile = DataService.Get(player)
 	if not profile or not profile.Vehicles[id] then return false, "No tienes ese vehiculo" end
 
 	local info
@@ -3788,6 +4043,8 @@ local function spawnVehicle(player: Player, id: string, ySubir: boolean?)
 		seat.TurnSpeed = 20
 	end
 	model.Parent = Workspace
+	-- v48: el auto se maneja con el mismo sistema que la bici (ver arriba)
+	pcall(hacerConducible, model, info, baseCF)
 
 	-- si el jugador le pico al boton del auto estacionado, se sube de una
 	if ySubir then

@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v47** · 26 sep 2026
+> Última actualización: **v48** · 26 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v47 |
+| **Versión actual** | v48 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,28 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v48 (sigue a la captura de la 1:17/1:18 a.m.)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "al spawnear la van o los autos me sube si pero no me deja conducirlo" | el auto era **pura fisica**: `VehicleSeat` empujando por `HingeConstraint`. **`Torque`, `MaxSpeed` y `TurnSpeed` del `VehicleSeat` estan OBSOLETOS** y las bisagras sin `ActuatorType` **no giran solas**: te sienta y no mueve nada | `hacerConducible` en `Main.luau`: el carro queda **anclado y soldado** (56 piezas) y **lo maneja el servidor** leyendo `seat.Throttle` / `seat.Steer` (W/S/A/D y botones del celular), con raycast de piso (escalon 1.6), de pared y caida. Medido: **avanza 82 studs**, gira 180.5, frena, 4/4 ruedas giran |
+| "la bici sigue apareciendo adentro" | la cuenta del patio+6 estaba bien pero **nadie comprobaba el punto**; y el respaldo era "7 studs a la izquierda del jugador" (**=adentro** si estas en el taller) y solo si el lote no existia | `libreEn` (**cielo abierto arriba**, piso abajo, **nada a 5 studs de los lados**) + `buscarLibre` caminando de 4 en 4 hasta **120 studs**. Medido: con lote **z=-595** (orilla del patio -601); sin lote y con el jugador adentro del taller **z=-696**, tambien afuera |
+| "el letrero aun siguen las letras muy pequeñas" | tablero de 15x4 y el nombre en **DOS renglones** (~1.7 de letra); ademas el rotulo ya venia con **100 px/stud** y subirlo a 120 no se aplicaba (solo se cambiaba el texto) | tablero **26 x 5.4** inclinado 12°, **UN renglon** y `RotularGaraje` **sube la resolucion a las dos caras**: letra **~3.0 studs** |
+| "me gustaria mas que al alejarme se quitara como el de la computadora" | el panel se abria una vez por llegada pero **nunca se cerraba solo** | se cierra solo a **mas de 8 studs** de la placa del taller, con el mismo patron de `computer`/`vault`. Otras pestañas no se tocan |
+| "las bodegas... se vieran mas realistas, unas mejores texturas" | la bodega era una caja de ladrillo liso | **17 piezas de decoracion** (zocalo, costillas, franja, ventanas altas, columnas de acero con placa, viga de carga con polipasto, canoa, respiraderos, franjas de seguridad, placa de acero, manchas, juntas y manchas del patio, tuberia, extintor) y **paredes en `CorrodedMetal`**: 20 materiales distintos, todo geometria (cero imagenes que subir) |
+
+> OJO con el simulador (`tools/mock.lua`), la v48 le arreglo CINCO mentiras mas (sin
+> ellas no se podia medir un vehiculo): **no habia `Heartbeat`** (nada que se mueva por
+> cuadros se podia probar), los raycasts **no excluian a los descendientes del filtro**
+> (el carro se raycastaba **a si mismo** y "se frenaba solo"), no habia `ZVector`,
+> `Humanoid` no tenia vida, y **los enumerados daban una tabla nueva en cada acceso**
+> (`Enum.Material.Metal ~= Enum.Material.Metal`: imposible comparar o contar
+> materiales). Ademas el `Raycast` es **cacheado y con descarte esferico** (43 s de
+> espera -> instantaneo).
+> Y en las pruebas de la bici: el lote **no se metia al mundo** (`m.Parent = workspace`),
+> asi que los raycasts **no veian la bodega** y la prueba pasaba sin probar nada. Ya se
+> mete, y con el lote puesto la bici sigue cayendo en la calle.
 
 ### 🆕 Qué se cerró en la v47 (captura de la 1:17/1:18 a.m.)
 
@@ -401,8 +423,8 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v47 (arrancando...)` -> `RONDA v47  OK`; se encoge a un letrerito `v47` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v47` |
+| **Placa verde** arriba al centro | el cliente | `RONDA v48 (arrancando...)` -> `RONDA v48  OK`; se encoge a un letrerito `v48` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v48` |
 | **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v44]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);

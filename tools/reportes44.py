@@ -258,8 +258,12 @@ else:
         prob.append("los cajones no dicen 'CAJA n' en texto plano (dicen \"%s\")" % d2.get("cajas"))
     if d2.get("cambio") != "true":
         prob.append("RotularGaraje no pudo escribir en el tablero")
-    tras = (d2.get("tras") or "").replace("\\n", " / ")
-    if tras != "GARAJE DE / PEPE":
+    # v48: el rotulo va en UN RENGLON ("GARAJE DE PEPE"). Partirlo en dos era
+    # justo lo que dejaba la letra chiquita (~1.7 studs): el usuario lo reporto
+    # TRES veces. Aqui se acepta el renglon unico y el viejo de dos renglones,
+    # pero el texto tiene que estar completo.
+    tras = (d2.get("tras") or "").replace("\\n", " ").replace(" / ", " ").strip()
+    if tras != "GARAJE DE PEPE":
         prob.append("RotularGaraje no cambio el texto (quedo \"%s\")" % tras)
     if d2.get("sinDueno") != "si":
         prob.append("el lote sin dueno no dice 'SIN PROPIETARIO' en su tablero")

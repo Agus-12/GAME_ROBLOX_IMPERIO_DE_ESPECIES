@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v47 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v48 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -184,19 +184,19 @@ CityGenerator.TextoPlano = textoPlano
 function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 	local sign = model:FindFirstChild("GarageSign", true)
 	if not sign or not sign:IsA("BasePart") then return false end
-	-- si viene "GARAJE DE PEPE", se parte en dos renglones ("GARAJE DE" arriba y
-	-- el nombre abajo): en un letrero angosto, dos renglones se leen mucho mejor
-	-- que una linea larga con la letra chiquita.
-	local dos = texto
-	local a, b = string.match(texto, "^(.-) DE (.*)$")
-	if a and b then dos = a .. " DE\n" .. string.upper(b) end
+	-- v48: UN SOLO renglon. Partirlo en dos ("GARAJE DE" / "NOMBRE") fue el error
+	-- de la v46: cada renglon cabia en la mitad del tablero y la letra salia
+	-- chiquita. Con el tablero ancho (26 x 5.4) y una linea, TextScaled hace la
+	-- letra todo lo grande que quepa.
+	local dos = string.upper(texto)
 
 	-- v46: el renglon se parte con "\n" y el TextLabel va en TextScaled SIN
 	-- envolver, para que la letra crezca hasta llenar el tablero. Con TextWrapped
 	-- (lo que habia) el texto se quedaba chiquito flotando en medio del tablero.
 	local sg = sign:FindFirstChild("Rotulo")
 	if not sg then
-		local nuevo = textoPlano(sign, dos, Color3.fromRGB(255, 205, 120), { pixels = 100 })
+		local nuevo = textoPlano(sign, dos, Color3.fromRGB(255, 226, 150),
+			{ pixels = 120, stroke = 0.35 })
 		if nuevo then
 			local lbl = nuevo:FindFirstChild("Texto")
 			if lbl and lbl:IsA("TextLabel") then
@@ -205,6 +205,21 @@ function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 			end
 		end
 		return nuevo ~= nil
+	end
+	-- v48: el tablero YA viene con su rotulo puesto en BuildWarehouse, asi que
+	-- este camino (el normal) solo le cambiaba el TEXTO y se quedaba con la
+	-- resolucion de fabrica: la letra se veia borrosa/chica aunque aqui se
+	-- pidiera 120 pixeles por stud. Ahora se le sube a las dos caras.
+	for _, g in ipairs(sign:GetChildren()) do
+		if g:IsA("SurfaceGui") then
+			if (g.PixelsPerStud or 0) < 120 then g.PixelsPerStud = 120 end
+			local l = g:FindFirstChild("Texto")
+			if l and l:IsA("TextLabel") then
+				l.Text = dos
+				l.TextScaled = true
+				l.TextWrapped = false
+			end
+		end
 	end
 	local lbl = sg:FindFirstChild("Texto")
 	if lbl and lbl:IsA("TextLabel") then
@@ -1561,7 +1576,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		Size = Vector3.new(W, H, wallT),
 		Position = Vector3.new(0, H * 0.5 + 2, -D * 0.5),
 		Color = T.WallColor,
-		Material = Enum.Material.Brick,
+		Material = Enum.Material.CorrodedMetal,
 	})
 	back.Parent = model
 
@@ -1580,7 +1595,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 					Size = Vector3.new(wallT, H, len),
 					Position = Vector3.new(-W * 0.5, H * 0.5 + 2, (sg[1] + sg[2]) / 2),
 					Color = T.WallColor,
-					Material = Enum.Material.Brick,
+					Material = Enum.Material.CorrodedMetal,
 				})
 				pw.Parent = model
 			end
@@ -1592,7 +1607,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			Size = Vector3.new(wallT, H - doorH, GAR_DOOR),
 			Position = Vector3.new(-W * 0.5, 2 + doorH + (H - doorH) / 2, GAR_Z),
 			Color = T.WallColor,
-			Material = Enum.Material.Brick,
+			Material = Enum.Material.CorrodedMetal,
 		})
 		lint2.Parent = model
 
@@ -1640,7 +1655,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 					Size = Vector3.new(wallT, H, len),
 					Position = Vector3.new(W * 0.5, H * 0.5 + 2, (sg[1] + sg[2]) / 2),
 					Color = T.WallColor,
-					Material = Enum.Material.Brick,
+					Material = Enum.Material.CorrodedMetal,
 				})
 				pw.Parent = model
 			end
@@ -1652,7 +1667,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			Size = Vector3.new(wallT, H - doorH, OFF_DOOR),
 			Position = Vector3.new(W * 0.5, 2 + doorH + (H - doorH) / 2, OFF_CZ),
 			Color = T.WallColor,
-			Material = Enum.Material.Brick,
+			Material = Enum.Material.CorrodedMetal,
 		})
 		lint.Parent = model
 
@@ -2840,12 +2855,20 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- techo (13.9..17.9), agarrado con dos postes: se ve completo de frente, de
 	-- lado y de lejos, como el rotulo de una tienda.
 	local techY = 2 + garH                       -- el techo de la cochera
+	-- v48: TERCER reporte del usuario ("aun siguen las letras muy pequeñas").
+	-- Lo que estaba mal: el tablero medía 15 x 4 con DOS renglones ("GARAJE DE" /
+	-- "NOMBRE"), asi que cada renglon cabia en 2 studs y la letra salia de ~1.7.
+	-- Ahora el tablero mide 26 x 5.4 (todo el ancho de la cochera), el texto va en
+	-- UN SOLO renglon y el tablero se RECARGA 12 grados hacia la calle: parado en
+	-- el patio lo ves de frente, no de canto. La letra pasa de ~1.7 a ~3.2 studs
+	-- (el test lo mide con ancho, alto y numero de letras).
 	local garSign = part({
 		Name = "GarageSign",
-		Size = Vector3.new(15, 4, 0.3),
-		-- (el techo llega a techY + 0.4: el tablero arranca en techY + 0.4, o sea
+		Size = Vector3.new(26, 5.4, 0.4),
+		-- (el techo llega a techY + 0.4: el tablero arranca en techY + 0.3, o sea
 		-- apoyado en la losa del techo, no metido en ella)
-		Position = Vector3.new(GAR_X, techY + 2.4, GAR_Z + GAR_D / 2 - 1.5),
+		CFrame = CFrame.new(Vector3.new(GAR_X, techY + 3.3, GAR_Z + GAR_D / 2 - 1.4))
+			* CFrame.Angles(math.rad(12), 0, 0),
 		Color = Color3.fromRGB(38, 42, 50),
 		Material = Enum.Material.Metal,
 		CanCollide = false,
@@ -2855,9 +2878,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	for _, sx in ipairs({-1, 1}) do
 		local poste = part({
 			Name = "GarageSignPost",
-			Size = Vector3.new(0.6, 1.6, 0.6),
-			Position = Vector3.new(GAR_X + sx * (15 * 0.5 - 1.6), techY + 0.2,
-				GAR_Z + GAR_D / 2 - 1.5),
+			Size = Vector3.new(0.6, 2.2, 0.6),
+			Position = Vector3.new(GAR_X + sx * (26 * 0.5 - 1.8), techY + 0.3,
+				GAR_Z + GAR_D / 2 - 1.4),
 			Color = Color3.fromRGB(58, 62, 70),
 			Material = Enum.Material.Metal,
 			CanCollide = false,
@@ -2871,6 +2894,214 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- 100 px por stud: al doble que antes, para que la letra grande no salga
 	-- pixelada (es una calca de 13 x 3.2 studs dibujada en 1300 x 320 pixeles)
 	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 100 })
+
+	-- ===== v48: DETALLES DE BODEGA (que se vea de verdad, no una caja) =====
+	-- Reporte del usuario: "las bodegas me gustaria que se vieran mas realistas,
+	-- unas mejores texturas". Todo esto es GEOMETRIA con materiales de Roblox (no
+	-- hay imagenes ni IDs que subir): zocalo de concreto al pie de las paredes,
+	-- costillas metalicas en la fachada, ventanas altas, columnas de acero
+	-- adentro, viga de carga en el techo, canoa y respiraderos, franjas de
+	-- seguridad, placa de acero en el anden, juntas de colado y manchas de aceite
+	-- en el patio. Nada de esto tiene colision de mas (lo decorativo no choca).
+	local frente = D * 0.5
+	local acero = Color3.fromRGB(96, 100, 108)
+	local aceroOsc = Color3.fromRGB(58, 60, 66)
+	local concreto = Color3.fromRGB(112, 108, 100)
+	local seguridad = Color3.fromRGB(226, 178, 40)
+
+	-- zocalo al pie de las tres paredes (el concreto se ve gastado por abajo)
+	for _, zk in ipairs({{0, -D * 0.5}, {-W * 0.5, 0}, {W * 0.5, 0}}) do
+		local horizontal = math.abs(zk[2] + D * 0.5) < 0.1
+		local zoc = part({
+			Name = "WallSkirt",
+			-- OJO: 0.4 de alto y SIN colision. Un zocalo mas alto choca a la altura
+			-- del torso y el validador lo trata como muro: tapaba el paso del
+			-- porton y de la oficina (etapa 7: "no se puede caminar al garaje").
+			Size = horizontal and Vector3.new(W, 0.4, 0.5) or Vector3.new(0.5, 0.4, D),
+			Position = Vector3.new(zk[1], 2.2, zk[2] + (horizontal and 0.9 or 0)),
+			Color = concreto,
+			Material = Enum.Material.Concrete,
+			CanCollide = false,
+		})
+		zoc.Parent = model
+	end
+
+	-- costillas metalicas de la fachada (el "canal" de una bodega de verdad)
+	do
+		local n = math.max(4, math.floor(W / 7))
+		for i = 1, n do
+			local rx = -W * 0.5 + (W / (n + 1)) * i
+			local rib = part({
+				Name = "WallRib",
+				Size = Vector3.new(0.5, H - 1.6, 0.45),
+				Position = Vector3.new(rx, 2 + (H - 1.6) * 0.5 + 1.6, frente + 0.3),
+				Color = acero,
+				Material = Enum.Material.Metal,
+				CanCollide = false,
+			})
+			rib.Parent = model
+		end
+		-- franja de color a media pared (rompe el color plano)
+		local banda = part({
+			Name = "WallBand",
+			Size = Vector3.new(W, 1.1, 0.4),
+			Position = Vector3.new(0, 2 + H * 0.62, frente + 0.35),
+			Color = Color3.fromRGB(176, 78, 60),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		banda.Parent = model
+	end
+
+	-- ventanas altas (luz de dia) en los costados: vidrio traslucido
+	for _, vx in ipairs({-W * 0.5 - 0.2, W * 0.5 + 0.2}) do
+		for i = 1, 2 do
+			local win = part({
+				Name = "Clerestory",
+				Size = Vector3.new(0.3, 2.2, D * 0.22),
+				Position = Vector3.new(vx, 2 + H - 3.2, -D * 0.16 + (i - 1) * D * 0.34),
+				Color = Color3.fromRGB(150, 190, 210),
+				Material = Enum.Material.Glass,
+				Transparency = 0.45,
+			})
+			win.CanCollide = false
+			win.Parent = model
+		end
+	end
+
+	-- columnas de acero adentro, pegadas a las paredes (con placa en la base)
+	do
+		local n = math.max(2, math.floor(D / 26))
+		for i = 1, n do
+			local cz = -D * 0.5 + (D / (n + 1)) * i
+			-- OJO: una columna frente a una puerta la TAPA (y el validador la caza:
+			-- "no se puede caminar al garaje / a la oficina"). Se salta ese lugar.
+			local estorba = (math.abs(cz - GAR_Z) < GAR_DOOR / 2 + 3)
+				or (math.abs(cz - OFF_CZ) < OFF_DOOR / 2 + 3)
+			for _, cx in ipairs(estorba and {} or {-W * 0.5 + 0.9, W * 0.5 - 0.9}) do
+				local col = part({
+					Name = "SteelColumn",
+					Size = Vector3.new(0.9, H - 1.2, 0.9),
+					Position = Vector3.new(cx, 2 + (H - 1.2) * 0.5, cz),
+					Color = aceroOsc,
+					Material = Enum.Material.DiamondPlate,
+				})
+				col.Parent = model
+				local placa = part({
+					Name = "ColumnBase",
+					Size = Vector3.new(1.7, 0.4, 1.7),
+					Position = Vector3.new(cx, 2.2, cz),
+					Color = acero,
+					Material = Enum.Material.DiamondPlate,
+				})
+				placa.Parent = model
+			end
+		end
+	end
+
+	-- viga de carga en el techo (con su polipasto)
+	do
+		local viga = part({
+			Name = "HoistBeam",
+			Size = Vector3.new(W - 4, 0.8, 0.8),
+			Position = Vector3.new(0, 2 + H - 1.4, -D * 0.1),
+			Color = acero,
+			Material = Enum.Material.Metal,
+		})
+		viga.Parent = model
+		local trole = part({
+			Name = "HoistTrolley",
+			Size = Vector3.new(1.4, 1.2, 1.6),
+			Position = Vector3.new(-W * 0.15, 2 + H - 2.4, -D * 0.1),
+			Color = seguridad,
+			Material = Enum.Material.Metal,
+		})
+		trole.Parent = model
+	end
+
+	-- canoa (desague del techo) + respiraderos
+	for _, sx in ipairs({-1, 1}) do
+		local canoa = part({
+			Name = "RoofGutter",
+			Size = Vector3.new(W + 1.6, 0.6, 0.6),
+			Position = Vector3.new(0, 2 + H + 0.5, sx * (D * 0.5 + 0.4)),
+			Color = aceroOsc,
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		canoa.Parent = model
+	end
+	for i = 1, 2 do
+		local tubo = part({
+			Name = "RoofStack",
+			Size = Vector3.new(0.8, 3.2, 0.8),
+			Position = Vector3.new(-W * 0.32 + i * W * 0.3, 2 + H + 1.6, -D * 0.28),
+			Color = aceroOsc,
+			Material = Enum.Material.Metal,
+			Shape = Enum.PartType.Cylinder,
+		})
+		tubo.CFrame = CFrame.new(tubo.Position) * CFrame.Angles(0, 0, math.rad(90))
+		tubo.Parent = model
+	end
+
+	-- ===== piso: franjas de seguridad, placa de acero del anden y manchas =====
+	for i = 1, 2 do
+		local franja = part({
+			Name = "FloorStripe",
+			Size = Vector3.new(W - 12, 0.14, 0.7),
+			Position = Vector3.new(0, 2.08, -D * 0.5 + 10 + i * 12),
+			Color = seguridad,
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+		})
+		franja.Parent = model
+	end
+	do
+		local placaAcero = part({
+			Name = "DockSteelPlate",
+			Size = Vector3.new(11, 0.18, 7),
+			Position = Vector3.new(W * 0.5 - 12, 2.09, -D * 0.5 + 4.5),
+			Color = acero,
+			Material = Enum.Material.DiamondPlate,
+			CanCollide = false,
+		})
+		placaAcero.Parent = model
+	end
+	for i = 1, 2 do
+		local mancha = part({
+			Name = "OilStain",
+			Size = Vector3.new(4.6, 0.1, 4.6),
+			Position = Vector3.new(-W * 0.1 + i * 7, 2.06, -D * 0.15 + i * 4),
+			Color = Color3.fromRGB(38, 36, 40),
+			Material = Enum.Material.Slate,
+			Shape = Enum.PartType.Cylinder,
+			CanCollide = false,
+		})
+		mancha.CFrame = CFrame.new(mancha.Position) * CFrame.Angles(0, 0, math.rad(90))
+		mancha.Parent = model
+	end
+
+	-- tuberia pegada a la pared izquierda + extintor (vida de taller)
+	do
+		local tubo = part({
+			Name = "WallPipe",
+			Size = Vector3.new(0.4, H - 4, 0.4),
+			Position = Vector3.new(-W * 0.5 + 1.1, 2 + (H - 4) * 0.5, D * 0.5 - 6),
+			Color = aceroOsc,
+			Material = Enum.Material.CorrodedMetal,
+			CanCollide = false,
+		})
+		tubo.Parent = model
+		local ext = part({
+			Name = "Extinguisher",
+			Size = Vector3.new(0.9, 1.7, 0.9),
+			Position = Vector3.new(W * 0.5 - 1.6, 5.6, D * 0.5 - 8),
+			Color = Color3.fromRGB(196, 46, 40),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		ext.Parent = model
+	end
 
 	-- ===== LAMPARAS DE TECHO =====
 	local lampCount = math.max(3, math.floor(W / 45))
@@ -3583,6 +3814,36 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			})
 			stripe.Parent = model
 		end
+	-- ===== el PATIO (LotApron): juntas de colado y un par de manchas =====
+	do
+		local patio = model:FindFirstChild("LotApron", true)
+		if patio and patio:IsA("BasePart") then
+			local ancho = patio.Size.X
+			for i = -2, 2 do
+				local junta = part({
+					Name = "ApronJoint",
+					Size = Vector3.new(0.35, 0.16, patio.Size.Z),
+					Position = patio.Position + Vector3.new(i * (ancho / 6), 0.06, 0),
+					Color = Color3.fromRGB(60, 58, 56),
+					Material = Enum.Material.Concrete,
+					CanCollide = false,
+				})
+				junta.Parent = model
+			end
+			for i = 1, 2 do
+				local mancha = part({
+					Name = "ApronStain",
+					Size = Vector3.new(6, 0.1, 5),
+					Position = patio.Position + Vector3.new(i * 12 - 18, 0.08, -3 + i * 3),
+					Color = Color3.fromRGB(44, 42, 44),
+					Material = Enum.Material.Asphalt,
+					CanCollide = false,
+				})
+				mancha.Parent = model
+			end
+		end
+	end
+
 
 		if AMB.Props then
 			-- ---------- macetas grandes a los lados del porton ----------

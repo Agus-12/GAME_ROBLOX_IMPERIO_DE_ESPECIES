@@ -1,6 +1,10 @@
 -- SENALES DE VERDAD (v40). Antes: Connect devolvia un Disconnect falso y NO habia
 -- Fire, o sea que nada conectado a un evento corria NUNCA en el simulador (falso
 -- verde: no se podia probar "aparece una carpeta a media partida").
+local SIGNALES = {}
+-- v48: lista (con cache) de las piezas del mundo, para que los raycast no
+-- recorran TODO el lugar en cada rayo (con la ciudad entera tardaba minutos).
+local LISTA_MUNDO = nil
 local function newSignal()
   local s = {_fns = {}}
   function s:Connect(fn)
@@ -12,13 +16,27 @@ local function newSignal()
   function s:ConnectParallel(fn) return self:Connect(fn) end
   function s:Once(fn) return self:Connect(fn) end
   function s:Wait() return nil end
+  -- v48: se guardan las senales creadas para poder DISPARAR Heartbeat desde el
+  -- planificador (antes el Heartbeat nunca se disparaba: los bucles de manejo
+  -- de la bici y del auto JAMAS corrian en las pruebas, y por eso nadie noto
+  -- que el auto no se movia).
+  SIGNALES[#SIGNALES+1] = s
   function s:Fire(...)
-    for _, fn in ipairs(self._fns) do pcall(fn, ...) end
+    for _, fn in ipairs(self._fns) do
+      local ok, err = pcall(fn, ...)
+      if not ok then print("!! error en un Heartbeat/señal: " .. tostring(err)) end
+    end
   end
   return s
 end
+-- OJO: los enumerados se CACHEAN (Enum.Material.Metal devuelve siempre la misma
+-- tabla). Asi `d.Material == Enum.Material.Metal` funciona como en Roblox de
+-- verdad y `d.Material.Name` sirve para contar materiales distintos en los tests.
 Enum=setmetatable({},{__index=function(t,k)
-  local e=setmetatable({},{__index=function(_,k2) return {Name=k2,Value=0} end})
+  local e=setmetatable({},{__index=function(_,k2)
+    local item=setmetatable({Name=k2,Value=0},{__tostring=function(x)
+      return "Enum." .. tostring(tostring(k)) .. "." .. tostring(x.Name) end})
+    rawset(_,k2,item); return item end})   -- ojo: rawset en 'e' via __index de 't'
   rawset(t,k,e); return e end})
 local function C3(r,g,b) return {R=r,G=g,B=b} end
 Color3={fromRGB=C3,new=C3}
@@ -49,11 +67,94 @@ local function sumaRot(a, b)
   return {X = a.X + b.X, Y = a.Y + b.Y, Z = a.Z + b.Z}
 end
 local CFmt={}
+-- v48: la ORIENTACION no existia (LookVector siempre (0,0,1), sin GetComponents).
+-- Por eso el raycast del simulador no podia cortar contra las cajas de las
+-- piezas giradas y la conduccion no se podia medir (ver SCHED.Raycast).
+-- Ahora se guarda la rotacion como matriz (R = Rx * Ry * Rz, igual que
+-- CFrame.fromEulerAnglesXYZ) usando los radianes anotados en t.rot.
+local function comps3(t)
+  local r = t.rot or {X=0, Y=0, Z=0}
+  local cx, sx = math.cos(r.X), math.sin(r.X)
+  local cy, sy = math.cos(r.Y), math.sin(r.Y)
+  local cz, sz = math.cos(r.Z), math.sin(r.Z)
+  -- Rx
+  local ax = {1,0,0, 0,cx,-sx, 0,sx,cx}
+  -- Ry
+  local ay = {cy,0,sy, 0,1,0, -sy,0,cy}
+  -- Rz
+  local az = {cz,-sz,0, sz,cz,0, 0,0,1}
+  local function mm(a,b)
+    local o = {}
+    for i = 0, 2 do for j = 0, 2 do
+      o[i*3+j+1] = a[i*3+1]*b[j+1] + a[i*3+2]*b[j+4] + a[i*3+3]*b[j+7]
+    end end
+    return o
+  end
+  local m = mm(mm(ax, ay), az)
+  local p = t.p
+  local r12 = {m[1],m[2],m[3],m[4],m[5],m[6],m[7],m[8],m[9],p.X,p.Y,p.Z}
+  return r12, m
+end
 CFmt.__index=function(t,k)
   if k=="Position" then return t.p end
-  if k=="ToObjectSpace" then return function(a,b) return mkCF(Vector3.new()) end end
-  if k=="Inverse" then return function(a) return mkCF(Vector3.new()) end end
-  if k=="LookVector" then return Vector3.new(0,0,1) end
+  if k=="X" then return t.p.X end
+  if k=="Y" then return t.p.Y end
+  if k=="Z" then return t.p.Z end
+  if k=="Rotation" then return t.p end
+  -- v48: ToObjectSpace/Inverse devolvian SIEMPRE un CFrame en cero. Con eso,
+  -- "guarda la posicion de cada pieza respecto al chasis" daba (0,0,0) para
+  -- todas y las pruebas de "las piezas viajan con el vehiculo" no median nada
+  -- (falso verde). Ahora si restan posiciones y rotaciones.
+  if k=="ToObjectSpace" then
+    return function(a, b)
+      local c = mkCF(Vector3.new(b.p.X - a.p.X, b.p.Y - a.p.Y, b.p.Z - a.p.Z))
+      c.rot = sumaRot(b.rot, {X = -((a.rot or {}).X or 0), Y = -((a.rot or {}).Y or 0),
+                                Z = -((a.rot or {}).Z or 0)})
+      return c
+    end
+  end
+  if k=="Inverse" then
+    return function(a)
+      local c = mkCF(Vector3.new(-a.p.X, -a.p.Y, -a.p.Z))
+      c.rot = {X = -((a.rot or {}).X or 0), Y = -((a.rot or {}).Y or 0), Z = -((a.rot or {}).Z or 0)}
+      return c
+    end
+  end
+  if k=="GetComponents" then
+    return function(a)
+      local r12 = comps3(a)
+      return r12[1], r12[2], r12[3], r12[4], r12[5], r12[6], r12[7], r12[8], r12[9], r12[10], r12[11], r12[12]
+    end
+  end
+  if k=="GetOrientation" then
+    return function(a) local r = a.rot or {} ; return r.X or 0, r.Y or 0, r.Z or 0 end
+  end
+  if k=="LookVector" then
+    local _, m = comps3(t)
+    return Vector3.new(-m[3], -m[6], -m[9])
+  end
+  -- v48: ZVector/XVector/YVector son los EJES del CFrame (el frente de un
+  -- vehiculo es su +Z). Faltaban y el manejo del auto no se podia medir.
+  if k=="ZVector" then
+    local _, m = comps3(t)
+    return Vector3.new(m[3], m[6], m[9])
+  end
+  if k=="XVector" then
+    local _, m = comps3(t)
+    return Vector3.new(m[1], m[4], m[7])
+  end
+  if k=="YVector" then
+    local _, m = comps3(t)
+    return Vector3.new(m[2], m[5], m[8])
+  end
+  if k=="RightVector" then
+    local _, m = comps3(t)
+    return Vector3.new(m[1], m[4], m[7])
+  end
+  if k=="UpVector" then
+    local _, m = comps3(t)
+    return Vector3.new(m[2], m[5], m[8])
+  end
   return nil end
 -- v45: multiplicar CFrames ANTES devolvia el mismo CFrame (el simulador no
 -- componia nada), asi que colocar una pieza "respecto al mango" no movia nada y
@@ -149,6 +250,31 @@ function Instance_.new(cls,parent)
       o.Size = Vector3.new(1, 1, 1)
       o.Position = Vector3.new(0, 0, 0)
     end
+  end
+  -- v48: Humanoid como en Roblox (Health/MaxHealth/WalkSpeed...). Sin esto,
+  -- "hum.Health > 0" del bucle de territorios tronaba en el simulador ("attempt
+  -- to compare number with nil") y ademas el codigo que mira la vida del
+  -- jugador nunca se probaba de verdad.
+  if cls == "Humanoid" or cls == "HumanoidDescription" then
+    o.Health = 100
+    o.MaxHealth = 100
+    o.WalkSpeed = 16
+    o.JumpPower = 50
+    o.JumpHeight = 7.2
+    o.HipHeight = 2
+    o.AutoRotate = true
+    o.Sit = false
+    o.RigType = "R15"
+  end
+  if cls == "Humanoid" then
+    o.Died = newSignal()
+    o.HealthChanged = newSignal()
+    o.MoveToFinished = newSignal()
+    o.MoveTo = function() end
+    o.ChangeState = function() end
+    o.GetState = function() return "Running" end
+    o.TakeDamage = function(self, n) self.Health = math.max(0, (self.Health or 100) - (n or 0)) end
+    o.UnequipTools = function() end
   end
   o.Visible = true
   o.Enabled = true
@@ -333,6 +459,7 @@ function Instance_.new(cls,parent)
       else
         o[k]=v
       end
+      if k == "Parent" then LISTA_MUNDO = nil end
       if k ~= "_parentChildren" and __ON_SET then pcall(__ON_SET, o, k, v) end
     end})
   if parent then proxy.Parent=parent end
@@ -348,6 +475,12 @@ function typeof(v)
   end
   return type(v)
 end
+-- v48: RAYCAST de verdad. El simulador devolvia nil siempre ("no hay piso")
+-- y por eso la conduccion nunca se podia probar: la bici y los autos avanzaban
+-- o no SIN que la prueba viera nada. Aqui se calculan las cajas de las partes
+-- (CFrame + Size, igual que Roblox) y se corta contra la primera.
+local SCHED   -- v48: se adelanta la declaracion (abajo se llena) para que
+              -- el closure de Workspace.Raycast vea ESTA variable y no un global nil
 local services={}
 local function svc(n)
   if not services[n] then
@@ -399,7 +532,8 @@ local function svc(n)
     s.GetDataStore=function() return {GetAsync=function() return nil end,SetAsync=function() end} end
     s.Create=function() return {Play=function() end,Completed=newSignal()} end
     s.CreatePath=function() return {ComputeAsync=function() end,Status=nil,GetWaypoints=function() return {} end} end
-    s.Raycast=function() return nil end
+    -- v48: raycast real (ver SCHED.Raycast arriba); sin filtro de material
+    s.Raycast=function(_, desde, direccion, filtro) return SCHED.Raycast(desde, direccion, filtro) end
     services[n]=s
   end
   return services[n] end
@@ -444,7 +578,7 @@ Random={new=function(seed) local r={}; math.randomseed(seed or 1)
 -- Ahora: task.spawn crea corrutinas de verdad, task.wait suspende la corrutina
 -- y 'avanza' el tiempo virtual. __SCHED.advance(segundos) corre todo lo que
 -- toque. Asi se puede MEDIR cuanto tarda algo en pantalla (tools/intro.py).
-local SCHED = {threads = {}, vtime = 0}
+SCHED = {threads = {}, vtime = 0}
 SCHED.__index = SCHED
 
 local function addThread(fn, ...)
@@ -508,7 +642,150 @@ function SCHED.advance(hasta)
 	return SCHED.vtime
 end
 
+-- v48: el "motor de fisica" de mentira: avanza el reloj en rebanadas y dispara
+-- RunService.Heartbeat con el dt de cada rebanada (como Roblox, ~30 por segundo).
+-- Con esto los bucles de conduccion SI corren y se puede medir si un vehiculo
+-- avanza, gira o se cae.
+function SCHED.ticks(desde, hasta)
+	local t = desde
+	local n = 0
+	while t < hasta and n < 600 do
+		local dt = math.min(1 / 30, hasta - t)
+		local rs = services.RunService
+		if rs and rs.Heartbeat then rs.Heartbeat:Fire(dt) end
+		t = t + dt
+		n = n + 1
+	end
+	return n
+end
+
+local _advance = SCHED.advance
+function SCHED.advance(hasta)
+	local ini = SCHED.vtime
+	local listo = _advance(hasta)
+	SCHED.ticks(ini, listo > ini and listo or ini)
+	return listo
+end
+
 task.__sched = SCHED
+
+local function cajaDeParte(p)
+  local P = p.CFrame and p.CFrame.p or p.Position or Vector3.new()
+  local S = p.Size or Vector3.new()
+  local hx, hy, hz = (S.X or 0) / 2, (S.Y or 0) / 2, (S.Z or 0) / 2
+  -- OJO: GetComponents() devuelve 12 numeros; en una expresion 'a and f() or nil'
+  -- Lua se queda con el PRIMERO y luego truena al indexarlo. Hay que empacar.
+  local m = nil
+  if p.CFrame then m = {p.CFrame:GetComponents()} end
+  local e1, e2, e3
+  if m then
+    e1, e2, e3 = Vector3.new(m[1], m[4], m[7]), Vector3.new(m[2], m[5], m[8]), Vector3.new(m[3], m[6], m[9])
+  else
+    e1, e2, e3 = Vector3.new(1, 0, 0), Vector3.new(0, 1, 0), Vector3.new(0, 0, 1)
+  end
+  local mn = {X = math.huge, Y = math.huge, Z = math.huge}
+  local mx = {X = -math.huge, Y = -math.huge, Z = -math.huge}
+  for sx = -1, 1, 2 do for sy = -1, 1, 2 do for sz = -1, 1, 2 do
+    local w = P + e1 * (hx * sx) + e2 * (hy * sy) + e3 * (hz * sz)
+    mn.X = math.min(mn.X, w.X) ; mx.X = math.max(mx.X, w.X)
+    mn.Y = math.min(mn.Y, w.Y) ; mx.Y = math.max(mx.Y, w.Y)
+    mn.Z = math.min(mn.Z, w.Z) ; mx.Z = math.max(mx.Z, w.Z)
+  end end end
+  return mn, mx
+end
+
+local function esParteDeVerdad(inst)
+  local c = inst and inst.ClassName
+  return c == "Part" or c == "MeshPart" or c == "WedgePart"
+      or c == "CornerWedgePart" or c == "TrussPart" or c == "SpawnLocation"
+      or c == "UnionOperation"
+end
+
+function SCHED.Raycast(desde, direccion, filtro)
+  if not desde or not direccion then return nil end
+  local largo = direccion.Magnitude
+  if largo <= 0 then return nil end
+  local d = direccion.Unit
+  local omitir = {}
+  if type(filtro) == "table" and filtro.FilterDescendantsInstances then
+    for _, o in ipairs(filtro.FilterDescendantsInstances) do omitir[o] = true end
+  end
+  -- v48: FilterDescendantsInstances EXCLUYE TAMBIEN A LOS HIJOS, como en Roblox.
+  -- Antes solo se saltaba la pieza exacta de la lista, asi que el auto se
+  -- raycastaba a SI MISMO (el rayo al piso pega en su propio chasis) y el
+  -- simulador decia que el piso estaba arriba: el manejo nunca se movia.
+  local function excluido(o)
+    local pa = o
+    while pa do
+      if omitir[pa] then return true end
+      pa = pa.Parent
+    end
+    return false
+  end
+  if not LISTA_MUNDO then
+    local lista = {}
+    local function juntar(o)
+      if not o then return end
+      if esParteDeVerdad(o) then lista[#lista + 1] = o end
+      local kids = o._children
+      if not kids then
+        local ok, r = pcall(function() return o:GetChildren() end)
+        kids = ok and r or nil
+      end
+      if kids then for _, k in ipairs(kids) do juntar(k) end end
+    end
+    juntar(services.Workspace)
+    LISTA_MUNDO = lista
+  end
+  local lista = LISTA_MUNDO
+  -- v48: descarte rapido por esfera antes del test de cajas (el filtro fino
+  -- contra TODO el lugar tardaba minutos en las pruebas de manejo)
+  local function cerca(o)
+    local S = o.Size
+    if not S then return false end
+    local radio = (S.X * S.X + S.Y * S.Y + S.Z * S.Z) ^ 0.5 * 0.5
+    local P = o.CFrame and o.CFrame.p or o.Position
+    local dx, dy, dz = P.X - desde.X, P.Y - desde.Y, P.Z - desde.Z
+    local proy = dx * d.X + dy * d.Y + dz * d.Z
+    if proy < -radio or proy > largo + radio then return false end
+    local px, py, pz = dx - proy * d.X, dy - proy * d.Y, dz - proy * d.Z
+    return (px * px + py * py + pz * pz) <= radio * radio
+  end
+  local mejorT, mejorParte, mejorN = nil, nil, Vector3.new(0, 1, 0)
+  for _, o in ipairs(lista) do
+    if not omitir[o] and not excluido(o) and cerca(o) then
+      local mn, mx = cajaDeParte(o)
+      local t0, t1 = 0, largo
+      for _, e in ipairs({{desde.X, d.X, mn.X, mx.X}, {desde.Y, d.Y, mn.Y, mx.Y}, {desde.Z, d.Z, mn.Z, mx.Z}}) do
+        local o0, oo, lo, hi = e[1], e[2], e[3], e[4]
+        if math.abs(oo) < 1e-9 then
+          if o0 < lo or o0 > hi then t0 = nil ; break end
+        else
+          local ta, tb = (lo - o0) / oo, (hi - o0) / oo
+          if ta > tb then ta, tb = tb, ta end
+          t0 = math.max(t0 or 0, ta) ; t1 = math.min(t1, tb)
+          if t0 > t1 then t0 = nil ; break end
+        end
+      end
+      if t0 and (mejorT == nil or t0 < mejorT) then
+        mejorT, mejorParte = t0, o
+        local p0 = desde + d * t0
+        -- normal = cara por la que entro (la mas cercana al origen de cada eje)
+        local dmin = math.huge ; local n = Vector3.new(0, 1, 0)
+        local caras = {
+          {math.abs(p0.X - mn.X), Vector3.new(-1, 0, 0)}, {math.abs(p0.X - mx.X), Vector3.new(1, 0, 0)},
+          {math.abs(p0.Y - mn.Y), Vector3.new(0, -1, 0)}, {math.abs(p0.Y - mx.Y), Vector3.new(0, 1, 0)},
+          {math.abs(p0.Z - mn.Z), Vector3.new(0, 0, -1)}, {math.abs(p0.Z - mx.Z), Vector3.new(0, 0, 1)},
+        }
+        for _, c in ipairs(caras) do if c[1] < dmin then dmin = c[1] ; n = c[2] end end
+        mejorN = n
+      end
+    end
+  end
+  if not mejorParte then return nil end
+  return { Instance = mejorParte, Position = desde + d * mejorT, Normal = mejorN, Distance = mejorT }
+end
+
 -- señales de verdad disponibles para mockclient y para las pruebas: las señales
 -- falsas (Connect que no guarda nada y sin Fire) escondian bugs (leccion v40).
 _G.__newSignal = newSignal
