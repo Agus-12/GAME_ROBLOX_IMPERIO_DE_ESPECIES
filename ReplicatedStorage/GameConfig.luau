@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v48 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v49 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ReplicatedStorage.GameConfig
 -- Todos los numeros del juego viven aqui. Cambia esto para balancear.
@@ -13,7 +13,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v48"
+GameConfig.Build = "v49"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
@@ -350,7 +350,10 @@ GameConfig.Garage = {
 	Heights = {12, 15, 17, 19},   -- alto del techo
 	DoorWidth  = 12,              -- ancho del porton de cada cajon
 	DoorHeight = 10,              -- alto del porton
-	OpenRadius = 10,              -- a que distancia se abre solo el porton
+	-- v49: 7 (era 10). El usuario: "sigue sin aparecer el porton de la cochera".
+	-- El porton SI existia, pero con radio 10 se abria en cuanto andabas por el
+	-- patio y nunca lo veias cerrado. Con 7 se ve CERRADO hasta que llegas.
+	OpenRadius = 7,               -- a que distancia se abre solo el porton
 	-- v42: 10 (era 13). Se mide desde el FRENTE DE CADA CAJON, no del centro del
 	-- garaje: asi los portones se VEN CERRADOS cuando estas adentro o a un lado,
 	-- y solo se abren cuando vas a pasar por ese cajon.

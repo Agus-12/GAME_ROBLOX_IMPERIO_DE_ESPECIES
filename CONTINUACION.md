@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v48** · 26 sep 2026
+> Última actualización: **v49** · 26 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v48 |
+| **Versión actual** | v49 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,20 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v49 (4a ronda del mismo reporte)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "el mercado de la cochera se sigue quedando pegado no importa cuanto me aleje" | el cierre dependia de la marca "una vez por entrada" y vivia dentro del detector de cruce del garage: si lo abrias con el boton Auto [Y] o la tecla V, no se cerraba nunca | ahora es EXACTAMENTE el patron de la computadora y la boveda: se abre al CRUZAR la entrada y el cierre va aparte (a 12 studs del cajon, sin `enLote` ni marcas). Da igual como lo abras |
+| "los letreros la letra sigue quedando re chiquita" (4o reporte) | dos causas de fondo: (1) los rotulos se pintaban en las caras **Back/Front** aunque la pieza fuera larga en Z (la placa del paso al garaje mide 3.2 x 2.0 x **16.4**: "TALLER" salia de **0.80** studs y no habia forma de agrandarlo mas); (2) el tamaño se dejaba a **TextScaled**, o sea al motor, y no se podia medir | `textoPlano` ahora pinta en las **caras grandes** y acepta `letra = <studs>`: el tamaño se **calcula** (pixeles = studs x px/stud) y `RotularGaraje` ya no fuerza TextScaled. La placa de la cochera mide **4.13** studs de letra, TALLER/OFICINA **1.64**, CAJA n 1.64, la caja fuerte 1.38. Los 8 rotulos se MIDEN en la etapa 24 |
+| "sigue sin aparecer el porton de la cochera" | el porton **si existia y estaba bien** (24.3 x 10.4, tapando el hueco): lo que pasaba es que (a) se abria a **10 studs**, asi que parado en el patio ya estaba abierto y nunca lo veias cerrado, y (b) era una hoja gris sobre un hueco oscuro | `OpenRadius` **10 -> 7**, franja de seguridad **roja/blanca** de 6 tramos abajo, ventanita de 2.2 y manija de 2.6: el porton **cerrado se ve a leguas**. Y el letrero de la cochera bajo a **descansar sobre el techo del garaje** (14.4..18.8), justo arriba del porton |
+| "en el piso aparecen como unos palitos negros creo que son los de las luces uv" | eran **las manchas de aceite** que puse en la v48: un Part cilindrico tiene su EJE en X (el largo en X, el diametro en Y/Z) y el CFrame se aplica DESPUES, asi que size (4.6, 0.1, 4.6) + giro 90 en Z = un **TUBO de 4.6 parado**. (Y mi primer "arreglo" seguia mal: le puse el grosor en Y, que es el RADIO) | ahora el grosor (0.12) va en **X** y el diametro (4.6) en Y y Z: disco plano tirado en el piso. La etapa 24 comprueba que el eje X de cada cilindro quede **vertical** |
+| "no podemos hacer mas facil esto? que tu de verdad veas el juego en vivo?" | no se puede ver el juego en vivo (no tengo acceso a tu Studio), pero si se puede **ver el lote** | nuevo `tools/mirar.py`: arma el lote con el simulador, saca las medidas reales de las 545 piezas y dibuja la **fachada de frente** y la **planta** en un SVG/PNG (`/home/user/mirar-lote.png`). Otras rondas se revisan ahi antes de entregar |
+
+> OJO con el simulador (`tools/mock.lua`), la v49 le arreglo UNA mentira mas: los
+> **TextLabel no tenian TextSize** (en Roblox nacen con 14). Sin eso no se podia
+> medir la letra de ningun rotulo, que es justo el reporte de cuatro rondas.
 
 ### 🆕 Qué se cerró en la v48 (sigue a la captura de la 1:17/1:18 a.m.)
 
@@ -423,8 +437,8 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v48 (arrancando...)` -> `RONDA v48  OK`; se encoge a un letrerito `v48` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v48` |
+| **Placa verde** arriba al centro | el cliente | `RONDA v49 (arrancando...)` -> `RONDA v49  OK`; se encoge a un letrerito `v49` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v49` |
 | **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v44]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);

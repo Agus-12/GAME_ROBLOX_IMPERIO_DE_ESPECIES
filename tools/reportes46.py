@@ -346,11 +346,12 @@ local dosRenglones = string.find(texto, string.char(10)) ~= nil
 local letras = 0
 for _ in string.gmatch(texto, "[%w]") do letras = letras + 1 end
 print(string.format("__LETRERO__ anchoTablero=%.1f|altoTablero=%.1f|px=%s|pxCaja=%s|" ..
-  "scaled=%s|wrapped=%s|dosRenglones=%s|letras=%d|texto=%s",
+  "scaled=%s|wrapped=%s|dosRenglones=%s|letras=%d|textSize=%s|texto=%s",
   gar and gar.Size.X or 0, gar and gar.Size.Y or 0,
   sg and sg.PixelsPerStud or 0, sgC and sgC.PixelsPerStud or 0,
   tostring(lbl and lbl.TextScaled), tostring(lbl and lbl.TextWrapped),
-  tostring(dosRenglones), letras, string.gsub(texto, string.char(10), " + ")))
+  tostring(dosRenglones), letras, tostring(lbl and lbl.TextSize),
+  string.gsub(texto, string.char(10), " + ")))
 '''
 sal = lua(guion)
 m = re.search(r"__LETRERO__ (.+)", sal.stdout + sal.stderr)
@@ -362,28 +363,28 @@ if not m:
 else:
     d = dict(kv.split("=") for kv in m.group(1).split("|") if "=" in kv)
     print("  medidas: " + m.group(1))
-    # v48 (TERCER reporte del usuario: "aun siguen las letras muy pequeñas"): el
-    # tablero crecio a 26 x 5.4 y el nombre va en UN solo renglon. Con dos
-    # renglones cada uno cabia en medio tablero y la letra salia de ~1.7 studs.
-    # La letra mas grande que cabe = la menor de (el alto del tablero) o (el
-    # ancho repartido entre las letras que se pintan).
+    # v49 (CUARTO reporte del usuario: "la letra sigue quedando re chiquita"): el
+    # tamaño ya NO se estima ni se deja a TextScaled: se MIDE el TextSize real del
+    # rotulo y se convierte a studs con los pixeles por stud del tablero.
     letras = max(1, int(float(d.get("letras", 1))))
-    letra = min(float(d["altoTablero"]) * 0.78,
-                float(d["anchoTablero"]) / (0.62 * letras))
+    px = float(d.get("px", 0)) or 1
+    letra = float(d.get("textSize", 0) or 0) / px
     if float(d["anchoTablero"]) < 20:
         problemas.append("el tablero mide %.1f de ancho: con menos de 20 la letra no "
                          "tiene de donde crecer" % float(d["anchoTablero"]))
-    if letra < 2.4:
-        problemas.append("la letra queda de ~%.2f studs de alto: sigue pequeña "
-                         "(el usuario lo reporto 3 veces)" % letra)
+    if float(d.get("textSize", 0) or 0) <= 0:
+        problemas.append("el rotulo NO trae tamaño medido (TextSize=0): vuelve a estar "
+                         "en manos de TextScaled, que es lo que se ve chiquito")
+    elif letra < 2.4:
+        problemas.append("la letra mide %.2f studs: sigue pequeña (el usuario lo "
+                         "reporto CUATRO veces)" % letra)
     if int(float(d["px"])) < 90:
         problemas.append("el tablero del garaje va a %s pixeles por stud: la letra "
                          "sale pixelada" % d["px"])
     if int(float(d["pxCaja"])) < 88:
         problemas.append("las placas de cajon van a %s pixeles por stud" % d["pxCaja"])
-    if d["scaled"] != "true":
-        problemas.append("el texto del garaje NO es TextScaled: no crece para llenar "
-                         "el tablero (asi se veia chiquito)")
+    if d["scaled"] == "true" and float(d.get("textSize", 0) or 0) <= 0:
+        problemas.append("el texto del garaje quedo en TextScaled sin tamaño medido")
     if d["wrapped"] == "true":
         problemas.append("el texto del garaje esta envuelto (TextWrapped): con eso "
                          "el escalado lo deja chiquito")

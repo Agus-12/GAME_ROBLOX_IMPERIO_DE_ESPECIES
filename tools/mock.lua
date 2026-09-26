@@ -279,6 +279,15 @@ function Instance_.new(cls,parent)
   o.Visible = true
   o.Enabled = true
   o.Text = ""
+  -- v49: en Roblox un TextLabel nace con TextSize 14 y TextScaled false. El mock
+  -- lo dejaba en nil, asi que no se podia MEDIR la letra de los rotulos (que es
+  -- justo lo que el usuario reporto 4 rondas seguidas). Se imita a Roblox.
+  if cls == "TextLabel" or cls == "TextButton" or cls == "TextBox" then
+    o.TextSize = 14
+    o.TextScaled = false
+    o.TextWrapped = false
+    o.Font = "GothamBold"
+  end
   o.ZIndex = 1
   o.Transparency = 0
   o.RichText = false

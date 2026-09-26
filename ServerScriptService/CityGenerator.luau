@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v48 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v49 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -132,8 +132,24 @@ local function textoPlano(parte: BasePart, texto: string, color: Color3?, opts: 
 	-- caras: por defecto se pinta en las DOS caras grandes (asi se lee vengas de
 	-- donde vengas). En partes planas de una sola cara (un piso, un letrero
 	-- clavado) se pide  unaCara = true.
-	local caras = o.unaCara and { o.face or Enum.NormalId.Back }
-		or { Enum.NormalId.Back, Enum.NormalId.Front }
+	-- v49: si no se pide una cara, se pintan LAS DOS CARAS GRANDES de la pieza.
+	-- Antes eran siempre Back y Front, y en una placa larga en Z (la del paso al
+	-- garaje mide 3.2 x 2.0 x 16.4) eso pinta el texto en la cara de 3.2: "TALLER"
+	-- salia de 0.8 studs, chiquito, por mas que se pidiera mas grande.
+	local caras
+	if o.unaCara then
+		caras = { o.face or Enum.NormalId.Back }
+	elseif o.face then
+		caras = { o.face, o.face == Enum.NormalId.Back and Enum.NormalId.Front or o.face }
+	else
+		-- (Top/Bottom NO cuentan: nadie lee un letrero que mira al cielo)
+		local sz = parte.Size
+		if sz.Z * sz.Y > sz.X * sz.Y then
+			caras = { Enum.NormalId.Left, Enum.NormalId.Right }
+		else
+			caras = { Enum.NormalId.Back, Enum.NormalId.Front }
+		end
+	end
 
 	local primero
 	for i, cara in ipairs(caras) do
@@ -159,8 +175,36 @@ local function textoPlano(parte: BasePart, texto: string, color: Color3?, opts: 
 				lbl.Position = UDim2.fromScale(0, 0.5 - alto * 0.5)
 			end
 			lbl.Font = o.font or Enum.Font.GothamBold
-			lbl.TextScaled = true
 			lbl.TextWrapped = false
+			-- v49: EL TAMAÑO DE LA LETRA SE CALCULA AQUI, no se deja a TextScaled.
+			-- El usuario lo reporto TRES veces ("la letra sigue re chiquita") y cada
+			-- vez le movia el tablero; el problema de fondo es que con TextScaled el
+			-- resultado depende del motor y no se puede MEDIR. Con o.letra se pide el
+			-- alto de la letra en studs y aqui se convierte a pixeles del tablero
+			-- (pixeles = studs x PixelsPerStud). TextScaled queda de respaldo para
+			-- los rotulos viejos que no piden tamaño.
+			local ancho, altoCara = 0, 0
+			if cara == Enum.NormalId.Left or cara == Enum.NormalId.Right then
+				ancho, altoCara = parte.Size.Z, parte.Size.Y
+			elseif cara == Enum.NormalId.Top or cara == Enum.NormalId.Bottom then
+				ancho, altoCara = parte.Size.X, parte.Size.Z
+			else
+				ancho, altoCara = parte.Size.X, parte.Size.Y
+			end
+			local nLetras = 0
+			for _ in string.gmatch(texto, "[%w]") do nLetras = nLetras + 1 end
+			local conLetra = (tonumber(o.letra) or 0) > 0
+			if conLetra then
+				-- la letra de verdad mide ~0.7 de la "eme" de la fuente
+				local em = (tonumber(o.letra) or 0) / 0.7
+				local cabeEm = math.min(altoCara * alto * 0.94,
+					(ancho * 0.94) / (0.62 * math.max(1, nLetras)))
+				em = math.min(em, cabeEm)
+				lbl.TextSize = math.max(8, math.floor(em * (o.pixels or 58)))
+				lbl.TextScaled = false
+			else
+				lbl.TextScaled = true
+			end
 			lbl.TextColor3 = color or Color3.fromRGB(236, 232, 222)
 			-- v46: el contorno pasa de 0.75 a 0.5: mas marcado = se lee de lejos
 			lbl.TextStrokeTransparency = o.stroke or 0.5
@@ -186,8 +230,11 @@ function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 	if not sign or not sign:IsA("BasePart") then return false end
 	-- v48: UN SOLO renglon. Partirlo en dos ("GARAJE DE" / "NOMBRE") fue el error
 	-- de la v46: cada renglon cabia en la mitad del tablero y la letra salia
-	-- chiquita. Con el tablero ancho (26 x 5.4) y una linea, TextScaled hace la
-	-- letra todo lo grande que quepa.
+	-- chiquita.
+	-- v49: ADEMAS ya NO se prende TextScaled. Eso era lo que dejaba el tamaño en
+	-- manos del motor (que es lo que se veia chiquito y no se podia medir): ahora
+	-- el tamaño lo puso textoPlano con su letra en studs y aqui SOLO se cambia el
+	-- texto.
 	local dos = string.upper(texto)
 
 	-- v46: el renglon se parte con "\n" y el TextLabel va en TextScaled SIN
@@ -196,14 +243,7 @@ function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 	local sg = sign:FindFirstChild("Rotulo")
 	if not sg then
 		local nuevo = textoPlano(sign, dos, Color3.fromRGB(255, 226, 150),
-			{ pixels = 120, stroke = 0.35 })
-		if nuevo then
-			local lbl = nuevo:FindFirstChild("Texto")
-			if lbl and lbl:IsA("TextLabel") then
-				lbl.TextScaled = true
-				lbl.TextWrapped = false
-			end
-		end
+			{ pixels = 128, stroke = 0.35, letra = 3.0 })
 		return nuevo ~= nil
 	end
 	-- v48: el tablero YA viene con su rotulo puesto en BuildWarehouse, asi que
@@ -212,19 +252,23 @@ function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 	-- pidiera 120 pixeles por stud. Ahora se le sube a las dos caras.
 	for _, g in ipairs(sign:GetChildren()) do
 		if g:IsA("SurfaceGui") then
-			if (g.PixelsPerStud or 0) < 120 then g.PixelsPerStud = 120 end
+			if (g.PixelsPerStud or 0) < 128 then g.PixelsPerStud = 128 end
 			local l = g:FindFirstChild("Texto")
 			if l and l:IsA("TextLabel") then
 				l.Text = dos
-				l.TextScaled = true
 				l.TextWrapped = false
+				-- si el rotulo es viejo (sin tamaño medido), se le calcula aqui
+				if (l.TextSize or 0) <= 0 then
+					-- rotulo viejo (de otra ronda) sin tamaño medido: se le calcula
+					l.TextSize = math.max(8, math.floor(3.2 * (g.PixelsPerStud or 58)))
+					l.TextScaled = false
+				end
 			end
 		end
 	end
 	local lbl = sg:FindFirstChild("Texto")
 	if lbl and lbl:IsA("TextLabel") then
 		lbl.Text = dos
-		lbl.TextScaled = true
 		lbl.TextWrapped = false
 		return true
 	end
@@ -1624,14 +1668,15 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		end
 		local head2 = part({
 			Name = "GarageDoorHead",
-			Size = Vector3.new(wallT + 1.2, 1.2, GAR_DOOR + 2.4),
-			Position = Vector3.new(-W * 0.5, 2 + doorH + 0.6, GAR_Z),
+			Size = Vector3.new(wallT + 1.2, 2.0, GAR_DOOR + 2.4),
+			Position = Vector3.new(-W * 0.5, 2 + doorH + 1.0, GAR_Z),
 			Color = Color3.fromRGB(84, 88, 94),
 			Material = Enum.Material.Metal,
 			CanCollide = false,
 		})
 		head2.Parent = model
-		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120), { pixels = 85 })
+		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120),
+			{ pixels = 110, letra = 1.15 })
 	end
 
 	-- La pared DERECHA va en tramos, para dejar el hueco por donde se pasa
@@ -1684,14 +1729,16 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		end
 		local head = part({
 			Name = "OfficeDoorHead",
-			Size = Vector3.new(wallT + 1, 1, OFF_DOOR + 2.4),
-			Position = Vector3.new(W * 0.5, 2 + doorH + 0.5, OFF_CZ),
+			-- v49: la placa era de 1 stud de alto: la letra salia de 0.7. Ahora 2.
+			Size = Vector3.new(wallT + 1, 2, OFF_DOOR + 2.4),
+			Position = Vector3.new(W * 0.5, 2 + doorH + 1.0, OFF_CZ),
 			Color = Color3.fromRGB(72, 58, 46),
 			Material = Enum.Material.Wood,
 			CanCollide = false,
 		})
 		head.Parent = model
-		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255), { pixels = 85 })
+		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255),
+			{ pixels = 110, letra = 1.15 })
 	end
 
 	-- ===== FACHADA DEL FRENTE con hueco de porton =====
@@ -1798,7 +1845,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	gateSensor.Parent = model
 
 	-- letrero arriba del porton
-	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), { pixels = 80 })
+	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120),
+		{ pixels = 96, letra = 2.2 })
 
 	-- luces del porton
 	for _, sx in ipairs({-1, 1}) do
@@ -2406,7 +2454,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	vaultBody.Parent = model
 	-- v44: pintado en la cara de la caja (antes flotaba encima y tapaba la bodega)
-	textoPlano(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190), { pixels = 44 })
+	-- v49: la caja es un cubo ALTISIMO (10 x 11): sin banda el texto se estiraba
+	-- en once studs de alto y el motor lo dejaba en ~2. Ahora va en una banda a
+	-- media caja con la letra pedida (1.5 studs = 6.5% del alto, se lee de lejos)
+	textoPlano(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190),
+		{ pixels = 64, banda = 0.14, letra = 1.5 })
 
 	local vaultFrame = part({
 		Name = "VaultFrame",
@@ -2679,10 +2731,29 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		rememberCF(slat)
 		end
 
+		-- ===== v49: franja de seguridad abajo (rojo/blanco) =====
+		-- El usuario no veia el porton: era una hoja gris que se perdia en el
+		-- hueco oscuro. Con esta franja, el porton CERRADO se ve a leguas.
+		for i = 0, 5 do
+			local franja = part({
+				Name = "DoorStripe",
+				Size = Vector3.new(anchoPorton / 6, 0.9, 0.14),
+				Position = Vector3.new(bx - anchoPorton / 2 + anchoPorton / 12 + i * (anchoPorton / 6),
+					3.15, frontZ - 0.68),
+				Color = (i % 2 == 0) and Color3.fromRGB(198, 52, 44)
+					or Color3.fromRGB(236, 232, 224),
+				Material = Enum.Material.SmoothPlastic,
+				CanCollide = false,
+			})
+			franja.Parent = doorModel
+			rememberCF(franja)
+		end
+
 		-- ventanita del porton
 		local dwin = part({
 			Name = "DoorWindow",
-			Size = Vector3.new(math.max(3, anchoPorton * 0.42), 1.5, 0.34),
+			-- v49: mas grande (1.5 -> 2.2 de alto) para que se lea de lejos
+			Size = Vector3.new(math.max(3.4, anchoPorton * 0.42), 2.2, 0.34),
 			Position = Vector3.new(bx, 2 + altoPorton - 2.6, frontZ - 0.5),
 			Color = Color3.fromRGB(150, 180, 200),
 			Material = Enum.Material.Glass,
@@ -2696,7 +2767,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		-- manija
 		local handle = part({
 			Name = "DoorHandle",
-			Size = Vector3.new(1.6, 0.35, 0.3),
+			-- v49: mas grande para que se lea de lejos
+			Size = Vector3.new(2.6, 0.5, 0.35),
 			Position = Vector3.new(bx, 3.6, frontZ - 0.75),
 			Color = Color3.fromRGB(58, 60, 66),
 			Material = Enum.Material.Metal,
@@ -2717,7 +2789,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		plate.Parent = model
 		-- v44: el usuario pidio justo esto: "vi un letrero flotante de caja 1;
 		-- ahi ya hay uno negro, poner ahi caja 1 pero en texto plano"
-		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228), { pixels = 95 })
+		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228),
+			{ pixels = 110, letra = 1.5 })
 
 		-- lampara del techo del cajon (se prende de noche)
 		local gl = part({
@@ -2862,38 +2935,47 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- UN SOLO renglon y el tablero se RECARGA 12 grados hacia la calle: parado en
 	-- el patio lo ves de frente, no de canto. La letra pasa de ~1.7 a ~3.2 studs
 	-- (el test lo mide con ancho, alto y numero de letras).
+	-- donde va el frente del garaje (la cara de afuera de los portones)
+	local frenteG = GAR_Z + GAR_D / 2 + 0.3
 	local garSign = part({
 		Name = "GarageSign",
-		Size = Vector3.new(26, 5.4, 0.4),
-		-- (el techo llega a techY + 0.4: el tablero arranca en techY + 0.3, o sea
-		-- apoyado en la losa del techo, no metido en ella)
-		CFrame = CFrame.new(Vector3.new(GAR_X, techY + 3.3, GAR_Z + GAR_D / 2 - 1.4))
-			* CFrame.Angles(math.rad(12), 0, 0),
+		-- v49: el tablero se fue AL FRENTE DEL GARAJE, pegado ARRIBA del porton
+		-- (era el reporte de siempre: "la letra sigue re chiquita"). Cuando estaba
+		-- arriba del techo (v48) la letra ya medía 3 studs en la calle, pero a 15
+		-- studs de altura y escondido entre el arbol y el techo nadie lo lee. Aqui
+		-- mide 3.1 studs y se lee justo donde entras al cajon, como el rotulo de
+		-- una cochera de verdad.
+		-- OJO: el techo del garaje llega a y=14.4 (14 + la losa). El tablero
+		-- DESCANSA ahi (14.4..18.8): se ve el porton abajo y el rotulo arriba,
+		-- como la fachada de una cochera de verdad.
+		Size = Vector3.new(24, 4.4, 0.4),
+		CFrame = CFrame.new(Vector3.new(GAR_X, 16.6, frenteG)),
 		Color = Color3.fromRGB(38, 42, 50),
 		Material = Enum.Material.Metal,
 		CanCollide = false,
 	})
 	garSign.Parent = model
-	-- postes que lo agarran al techo (si no, parece flotando)
+	-- dos abrazaderas chiquitas al frente del garaje (para que no parezca flotando)
 	for _, sx in ipairs({-1, 1}) do
-		local poste = part({
+		local brazo = part({
 			Name = "GarageSignPost",
-			Size = Vector3.new(0.6, 2.2, 0.6),
-			Position = Vector3.new(GAR_X + sx * (26 * 0.5 - 1.8), techY + 0.3,
-				GAR_Z + GAR_D / 2 - 1.4),
+			Size = Vector3.new(0.5, 1.6, 1.6),
+			Position = Vector3.new(GAR_X + sx * (24 * 0.5 - 2.0), 14.2, frenteG - 0.9),
 			Color = Color3.fromRGB(58, 62, 70),
 			Material = Enum.Material.Metal,
 			CanCollide = false,
 		})
-		poste.Parent = model
+		brazo.Parent = model
 	end
 	-- v44: era un letrero FLOTANTE de 200x50 pixeles encima del tablero negro
 	-- (el usuario lo reporto como "textos en grandote muy estorboso"). Ahora el
 	-- texto va PINTADO en el tablero negro que ya estaba ahi. Main lo reescribe
 	-- con "GARAJE DE <dueno>" o "SIN PROPIETARIO" (funcion RotularGaraje).
-	-- 100 px por stud: al doble que antes, para que la letra grande no salga
-	-- pixelada (es una calca de 13 x 3.2 studs dibujada en 1300 x 320 pixeles)
-	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 100 })
+	-- 128 px por stud y LETRA DE 3 STUDS medida en el script (v49): la mas grande
+	-- que cabe en la placa. Antes se dejaba a TextScaled y el motor la dejaba
+	-- chiquita; ahora el tamaño se calcula y se comprueba en las pruebas.
+	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120),
+		{ pixels = 128, letra = 3.0, unaCara = false })
 
 	-- ===== v48: DETALLES DE BODEGA (que se vea de verdad, no una caja) =====
 	-- Reporte del usuario: "las bodegas me gustaria que se vieran mas realistas,
@@ -3067,11 +3149,18 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		placaAcero.Parent = model
 	end
+	-- OJO (v49): el usuario vio "unos palitos negros" en el piso de la nave. Eran
+	-- ESTAS manchas. Un Part cilindrico tiene su EJE en X: el largo va en X y el
+	-- DIAMETRO en Y y Z. Con size (4.6, 0.1, 4.6) el "disco" era en realidad un
+	-- TUBO de 4.6 de largo y 0.1 de grueso, y como el CFrame se aplica DESPUES,
+	-- el giro de 90 en Z lo dejaba PARADO: un palito negro de 4.6 studs.
+	-- Ahora va al reves: el GROSOR (0.12) en X y el diametro (4.6) en Y y Z, con
+	-- el mismo giro: disco plano de 4.6 tirado en el piso.
 	for i = 1, 2 do
 		local mancha = part({
 			Name = "OilStain",
-			Size = Vector3.new(4.6, 0.1, 4.6),
-			Position = Vector3.new(-W * 0.1 + i * 7, 2.06, -D * 0.15 + i * 4),
+			Size = Vector3.new(0.12, 4.6, 4.6),
+			Position = Vector3.new(-W * 0.1 + i * 7, 2.08, -D * 0.15 + i * 4),
 			Color = Color3.fromRGB(38, 36, 40),
 			Material = Enum.Material.Slate,
 			Shape = Enum.PartType.Cylinder,
@@ -3083,10 +3172,13 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 	-- tuberia pegada a la pared izquierda + extintor (vida de taller)
 	do
+		-- OJO (v49): este tubo iba a 1.1 del piso y 0.4 de grueso: se veia como un
+		-- "palito" parado junto a la pared. Ahora baja hasta el piso y va pegado a
+		-- la pared, como una bajante de agua de verdad.
 		local tubo = part({
 			Name = "WallPipe",
-			Size = Vector3.new(0.4, H - 4, 0.4),
-			Position = Vector3.new(-W * 0.5 + 1.1, 2 + (H - 4) * 0.5, D * 0.5 - 6),
+			Size = Vector3.new(0.45, H - 6, 0.45),
+			Position = Vector3.new(-W * 0.5 + 0.55, 2 + (H - 6) * 0.5, D * 0.5 - 6),
 			Color = aceroOsc,
 			Material = Enum.Material.CorrodedMetal,
 			CanCollide = false,
@@ -3550,9 +3642,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 	-- v44: pintado en la pantalla del monitor (antes flotaba encima)
 	if nextTier then
-		textoPlano(monitor, "MEJORAS [G]", Color3.fromRGB(160, 200, 255), { pixels = 34 })
+		textoPlano(monitor, "MEJORAS [G]", Color3.fromRGB(160, 200, 255),
+			{ pixels = 64, letra = 1.0 })
 	else
-		textoPlano(monitor, "NIVEL MAXIMO", Color3.fromRGB(160, 200, 255), { pixels = 34 })
+		textoPlano(monitor, "NIVEL MAXIMO", Color3.fromRGB(160, 200, 255),
+			{ pixels = 64, letra = 1.0 })
 	end
 
 	-- ===== VIGILANTE junto a la entrada, mirando a la calle =====
@@ -3697,7 +3791,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		gSign.Parent = model
-		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), { pixels = 64 })
+		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110),
+			{ pixels = 90, letra = 1.7 })
 		local signGlow = part({
 			Name = "GateSignGlow",
 			Size = Vector3.new(math.min(26, W * 0.5) + 1.2, 0.35, 0.35),
@@ -3797,7 +3892,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			Name = "LotApron",
 			Size = Vector3.new(math.min(W + 40, 200), 0.3, 30),
 			Position = Vector3.new(0, 0.36, frontZ2 + 16),
-			Color = Color3.fromRGB(86, 84, 80),
+			-- v49: mas claro: el patio era casi del color del pasto de noche
+			Color = Color3.fromRGB(118, 116, 110),
 			Material = Enum.Material.Asphalt,
 			CanCollide = false,
 		})
@@ -3852,7 +3948,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 					Name = "Planter",
 					Size = Vector3.new(4, 3, 4),
 					Position = Vector3.new(px, 1.6, frontZ2 + 4),
-					Color = Color3.fromRGB(96, 70, 52),
+					-- v49: era RGB(96,70,52) y de noche se veia un cubo NEGRO
+					-- (el usuario reporto "cubos negros" en el patio). Mas claro.
+					Color = Color3.fromRGB(146, 118, 92),
 					Material = Enum.Material.Concrete,
 				})
 				pot.Parent = model
@@ -3926,7 +4024,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 				Name = "Dumpster",
 				Size = Vector3.new(6, 4, 4),
 				Position = Vector3.new(W * 0.5 + 12, 4.2, frontZ2 + 12),
-				Color = Color3.fromRGB(52, 92, 66),
+				Color = Color3.fromRGB(74, 118, 88),
 				Material = Enum.Material.CorrodedMetal,
 			})
 			dump.Parent = model
@@ -4330,7 +4428,8 @@ local function buildPoliceStation(folder: Folder)
 	tower.Parent = station
 
 	-- v44: pintado en la torre (dos caras: se lee desde cualquier lado)
-	textoPlano(tower, "UNIDAD DE ADUANAS", Color3.fromRGB(150, 190, 255), { pixels = 30 })
+	textoPlano(tower, "UNIDAD DE ADUANAS", Color3.fromRGB(150, 190, 255),
+		{ pixels = 64, letra = 2.0 })
 	textoPlano(tower, "UNIDAD DE ADUANAS", Color3.fromRGB(150, 190, 255),
 		{ pixels = 30, face = Enum.NormalId.Left, name = "RotuloIzq" })
 
@@ -4506,7 +4605,8 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 		cpart("TablillaPata", Vector3.new(0.4, 4.2, 0.4), Vector3.new(gateX + sx * 3.7, 2.2, tapeZ + 1.4),
 			Color3.fromRGB(110, 84, 58), Enum.Material.Wood)
 	end
-	textoPlano(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), { pixels = 72 })
+	textoPlano(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54),
+		{ pixels = 96, letra = 1.2 })
 
 	-- donde se plantan los DOS oficiales: afuera, a los lados del porton.
 	-- OJO: aqui afuera el piso esta en y ~ 0.6 (la rampa baja del anden), no en 2.

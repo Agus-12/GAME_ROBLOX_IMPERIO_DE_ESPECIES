@@ -280,12 +280,12 @@ local lbl = rotulo and rotulo:FindFirstChild("Texto")
 City.RotularGaraje(m, "GARAJE DE PEPE")
 local texto = lbl and lbl.Text or "?"
 print(string.format("__LETRERO__ abajo=%.2f|arriba=%.2f|techoY=%.2f|paredY=%.2f|" ..
-  "ancho=%.1f|alto=%.1f|postes=%d|dosRenglones=%s|scaled=%s|px=%s",
+  "ancho=%.1f|alto=%.1f|postes=%d|dosRenglones=%s|scaled=%s|px=%s|textSize=%s",
   sign and (sign.Position.Y - sign.Size.Y * 0.5) or 0,
   sign and (sign.Position.Y + sign.Size.Y * 0.5) or 0,
   techoY, paredY, sign and sign.Size.X or 0, sign and sign.Size.Y or 0, postes,
   tostring(string.find(texto, string.char(10)) ~= nil), tostring(lbl and lbl.TextScaled),
-  tostring(rotulo and rotulo.PixelsPerStud)))
+  tostring(rotulo and rotulo.PixelsPerStud), tostring(lbl and lbl.TextSize)))
 '''
 sal = lua(guion)
 m = re.search(r"__LETRERO__ (.+)", sal.stdout + sal.stderr)
@@ -305,32 +305,37 @@ else:
     if abajo < pared:
         problemas.append("el tablero arranca DEBAJO del dintel (%.2f < %.2f): la pared "
                          "lo tapa" % (abajo, pared))
-    if float(d["alto"]) < 5:
-        problemas.append("el tablero mide %.1f de alto: la letra sale chica" % float(d["alto"]))
+    # v49: el tablero vive pegado al frente del garaje (arriba del porton) y la
+    # letra ya no se estima: se MIDE el TextSize del rotulo.
+    letra = float(d.get("textSize", 0) or 0) / max(1.0, float(d.get("px", 0) or 1))
     if float(d["ancho"]) < 22:
         problemas.append("el tablero mide %.1f de ancho: 'GARAJE DE PEPE' no cabe "
                          "grande" % float(d["ancho"]))
+    if float(d["alto"]) < 4:
+        problemas.append("el tablero mide %.1f de alto" % float(d["alto"]))
+    if abajo > techo + 12:
+        problemas.append("el tablero quedo a %.1f studs del techo: muy arriba, no se "
+                         "lee desde el patio" % (abajo - techo))
     if int(d["postes"]) < 2:
-        problemas.append("el tablero no tiene postes: se ve flotando")
+        problemas.append("el tablero no tiene abrazaderas: se ve flotando")
     if d["dosRenglones"] == "true":
         problemas.append("el texto va en DOS renglones: cada renglon cabe en la mitad "
                          "del tablero y la letra sale chiquita (reporte del usuario: "
                          "'aun siguen las letras muy pequeñas')")
-    if d["scaled"] != "true":
-        problemas.append("el texto no es TextScaled (no llena el tablero)")
-    # letra estimada: lo que la limite (alto del renglon o el ancho del tablero
-    # repartido entre las letras de "GARAJE DE PEPE" = 14 caracteres)
-    letra = min(float(d["alto"]) * 0.78, float(d["ancho"]) / (0.62 * 14))
-    if letra < 2.4:
-        problemas.append("la letra queda de %.2f studs (deberia pasar de 2.4)" % letra)
+    if float(d.get("textSize", 0) or 0) <= 0:
+        problemas.append("el rotulo no trae tamaño medido (TextSize=0): vuelve a estar "
+                         "a merced de TextScaled")
+    if letra < 3.0:
+        problemas.append("la letra mide %.2f studs (la placa de la cochera deberia "
+                         "pasar de 3)" % letra)
     if problemas:
         fallas += 1
         print("  FALLA  (el letrero del garaje)")
         for x in problemas:
             print("         - " + x)
     else:
-        print("  OK     el tablero queda completo ARRIBA del techo (%.1f..%.1f, techo "
-              "%.1f), mide %.0fx%.1f y la letra sale de ~%.1f studs"
+        print("  OK     el tablero de la cochera va pegado al frente (%.1f..%.1f, techo "
+              "%.1f), mide %.0fx%.1f y la letra MEDIDA sale de %.1f studs"
               % (abajo, arriba, techo, float(d["ancho"]), float(d["alto"]), letra))
 
 # ============ 4) EL MERCADO: SE ABRE AL ENTRAR Y SE CIERRA AL ALEJARSE (v48)

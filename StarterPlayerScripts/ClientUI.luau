@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v48 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v49 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v48"
+local MI_VERSION = "v49"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -2933,6 +2933,18 @@ do
 			garage   = enCochera,
 		}
 
+		-- v49: EL MERCADO SE CIERRA AL ALEJARTE, como la computadora y la boveda:
+		-- si el panel esta abierto en la pestana de AUTOS y te alejaste del cajon
+		-- (12 studs de holgura: el cajon entero mas el frente del porton), se
+		-- cierra. Da igual como lo hayas abierto (boton Auto [Y], tecla V o solo
+		-- al entrar): el usuario reporto DOS rondas que "se queda pegado no
+		-- importa cuanto me aleje" y esto lo cubre en todos los casos. Las otras
+		-- pestanas (bodega, negocios) NO se tocan: eso no lo abrio la cochera.
+		if shop.Visible and currentTab == "autos"
+			and not aLaCaja(pisoTaller, 12) then
+			shop.Visible = false
+		end
+
 		for k, v in pairs(st) do
 			setCtx(k, v)
 
@@ -2956,34 +2968,16 @@ do
 						vault.Visible = false
 					end
 				elseif k == "garage" then
-					-- v43: el usuario pidio que al acercarse a la bodega se abra el
-					-- menu solo, igual que la computadora, con la pestana de AUTOS
-					-- (es lo que vas a querer ahi: sacar o guardar un vehiculo).
-					-- v46: SOLO se abre si estas ADENTRO del taller. Antes el radio
-					-- llegaba a la calle y se abria pasando frente al porton.
-					-- v47: ademas SOLO UNA VEZ por entrada. Si lo cierras, no se
-					-- vuelve a abrir mientras sigas adentro (era el "me alejo y el
-					-- menu sigue apareciendo" del usuario). Al salir del taller se
-					-- vuelve a armar, asi la proxima vez que entres si se abre solo.
-					-- la marca solo se rearma cuando SALES DEL LOTE (no cuando
-					-- caminas dentro del taller): asi, si cierras el panel, no vuelve
-					-- a aparecer mientras andas por tu patio/cochera. Al volver de la
-					-- calle, si se abre una vez mas (llegaste a tu bodega otra vez).
-					if not v or not enLote then
-						cocheraAuto = false
-					end
-					if v and not cocheraAuto and not shop.Visible then
-						cocheraAuto = true
+					-- EXACTAMENTE como la computadora y la boveda (v49):
+					--  * se abre al CRUZAR la entrada del cajon (no cada cuadro)
+					--  * se cierra SOLO cuando te alejas (va abajo, aparte)
+					-- Asi, si lo cierras a mano, NO te vuelve a salir mientras
+					-- sigas adentro (no hay cruce nuevo), y si sales y vuelves a
+					-- entrar, se abre otra vez. Igualito que la computadora.
+					if v and not shop.Visible then
 						sound("Gate")
 						shop.Visible = true
 						renderTab("autos")
-					elseif not v and shop.Visible and currentTab == "autos"
-						and not aLaCaja(pisoTaller, 8) then
-						-- v48: te alejaste del taller (y del lote): el panel se
-						-- cierra solo, como el de la computadora y el de la boveda.
-						-- Si lo tienes abierto en OTRA pestaña (bodega, negocios...)
-						-- se respeta: eso no lo abrio la cochera.
-						shop.Visible = false
 					end
 				end
 			end
