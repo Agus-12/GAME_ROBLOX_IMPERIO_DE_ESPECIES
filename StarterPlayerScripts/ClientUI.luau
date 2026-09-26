@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v45 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v45"
+local MI_VERSION = "v46"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -2811,6 +2811,8 @@ do
 	local R_VAULT = Config.Carry.VaultRadius
 	local R_TABLE = Config.Growth.HarvestRadius
 	local R_BUYER = I.Buyer
+	-- R_GARAGE ya no se usa: el detector de la cochera ahora mide contra la CAJA
+	-- del piso (v46). Se deja el numero en GameConfig por si hay que volver.
 	local R_GARAGE = I.Garage
 
 	local function myWarehouse(): Model?
@@ -2863,6 +2865,25 @@ do
 			end
 		end
 
+		-- ¿estas ADENTRO de la cochera? (v46)
+		-- Antes era dist("GarageFloor") <= R_GARAGE: la distancia al CENTRO del
+		-- piso del garaje. Como ese piso mide 26x24 studs, el circulo del radio
+		-- se salia por la puerta hasta la calle: ibas caminando frente al porton
+		-- y se te abria el mercado solo (reporte del usuario: "cuando me acerco a
+		-- la cochera de repente se me abre el mercado").
+		-- Ahora se mide contra la CAJA del piso: cuenta solo si de verdad estas
+		-- adentro del taller (o pisando el umbral del porton, 2 studs de gracia).
+		local enCochera = false
+		if wh then
+			local piso = wh:FindFirstChild("GarageFloor", true)
+			if piso and piso:IsA("BasePart") then
+				local d = piso.Position - pos
+				local dx = math.max(math.abs(d.X) - piso.Size.X * 0.5, 0)
+				local dz = math.max(math.abs(d.Z) - piso.Size.Z * 0.5, 0)
+				enCochera = math.sqrt(dx * dx + dz * dz) <= 2
+			end
+		end
+
 		-- ¿hay un comprador cerca?
 		local buyerNear = false
 		local city = workspace:FindFirstChild("City")
@@ -2882,7 +2903,7 @@ do
 			computer = dist("UpgradeScreen") <= R_COMPUTER,
 			vault    = dist("VaultBody") <= R_VAULT,
 			sell     = buyerNear,
-			garage   = dist("GarageFloor") <= R_GARAGE,
+			garage   = enCochera,
 		}
 
 		for k, v in pairs(st) do
@@ -2909,10 +2930,12 @@ do
 					end
 				elseif k == "garage" then
 					-- v43: el usuario pidio que al acercarse a la bodega se abra el
-					-- menu solo, igual que la computadora. Al llegar al porton se
-					-- abre la pestana de AUTOS (es lo que vas a querer ahi: sacar o
-					-- guardar un vehiculo). Al salir NO se cierra: te quedarias sin
-					-- poder moverte de la lista mientras estas adentro.
+					-- menu solo, igual que la computadora, con la pestana de AUTOS
+					-- (es lo que vas a querer ahi: sacar o guardar un vehiculo).
+					-- v46: SOLO se abre si estas ADENTRO del taller. Antes el radio
+					-- llegaba a la calle y se abria pasando frente al porton.
+					-- Al salir NO se cierra: te quedarias sin poder moverte de la
+					-- lista mientras estas adentro.
 					if v and not shop.Visible then
 						sound("Gate")
 						shop.Visible = true

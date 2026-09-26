@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v45 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -20,9 +20,14 @@ local rng = Random.new(C.Seed)
 local NIGHT_TAG = "NightLight"
 local CollectionService = game:GetService("CollectionService")
 
--- marca una luz (PointLight/SpotLight) para que el ciclo la apague de dia
-local function tagLight(light: Instance, brightness: number)
+-- marca una luz (PointLight/SpotLight) para que el ciclo la apague de dia.
+-- v46: si se le da un brillo de DIA, la luz NUNCA se apaga: de dia queda bajita
+-- (para que el interior no se vea negro, que fue el reporte de la v42) y de noche
+-- se queda en el brillo de noche, SUAVE (el reporte de la v46: "de noche la
+-- bodega y la cochera estan demasiado iluminadas por dentro").
+local function tagLight(light: Instance, brightness: number, brilloDia: number?)
 	light:SetAttribute("NightBrightness", brightness)
+	if brilloDia then light:SetAttribute("DayBrightness", brilloDia) end
 	CollectionService:AddTag(light, NIGHT_TAG)
 end
 
@@ -137,7 +142,10 @@ local function textoPlano(parte: BasePart, texto: string, color: Color3?, opts: 
 			sg.Name = (i == 1) and (o.name or "Rotulo") or ((o.name or "Rotulo") .. "Rev")
 			sg.Face = cara
 			sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-			sg.PixelsPerStud = o.pixels or 45
+			-- v46: era 45. El usuario: "los letreros aun tienen la letra demasiada
+		-- pequeña". Sube el default a 58 (mas pixeles por stud = letra mas
+		-- nitida; los rotulos grandes piden todavia mas, ver abajo).
+		sg.PixelsPerStud = o.pixels or 58
 			sg.LightInfluence = o.light or 0
 			sg.AlwaysOnTop = false
 			sg.ZOffset = 0.5
@@ -154,7 +162,8 @@ local function textoPlano(parte: BasePart, texto: string, color: Color3?, opts: 
 			lbl.TextScaled = true
 			lbl.TextWrapped = false
 			lbl.TextColor3 = color or Color3.fromRGB(236, 232, 222)
-			lbl.TextStrokeTransparency = o.stroke or 0.75
+			-- v46: el contorno pasa de 0.75 a 0.5: mas marcado = se lee de lejos
+			lbl.TextStrokeTransparency = o.stroke or 0.5
 			lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
 			lbl.Text = texto
 			lbl.Name = "Texto"
@@ -182,19 +191,26 @@ function CityGenerator.RotularGaraje(model: Model, texto: string): boolean
 	local a, b = string.match(texto, "^(.-) DE (.*)$")
 	if a and b then dos = a .. " DE\n" .. string.upper(b) end
 
+	-- v46: el renglon se parte con "\n" y el TextLabel va en TextScaled SIN
+	-- envolver, para que la letra crezca hasta llenar el tablero. Con TextWrapped
+	-- (lo que habia) el texto se quedaba chiquito flotando en medio del tablero.
 	local sg = sign:FindFirstChild("Rotulo")
 	if not sg then
-		local nuevo = textoPlano(sign, dos, Color3.fromRGB(255, 205, 120), { pixels = 70 })
+		local nuevo = textoPlano(sign, dos, Color3.fromRGB(255, 205, 120), { pixels = 100 })
 		if nuevo then
 			local lbl = nuevo:FindFirstChild("Texto")
-			if lbl and lbl:IsA("TextLabel") then lbl.TextWrapped = true end
+			if lbl and lbl:IsA("TextLabel") then
+				lbl.TextScaled = true
+				lbl.TextWrapped = false
+			end
 		end
 		return nuevo ~= nil
 	end
 	local lbl = sg:FindFirstChild("Texto")
 	if lbl and lbl:IsA("TextLabel") then
 		lbl.Text = dos
-		lbl.TextWrapped = true
+		lbl.TextScaled = true
+		lbl.TextWrapped = false
 		return true
 	end
 	return false
@@ -1600,7 +1616,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		head2.Parent = model
-		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120), { pixels = 65 })
+		textoPlano(head2, "TALLER", Color3.fromRGB(255, 205, 120), { pixels = 85 })
 	end
 
 	-- La pared DERECHA va en tramos, para dejar el hueco por donde se pasa
@@ -1660,7 +1676,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		head.Parent = model
-		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255), { pixels = 65 })
+		textoPlano(head, "OFICINA", Color3.fromRGB(150, 230, 255), { pixels = 85 })
 	end
 
 	-- ===== FACHADA DEL FRENTE con hueco de porton =====
@@ -1767,7 +1783,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	gateSensor.Parent = model
 
 	-- letrero arriba del porton
-	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), { pixels = 62 })
+	textoPlano(lintel, string.upper(T.Name), Color3.fromRGB(255, 200, 120), { pixels = 80 })
 
 	-- luces del porton
 	for _, sx in ipairs({-1, 1}) do
@@ -2375,7 +2391,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	vaultBody.Parent = model
 	-- v44: pintado en la cara de la caja (antes flotaba encima y tapaba la bodega)
-	textoPlano(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190), { pixels = 32 })
+	textoPlano(vaultBody, "CAJA FUERTE [C]", Color3.fromRGB(130, 255, 190), { pixels = 44 })
 
 	local vaultFrame = part({
 		Name = "VaultFrame",
@@ -2548,8 +2564,24 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- ===== UN CAJON =====
 	-- El porton va en un Model 'GarageDoor' para que Main lo pueda subir
 	-- completo (las duelas y la ventanita se mueven juntas).
+	-- OJO (v46): el ancho del porton NO puede ser un numero fijo. GameConfig dice
+	-- 12, pero el hueco entre pilares mide casi todo el cajon (24.6 con un solo
+	-- cajon): el porton tapaba la mitad y a los lados quedaban dos huecos negros,
+	-- o sea el usuario veia "el garage sigue sin porton". Se calcula el hueco de
+	-- ESTE cajon (los pilares que lo flanquean comen medio ancho cada uno) y el
+	-- porton lo tapa completo, menos 0.3 de holgura.
+	local function anchoDeHueco(i: number): number
+		local wIzq = ((i - 1) == 0 or (i - 1) == BAYS) and 1.4 or 1.6
+		local wDer = (i == BAYS) and 1.4 or 1.6
+		return bayW - (wIzq + wDer) * 0.5
+	end
+
 	for i = 1, BAYS do
 		local bx = GAR_X - GAR_W / 2 + bayW * (i - 0.5)
+		-- el porton de ESTE cajon
+		local anchoPorton = math.max(6, anchoDeHueco(i) - 0.3)
+		-- y el alto: la abertura va del piso hasta el dintel (2 + doorH + 0.6)
+		local altoPorton = doorH + 0.45
 
 		-- marca del cajon en el piso
 		local slot = part({
@@ -2578,7 +2610,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		-- umbral amarillo en la entrada del cajon
 		local th = part({
 			Name = "GarageThreshold",
-			Size = Vector3.new(doorW + 0.6, 0.14, 1.4),
+			Size = Vector3.new(anchoPorton + 0.6, 0.14, 1.4),
 			Position = Vector3.new(bx, 2.09, frontZ),
 			Color = Color3.fromRGB(216, 196, 90),
 			Material = Enum.Material.Pebble,
@@ -2597,8 +2629,10 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 
 		local slab = part({
 			Name = "DoorSlab",
-			Size = Vector3.new(doorW, doorH, 0.5),
-			Position = Vector3.new(bx, 2 + doorH / 2, frontZ - 0.35),
+			-- v46: alto = altoPorton (doorH + 0.45): antes quedaba una franja de
+			-- 0.6 libre abajo del dintel por donde se veia el taller
+			Size = Vector3.new(anchoPorton, altoPorton, 0.5),
+			Position = Vector3.new(bx, 2 + altoPorton / 2, frontZ - 0.35),
 			Color = Color3.fromRGB(170, 172, 178),
 			Material = Enum.Material.Metal,
 		})
@@ -2617,11 +2651,11 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		rememberCF(slab)
 
 		-- duelas horizontales (el rayado de las cortinas de taller)
-		for d = 1, 5 do
+		for d = 1, 7 do
 			local slat = part({
 				Name = "DoorSlat",
-				Size = Vector3.new(doorW - 0.4, 0.16, 0.62),
-				Position = Vector3.new(bx, 2 + (doorH / 6) * d, frontZ - 0.4),
+				Size = Vector3.new(anchoPorton - 0.4, 0.16, 0.62),
+				Position = Vector3.new(bx, 2 + (altoPorton / 8) * d, frontZ - 0.4),
 				Color = Color3.fromRGB(126, 128, 134),
 				Material = Enum.Material.Metal,
 				CanCollide = false,
@@ -2633,8 +2667,8 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		-- ventanita del porton
 		local dwin = part({
 			Name = "DoorWindow",
-			Size = Vector3.new(math.max(3, doorW - 3.4), 1.4, 0.34),
-			Position = Vector3.new(bx, 2 + doorH - 2.3, frontZ - 0.5),
+			Size = Vector3.new(math.max(3, anchoPorton * 0.42), 1.5, 0.34),
+			Position = Vector3.new(bx, 2 + altoPorton - 2.6, frontZ - 0.5),
 			Color = Color3.fromRGB(150, 180, 200),
 			Material = Enum.Material.Glass,
 			Transparency = 0.35,
@@ -2659,7 +2693,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		-- numero del cajon (al reverso, adentro del taller)
 		local plate = part({
 			Name = "BayPlate",
-			Size = Vector3.new(6, 2.6, 0.2),
+			Size = Vector3.new(5.4, 2.3, 0.2),
 			Position = Vector3.new(bx, 12, GAR_Z - GAR_D / 2 + 0.7),
 			Color = Color3.fromRGB(44, 46, 54),
 			Material = Enum.Material.Metal,
@@ -2668,7 +2702,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		plate.Parent = model
 		-- v44: el usuario pidio justo esto: "vi un letrero flotante de caja 1;
 		-- ahi ya hay uno negro, poner ahi caja 1 pero en texto plano"
-		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228), { pixels = 75 })
+		textoPlano(plate, "CAJA " .. i, Color3.fromRGB(214, 218, 228), { pixels = 95 })
 
 		-- lampara del techo del cajon (se prende de noche)
 		local gl = part({
@@ -2681,12 +2715,15 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		gl.Parent = model
 		local gll = Instance.new("PointLight")
-		-- v42: "la cochera tiene muy baja la iluminacion por dentro". El problema
-		-- era doble: la luz estaba en 0.55 Y se APAGABA de dia (tagLight), asi que
-		-- el taller de dia se veia negro. Ahora esta encendida SIEMPRE (sin tag)
-		-- con brillo medio: no quema y se ve todo el dia.
-		gll.Brightness = 1.15
-		gll.Range = 24
+		-- v42: "la cochera tiene muy baja la iluminacion por dentro": la luz estaba
+		-- en 0.55 Y se apagaba de dia, asi que el taller se veia negro.
+		-- v46: se paso de tuerca al reves -> "de noche la cochera esta DEMASIADO
+		-- iluminada". Ahora tiene los dos brillos: 0.75 de dia (se ve sin sol) y
+		-- 0.45 de noche (se ve, pero no quema), y el alcance baja de 24 a 18 para
+		-- que no se salga por la puerta a iluminar la calle.
+		gll.Brightness = 0.75
+		gll.Range = 18
+		tagLight(gll, 0.45, 0.75)
 		gll.Color = Color3.fromRGB(255, 246, 225)
 		gll.Parent = gl
 
@@ -2701,11 +2738,15 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		fLamp.Parent = model
 		local fl = Instance.new("PointLight")
-		fl.Brightness = 1.2   -- v42: 0.8 dejaba la cochera muy oscura
-		fl.Range = 28
+		-- v42: 0.8 dejaba la cochera muy oscura. v46: 1.2 con alcance 28 metia luz
+		-- de mas al taller por la puerta; baja a 1.0 y 22.
+		fl.Brightness = 1.0
+		fl.Range = 22
 		fl.Color = Color3.fromRGB(255, 240, 205)
 		fl.Parent = fLamp
-		tagLight(fl, 1.6)
+		-- v46: de noche eran 1.6 y esa lampara esta ARRIBA DE LA PUERTA: con el
+		-- porton abierto metia luz al taller. Baja a 1.05 (solo alumbra la fachada).
+		tagLight(fl, 1.05)
 	end
 
 	-- marcador invisible: Main mide la distancia a este punto para abrir los
@@ -2784,11 +2825,17 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	exit.Parent = model
 
-	-- v45: el tablero era de 12 x 2.4 y ahi tiene que caber "GARAJE DE <NOMBRE>":
-	-- el texto salia chiquito. Ahora es mas grande y son DOS renglones.
+	-- v45: el tablero era de 12 x 2.4 y ahi tiene que caber "GARAJE DE <NOMBRE>".
+	-- v46: agrandarlo NO alcanzo (el usuario: "los letreros aun tienen la letra
+	-- demasiada pequeña"): el texto se escalaba con TextWrapped en un tablero de
+	-- 17 de ancho, o sea cada renglon cabia de sobra y la letra salia pequeñita
+	-- en medio de un tablero enorme. Ahora el tablero es MAS CHICO (13 x 3.2) y
+	-- el texto va en TextScaled SIN envolver: crece hasta llenar el tablero
+	-- (letras de ~1 stud de alto contra ~0.3 de antes), que es como se lee un
+	-- rotulo de verdad.
 	local garSign = part({
 		Name = "GarageSign",
-		Size = Vector3.new(17, 3.6, 0.3),
+		Size = Vector3.new(13, 3.2, 0.3),
 		Position = Vector3.new(GAR_X, 14.5, GAR_Z + GAR_D / 2 - 0.7),
 		Color = Color3.fromRGB(38, 42, 50),
 		Material = Enum.Material.Metal,
@@ -2799,7 +2846,9 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- (el usuario lo reporto como "textos en grandote muy estorboso"). Ahora el
 	-- texto va PINTADO en el tablero negro que ya estaba ahi. Main lo reescribe
 	-- con "GARAJE DE <dueno>" o "SIN PROPIETARIO" (funcion RotularGaraje).
-	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 70 })
+	-- 100 px por stud: al doble que antes, para que la letra grande no salga
+	-- pixelada (es una calca de 13 x 3.2 studs dibujada en 1300 x 320 pixeles)
+	textoPlano(garSign, "GARAJE", Color3.fromRGB(255, 205, 120), { pixels = 100 })
 
 	-- ===== LAMPARAS DE TECHO =====
 	local lampCount = math.max(3, math.floor(W / 45))
@@ -3395,7 +3444,7 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			CanCollide = false,
 		})
 		gSign.Parent = model
-		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), { pixels = 48 })
+		textoPlano(gSign, "IMPERIO DE ESPECIAS", Color3.fromRGB(255, 206, 110), { pixels = 64 })
 		local signGlow = part({
 			Name = "GateSignGlow",
 			Size = Vector3.new(math.min(26, W * 0.5) + 1.2, 0.35, 0.35),
@@ -3406,11 +3455,12 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		})
 		signGlow.Parent = model
 		local sg = Instance.new("PointLight")
-		sg.Brightness = 1.4
-		sg.Range = 34
+		-- v46: 1.4 con alcance 34 se metia al taller; baja a 1.0 y 26
+		sg.Brightness = 1.0
+		sg.Range = 26
 		sg.Color = Color3.fromRGB(255, 214, 150)
 		sg.Parent = signGlow
-		tagLight(sg, 1.4)
+		tagLight(sg, 1.0)
 
 		-- ---------- reflector en el techo apuntando al patio ----------
 		local flood = part({
@@ -3424,13 +3474,14 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 		flood.CFrame = CFrame.new(flood.Position) * CFrame.Angles(math.rad(38), math.rad(180), 0)
 		flood.Parent = model
 		local fl2 = Instance.new("SpotLight")
-		fl2.Brightness = 2.4
-		fl2.Range = 90
+		-- v46: 2.4 / 90 lavaba el patio y entraba a la nave; baja a 1.8 / 66
+		fl2.Brightness = 1.8
+		fl2.Range = 66
 		fl2.Angle = 75
 		fl2.Face = Enum.NormalId.Back
 		fl2.Color = Color3.fromRGB(255, 244, 220)
 		fl2.Parent = flood
-		tagLight(fl2, 2.4)
+		tagLight(fl2, 1.8)
 
 		-- ---------- luces DE ADENTRO de la nave (de noche) ----------
 		for i = -1, 1 do
@@ -3444,11 +3495,14 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 			})
 			lamp.Parent = model
 			local pl = Instance.new("PointLight")
-			pl.Brightness = 1.1
-			pl.Range = 42
+			-- v46: eran 1.1 de noche con alcance 42 (tres lamparas de esas): la nave
+			-- se veia lavada por dentro. Ahora 0.5 de noche y 0.75 de dia (nunca
+			-- apagada: de dia el interior tambien se ve) y alcance 30.
+			pl.Brightness = 0.75
+			pl.Range = 30
 			pl.Color = Color3.fromRGB(255, 246, 228)
 			pl.Parent = lamp
-			tagLight(pl, 1.1)
+			tagLight(pl, 0.5, 0.75)
 		end
 
 		-- ---------- aires acondicionados en el techo ----------
@@ -3835,11 +3889,16 @@ function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
 	local wheelY = wheelR          -- la llanta toca el piso: cf va a nivel de piso
 	local wOff = {{-Wd / 2 - 0.15, L * 0.28}, {Wd / 2 + 0.15, L * 0.28},
 		          {-Wd / 2 - 0.15, -L * 0.28}, {Wd / 2 + 0.15, -L * 0.28}}
+	-- OJO (v46): aqui estaba el "las ruedas al revers" de la van del garaje.
+	-- Un Part cilindrico de Roblox YA trae su eje en el X del Size, o sea las caras
+	-- redondas miran a los lados: asi se ve una llanta montada en un carro que va
+	-- hacia +Z. Con aquel 'CFrame.Angles(0, 0, 90)' la llanta quedaba PARADA
+	-- (las caras redondas al cielo): vistas de lado se veian como discos tirados y
+	-- el carro parecia flotando. Se quita la rotacion (queda como la de la bici).
 	for i, wp in ipairs(wOff) do
 		local tire = cp("Wheel", Vector3.new(1.5, wheelR * 2, wheelR * 2),
 			Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(26, 26, 30),
-			Enum.Material.Rubber, { shape = Enum.PartType.Cylinder, collide = not parked,
-				rot = CFrame.Angles(0, 0, math.rad(90)) })
+			Enum.Material.Rubber, { shape = Enum.PartType.Cylinder, collide = not parked })
 		-- ===== RIN (v42) =====
 		-- Antes era UN disco cromado que tapaba toda la llanta: de lejos se veia
 		-- "como plato" (reporte del usuario). Ahora, igual que la bici: aro mas
@@ -3847,18 +3906,17 @@ function CityGenerator.BuildCar(info: any, cf: CFrame, parked: boolean?): Model
 		local wheelCF = tire.CFrame
 		local rim = cp("Rim", Vector3.new(1.62, wheelR * 1.34, wheelR * 1.34),
 			Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(120, 124, 132),
-			Enum.Material.Metal, { shape = Enum.PartType.Cylinder,
-				rot = CFrame.Angles(0, 0, math.rad(90)) })
+			Enum.Material.Metal, { shape = Enum.PartType.Cylinder })
 		local hub = cp("Hub", Vector3.new(1.7, wheelR * 0.56, wheelR * 0.56),
 			Vector3.new(wp[1], wheelY, wp[2]), chrome, Enum.Material.Metal,
-			{ shape = Enum.PartType.Cylinder, rot = CFrame.Angles(0, 0, math.rad(90)) })
+			{ shape = Enum.PartType.Cylinder })
 		for k = 1, 5 do
 			-- los rayos van en el PLANO de la llanta: se gira alrededor del eje X
 			-- del cilindro (el mismo truco que la bici)
 			cp("Spoke", Vector3.new(1.66, wheelR * 1.1, 0.26),
 				Vector3.new(wp[1], wheelY, wp[2]), Color3.fromRGB(150, 154, 162),
 				Enum.Material.Metal,
-				{ rot = CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(k * 36), 0, 0) })
+				{ rot = CFrame.Angles(math.rad(k * 36), 0, 0) })
 		end
 		-- el rim, la maza y los rayos giran PEGADOS a la llanta (weld al tire),
 		-- si no se quedan fijos y el carro se ve patinando
@@ -4146,7 +4204,7 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 		cpart("TablillaPata", Vector3.new(0.4, 4.2, 0.4), Vector3.new(sx * 3.7, 2.2, tapeZ + 1.4),
 			Color3.fromRGB(110, 84, 58), Enum.Material.Wood)
 	end
-	textoPlano(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), { pixels = 55 })
+	textoPlano(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), { pixels = 72 })
 
 	-- donde se plantan los DOS oficiales: afuera, a los lados del porton.
 	-- OJO: aqui afuera el piso esta en y ~ 0.6 (la rampa baja del anden), no en 2.
@@ -4543,8 +4601,15 @@ function CityGenerator.SetupLighting()
 
 		for _, inst in ipairs(CollectionService:GetTagged(NIGHT_TAG)) do
 			if inst:IsA("Light") then
-				inst.Enabled = on
-				inst.Brightness = on and (inst:GetAttribute("NightBrightness") or 2) or 0
+				-- v46: una luz de INTERIOR (con brillo de dia) nunca se apaga:
+				-- de dia queda bajita y de noche en su brillo suave.
+				local dia = inst:GetAttribute("DayBrightness")
+				inst.Enabled = true
+				if on then
+					inst.Brightness = inst:GetAttribute("NightBrightness") or 2
+				else
+					inst.Brightness = dia or 0
+				end
 			elseif inst:IsA("BasePart") then
 				local litColor = inst:GetAttribute("LitColor")
 				local offColor = inst:GetAttribute("OffColor")

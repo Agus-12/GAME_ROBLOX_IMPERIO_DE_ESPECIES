@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v45** · 24 sep 2026
+> Última actualización: **v46** · 25 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v45 |
+| **Versión actual** | v46 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,21 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v46 (captura de la noche, 9:47/9:48 p.m.)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "de noche la bodega y cochera demasiado iluminados por dentro" | las lamparas de adentro iban a **1.1** (nave) y **1.15** (cochera) con alcances de 42 y 24; la de la fachada del porton a **1.6** metia luz al taller por la puerta | cada lampara de interior tiene ahora **brillo de dia y de noche** (`tagLight(luz, noche, dia)`): nave **0.5 / 0.75**, cochera **0.45 / 0.75**, fachada **1.05**, letrero del porton **1.0**, reflector **1.8/66**. NUNCA se apagan: de dia se ven (el reporte de la v42) y de noche no lavan |
+| "el garage sigue sin porton" | el porton medía **12** de ancho (numero fijo de `GameConfig.DoorWidth`) pero el hueco entre pilares mide **24.6**: tapaba la mitad y a los lados quedaban dos huecos negros | el ancho sale del **hueco real** de cada cajon (`anchoDeHueco(i) - 0.3`) y el alto llega al dintel (`doorH + 0.45`): holgura medida **0.30** a los lados y **0.15** arriba |
+| "los letreros aun tienen la letra demasiada pequeña" | el tablero del garaje era de **17 x 3.6** y el texto iba con `TextWrapped`: cabia de sobra en un renglon y el escalado lo dejaba **chiquito** en medio de un tablero grande | tablero **13 x 3.2** y texto en **TextScaled SIN envolver** (crece hasta llenarlo) a **100 px/stud**: la letra pasa de ~0.3 a **~1.1 studs** de alto. Tambien suben placas de cajon (95), TALLER/OFICINA (85), travesaño (80), letrero del porton (64), CLAUSURADA (72) |
+| "cuando me acerco a la cochera de repente se me abre el mercado" | se medía la distancia al **CENTRO** del piso del garaje con radio **26** y el piso mide 26x24: el circulo llegaba hasta la calle | ahora se mide contra la **CAJA** del piso (0 si estas adentro, 2 studs de gracia en el umbral). Caminando por la calle NO se abre; adentro SI |
+| "la van sigue con las ruedas al revés dentro del garaje" | la llanta se armaba con `CFrame.Angles(0, 0, 90)` en un Part cilindrico (cuyo eje YA es el X): la llanta quedaba **PARADA** (caras redondas al cielo) y el carro parecia flotar | se quita esa rotacion en llanta, rin, maza y rayos: eje **horizontal** (medido `ejeY=0.00`). Ademas el auto estacionado ahora se apoya en la cara de arriba del cajon (+0.08) y se recorre 1.5 al fondo |
+
+> OJO con el simulador (`tools/mock.lua`): la v46 le arreglo **dos mentiras mas**.
+> (1) `CFrame.Angles()` no rotaba NADA y `CollectionService:AddTag` no guardaba
+> nada: el sistema de luces de noche se veia "perfecto" sin encender ni apagar
+> una sola luz. (2) Las piezas nuevas no nacian con `CFrame`/`Size` (eso fue v45).
 
 ### 🆕 Qué se cerró en la v45 (captura de las 7:19)
 
@@ -370,8 +385,8 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v45 (arrancando...)` -> `RONDA v45  OK`; se encoge a un letrerito `v45` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v45` |
+| **Placa verde** arriba al centro | el cliente | `RONDA v46 (arrancando...)` -> `RONDA v46  OK`; se encoge a un letrerito `v46` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v46` |
 | **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v44]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);

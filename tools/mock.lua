@@ -40,6 +40,14 @@ V3mt.__unm=function(a) return Vector3.new(-a.X,-a.Y,-a.Z) end
 Vector3={new=function(x,y,z) return setmetatable({X=x or 0,Y=y or 0,Z=z or 0},V3mt) end}
 Vector3.zero=Vector3.new(0,0,0)
 Vector2={new=function(x,y) return {X=x or 0,Y=y or 0} end}
+-- v46: CFrame.Angles() devolvia un CFrame VACIO y la rotacion se perdia, asi que
+-- no se podia probar "¿esta la llanta parada o acostada?". Ahora se ANOTA la
+-- rotacion (en radianes) en cf.rot y se va sumando al multiplicar CFrames.
+local function sumaRot(a, b)
+  a = a or {X=0, Y=0, Z=0}
+  b = b or {X=0, Y=0, Z=0}
+  return {X = a.X + b.X, Y = a.Y + b.Y, Z = a.Z + b.Z}
+end
 local CFmt={}
 CFmt.__index=function(t,k)
   if k=="Position" then return t.p end
@@ -53,7 +61,9 @@ CFmt.__index=function(t,k)
 -- (la rotacion se ignora: para lo que se prueba aqui alcanza).
 CFmt.__mul=function(a,b)
   if type(b)=="table" and b.p then
-    return mkCF(Vector3.new(a.p.X+b.p.X, a.p.Y+b.p.Y, a.p.Z+b.p.Z))
+    local c = mkCF(Vector3.new(a.p.X+b.p.X, a.p.Y+b.p.Y, a.p.Z+b.p.Z))
+    c.rot = sumaRot(a.rot, b.rot)
+    return c
   end
   if type(b)=="table" and b.X then
     return Vector3.new(a.p.X+b.X, a.p.Y+b.Y, a.p.Z+b.Z)
@@ -73,7 +83,22 @@ CFmt.__sub=function(a,b)
   return a end
 function mkCF(p) return setmetatable({p=p or Vector3.new()},CFmt) end
 CFrame={new=function(x,y,z) if type(x)=="table" then return mkCF(x) end return mkCF(Vector3.new(x,y,z)) end,
-  lookAt=function(a,b) return mkCF(a) end, Angles=function() return mkCF() end}
+  lookAt=function(a,b) return mkCF(a) end,
+  Angles=function(x,y,z)
+    local c = mkCF()
+    c.rot = {X = x or 0, Y = y or 0, Z = z or 0}
+    return c
+  end,
+  fromEulerAnglesXYZ=function(x,y,z)
+    local c = mkCF()
+    c.rot = {X = x or 0, Y = y or 0, Z = z or 0}
+    return c
+  end,
+  fromOrientation=function(x,y,z)
+    local c = mkCF()
+    c.rot = {X = math.rad(x or 0), Y = math.rad(y or 0), Z = math.rad(z or 0)}
+    return c
+  end}
 local U2mt={} ; U2mt.__add=function(a,b) return a end ; U2mt.__sub=function(a,b) return a end
 UDim2={new=function() return setmetatable({},U2mt) end,
   fromScale=function() return setmetatable({},U2mt) end,
@@ -251,6 +276,7 @@ function Instance_.new(cls,parent)
         o[k] = v
         o.Position = v.Position
         o.Rotation = v.Rotation
+        if v.rot then o.rot = v.rot end
       else
         o[k]=v
       end
@@ -273,8 +299,30 @@ local services={}
 local function svc(n)
   if not services[n] then
     local s=Instance_.new(n)
-    s.GetTagged=function() return {} end
-    s.AddTag=function() end; s.RemoveTag=function() end; s.HasTag=function() return false end
+    -- v46: las ETIQUETAS eran de mentiras (AddTag no guardaba NADA y GetTagged
+    -- devolvia vacio). Con eso, el sistema de luces de noche (lo que se enciende
+    -- y se apaga segun la hora) se veia "perfecto" en las pruebas SIN encender ni
+    -- apagar nada: la clase de bug que el simulador debe cazar, no tapar.
+    -- Ahora las etiquetas se guardan de verdad.
+    local TAGS = {}
+    _G.__TAGS = TAGS
+    s.AddTag = function(_, inst, tag)
+      if type(inst) == "table" and type(tag) == "string" then
+        TAGS[tag] = TAGS[tag] or {}
+        TAGS[tag][inst] = true
+      end
+    end
+    s.RemoveTag = function(_, inst, tag)
+      if TAGS[tag] then TAGS[tag][inst] = nil end
+    end
+    s.HasTag = function(_, inst, tag)
+      return TAGS[tag] ~= nil and TAGS[tag][inst] == true
+    end
+    s.GetTagged = function(_, tag)
+      local out = {}
+      for inst in pairs(TAGS[tag] or {}) do table.insert(out, inst) end
+      return out
+    end
     s.GetPlayers=function() return {} end
     s.PlayerAdded=newSignal(); s.PlayerRemoving=newSignal(); s.Heartbeat=newSignal()
     s.IsStudio=function() return true end

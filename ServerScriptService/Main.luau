@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v45 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -3723,7 +3723,13 @@ function syncGarage(player: Player)
 		if profile.Vehicles[v.Id] and v.Id ~= outId then
 			local bay = wh:FindFirstChild("Bay" .. (v.Bay or 1), true)
 			if bay then
-				local cf = CFrame.new(bay.Position + Vector3.new(0, 0, 0))
+				-- v46: el piso marcado del cajon (Bay) mide 0.12 de alto y su centro
+				-- esta en y=2.06, o sea su cara de arriba queda en 2.12. La cf del
+				-- auto va A NIVEL DEL PISO, asi que antes quedaba 0.06 hundido (las
+				-- llantas metidas en el piso). Ahora va a la cara de arriba.
+				-- Y se recorre 1.5 studs hacia el FONDO para que la van (18 de
+				-- largo, igual que el cajon) no quede pegada al porton.
+				local cf = CFrame.new(bay.Position + Vector3.new(0, 0.08, -1.5))
 				local ok, m = pcall(function() return buildParkedCar(v, cf) end)
 				if ok and m then
 					m:SetAttribute("VehicleId", v.Id)

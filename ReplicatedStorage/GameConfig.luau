@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v45 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ReplicatedStorage.GameConfig
 -- Todos los numeros del juego viven aqui. Cambia esto para balancear.
@@ -13,7 +13,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v45"
+GameConfig.Build = "v46"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
