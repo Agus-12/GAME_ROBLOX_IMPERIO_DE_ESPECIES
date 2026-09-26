@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v47 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -2833,15 +2833,37 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	-- el texto va en TextScaled SIN envolver: crece hasta llenar el tablero
 	-- (letras de ~1 stud de alto contra ~0.3 de antes), que es como se lee un
 	-- rotulo de verdad.
+	-- v47: el tablero estaba en y = 14.5 (o sea de 12.9 a 16.1) y la pared del
+	-- frente del garaje llega a 14: MAS DE UN TERCIO del tablero quedaba metido en
+	-- la pared y el techo (la letra salia CORTADA por abajo, y a eso el usuario le
+	-- llamo "la letra se ve super pequeña"). Ahora el tablero se PARA sobre el
+	-- techo (13.9..17.9), agarrado con dos postes: se ve completo de frente, de
+	-- lado y de lejos, como el rotulo de una tienda.
+	local techY = 2 + garH                       -- el techo de la cochera
 	local garSign = part({
 		Name = "GarageSign",
-		Size = Vector3.new(13, 3.2, 0.3),
-		Position = Vector3.new(GAR_X, 14.5, GAR_Z + GAR_D / 2 - 0.7),
+		Size = Vector3.new(15, 4, 0.3),
+		-- (el techo llega a techY + 0.4: el tablero arranca en techY + 0.4, o sea
+		-- apoyado en la losa del techo, no metido en ella)
+		Position = Vector3.new(GAR_X, techY + 2.4, GAR_Z + GAR_D / 2 - 1.5),
 		Color = Color3.fromRGB(38, 42, 50),
 		Material = Enum.Material.Metal,
 		CanCollide = false,
 	})
 	garSign.Parent = model
+	-- postes que lo agarran al techo (si no, parece flotando)
+	for _, sx in ipairs({-1, 1}) do
+		local poste = part({
+			Name = "GarageSignPost",
+			Size = Vector3.new(0.6, 1.6, 0.6),
+			Position = Vector3.new(GAR_X + sx * (15 * 0.5 - 1.6), techY + 0.2,
+				GAR_Z + GAR_D / 2 - 1.5),
+			Color = Color3.fromRGB(58, 62, 70),
+			Material = Enum.Material.Metal,
+			CanCollide = false,
+		})
+		poste.Parent = model
+	end
 	-- v44: era un letrero FLOTANTE de 200x50 pixeles encima del tablero negro
 	-- (el usuario lo reporto como "textos en grandote muy estorboso"). Ahora el
 	-- texto va PINTADO en el tablero negro que ya estaba ahi. Main lo reescribe
@@ -4156,11 +4178,30 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 
 	-- el porton de la entrada: de ahi salen las medidas de la cinta
 	-- (si por lo que sea no esta, se usan los numeros del nivel 1)
-	local halfGate, gateZ = 12, D * 0.5
+	--
+	-- OJO (v47): AQUI estaba "la cinta gigante que va desde las bodegas inactivas
+	-- hasta mi bodega". Se medía `math.abs(gl.Position.X)`: eso solo da bien si el
+	-- modelo esta en el origen, como en las pruebas. En el juego el lote vecino
+	-- vive en x = -600, asi que |X| = 600 y la cinta salia de 1200 studs de ancho:
+	-- cruzaba TODA la ciudad y caia encima del patio del jugador. Peor: la cinta,
+	-- los postes y la tablilla de CLAUSURADA se colocaban en x = 0 (el origen del
+	-- mundo), o sea justo frente a la bodega del jugador.
+	-- Ahora TODO se mide tomando como centro las HOJAS DEL PORTON (que ya estan en
+	-- coordenadas del mundo) y se coloca alrededor de esa X.
+	local halfGate, gateX, gateZ = 12, 0, D * 0.5
 	local gl = model:FindFirstChild("GateLeft", true)
-	if gl and gl:IsA("BasePart") then
-		halfGate = math.abs(gl.Position.X) + gl.Size.X * 0.5
+	local gr = model:FindFirstChild("GateRight", true)
+	if gl and gl:IsA("BasePart") and gr and gr:IsA("BasePart") then
+		halfGate = math.abs(gr.Position.X - gl.Position.X) * 0.5 + gl.Size.X * 0.5
+		gateX = (gl.Position.X + gr.Position.X) * 0.5
+		gateZ = (gl.Position.Z + gr.Position.Z) * 0.5
+	elseif gl and gl:IsA("BasePart") then
+		halfGate = gl.Size.X
+		gateX = gl.Position.X + gl.Size.X * 0.5
 		gateZ = gl.Position.Z
+	elseif model.PrimaryPart then
+		gateX = model.PrimaryPart.Position.X
+		gateZ = model.PrimaryPart.Position.Z + D * 0.5
 	end
 	local tapeZ = gateZ + 1.6
 
@@ -4181,11 +4222,11 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 	-- postes a los lados del porton + tres franjas de cinta cruzando la entrada
 	for _, sx in ipairs({-1, 1}) do
 		cpart("CintaPoste", Vector3.new(0.5, 4.4, 0.5),
-			Vector3.new(sx * (halfGate + 0.9), 4.6, tapeZ), Color3.fromRGB(196, 172, 40), Enum.Material.Metal)
+			Vector3.new(gateX + sx * (halfGate + 0.9), 4.6, tapeZ), Color3.fromRGB(196, 172, 40), Enum.Material.Metal)
 	end
 	for k = 1, 3 do
 		cpart("CintaPolicial", Vector3.new(halfGate * 2 + 2, 0.55, 0.14),
-			Vector3.new(0, 3.1 + (k - 1) * 1.5, tapeZ), Color3.fromRGB(238, 206, 46))
+			Vector3.new(gateX, 3.1 + (k - 1) * 1.5, tapeZ), Color3.fromRGB(238, 206, 46))
 	end
 	-- franjas negras de la cinta (el rayado de cinta de obra)
 	for k = 1, 3 do
@@ -4193,15 +4234,15 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 		local n = math.floor(halfGate / 2)
 		for i = -n, n do
 			cpart("CintaRayas", Vector3.new(0.9, 0.57, 0.16),
-				Vector3.new(i * 2, y, tapeZ - 0.02), Color3.fromRGB(26, 26, 30))
+				Vector3.new(gateX + i * 2, y, tapeZ - 0.02), Color3.fromRGB(26, 26, 30))
 		end
 	end
 
 	-- tablilla de CLAUSURADA clavada adelante, en el piso de afuera
 	local tabla = cpart("TablillaClausurada", Vector3.new(9, 4.6, 0.4),
-		Vector3.new(0, 6.4, tapeZ + 1.4), Color3.fromRGB(214, 206, 190), Enum.Material.WoodPlanks)
+		Vector3.new(gateX, 6.4, tapeZ + 1.4), Color3.fromRGB(214, 206, 190), Enum.Material.WoodPlanks)
 	for _, sx in ipairs({-1, 1}) do
-		cpart("TablillaPata", Vector3.new(0.4, 4.2, 0.4), Vector3.new(sx * 3.7, 2.2, tapeZ + 1.4),
+		cpart("TablillaPata", Vector3.new(0.4, 4.2, 0.4), Vector3.new(gateX + sx * 3.7, 2.2, tapeZ + 1.4),
 			Color3.fromRGB(110, 84, 58), Enum.Material.Wood)
 	end
 	textoPlano(tabla, "CLAUSURADA", Color3.fromRGB(226, 62, 54), { pixels = 72 })
@@ -4209,8 +4250,8 @@ function CityGenerator.Clausurar(model: Model): {Vector3}
 	-- donde se plantan los DOS oficiales: afuera, a los lados del porton.
 	-- OJO: aqui afuera el piso esta en y ~ 0.6 (la rampa baja del anden), no en 2.
 	return {
-		Vector3.new(-(halfGate + 2.2), 0.6, gateZ + 8),
-		Vector3.new(halfGate + 2.2, 0.6, gateZ + 8),
+		Vector3.new(gateX - (halfGate + 2.2), 0.6, gateZ + 8),
+		Vector3.new(gateX + (halfGate + 2.2), 0.6, gateZ + 8),
 	}
 end
 

@@ -359,9 +359,14 @@ if not m:
 else:
     d = dict(kv.split("=") for kv in m.group(1).split("|") if "=" in kv)
     print("  medidas: " + m.group(1))
-    if float(d["anchoTablero"]) > 14:
-        problemas.append("el tablero mide %.1f de ancho: la letra se ve chica en "
-                         "medio de un tablero grande" % float(d["anchoTablero"]))
+    # v47: el tablero se PARO sobre el techo (para que se vea completo) y crecio a
+    # 15 x 4. Lo que importa no es el ancho del tablero, sino que la LETRA sea
+    # grande: se estima con el alto entre los renglones.
+    letra = float(d["altoTablero"]) / 2.4
+    if float(d["anchoTablero"]) > 18:
+        problemas.append("el tablero mide %.1f de ancho" % float(d["anchoTablero"]))
+    if letra < 1.0:
+        problemas.append("la letra queda de ~%.2f studs de alto: chica" % letra)
     if int(float(d["px"])) < 90:
         problemas.append("el tablero del garaje va a %s pixeles por stud: la letra "
                          "sale pixelada" % d["px"])
@@ -375,7 +380,7 @@ else:
                          "el escalado lo deja chiquito")
     if d["dosRenglones"] != "true":
         problemas.append("'GARAJE DE PEPE' no se partio en dos renglones")
-    if float(d["altoLetra"]) < 0.8:
+    if float(d["altoLetra"]) < 1.0:
         problemas.append("la letra queda de %.2f studs de alto" % float(d["altoLetra"]))
     if problemas:
         fallas += 1

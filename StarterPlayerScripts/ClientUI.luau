@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v47 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v46"
+local MI_VERSION = "v47"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -2821,6 +2821,13 @@ do
 	end
 
 	local near = {}          -- estado anterior, para detectar el cruce
+	-- v47: el usuario se quejo de que el mercado se volvia a abrir solo. El
+	-- detector reacciona al CRUCE (entrar a la cochera), pero como el panel no se
+	-- cierra al salir (a proposito, para que muevas coches), cada vez que el
+	-- cruce se volvia a disparar —al caminar dentro del taller, al moverte entre
+	-- cajones— el panel reaparecia. Ahora se abre UNA VEZ por entrada: si lo
+	-- cierras, se queda cerrado hasta que salgas del taller y vuelvas a entrar.
+	local cocheraAuto = false
 
 	local function update()
 		local char = player.Character
@@ -2873,14 +2880,28 @@ do
 		-- la cochera de repente se me abre el mercado").
 		-- Ahora se mide contra la CAJA del piso: cuenta solo si de verdad estas
 		-- adentro del taller (o pisando el umbral del porton, 2 studs de gracia).
+		-- distancia a la CAJA de una parte (0 si estas adentro): asi el circulo no
+		-- se sale por la puerta como pasaba con la distancia al centro.
+		local function aLaCaja(parte: Instance?, holgura: number): boolean
+			if not (parte and parte:IsA("BasePart")) then return false end
+			local d = parte.Position - pos
+			local dx = math.max(math.abs(d.X) - parte.Size.X * 0.5, 0)
+			local dz = math.max(math.abs(d.Z) - parte.Size.Z * 0.5, 0)
+			return math.sqrt(dx * dx + dz * dz) <= holgura
+		end
+
 		local enCochera = false
+		local enLote = false
 		if wh then
 			local piso = wh:FindFirstChild("GarageFloor", true)
-			if piso and piso:IsA("BasePart") then
-				local d = piso.Position - pos
-				local dx = math.max(math.abs(d.X) - piso.Size.X * 0.5, 0)
-				local dz = math.max(math.abs(d.Z) - piso.Size.Z * 0.5, 0)
-				enCochera = math.sqrt(dx * dx + dz * dz) <= 2
+			enCochera = aLaCaja(piso, 2)
+			-- el LOTE completo (el patio): sirve para saber si de verdad te fuiste.
+			-- Si no hay patio, se usa el piso con holgura grande.
+			local patio = wh:FindFirstChild("LotApron", true)
+			if patio and patio:IsA("BasePart") then
+				enLote = aLaCaja(patio, 12)
+			else
+				enLote = aLaCaja(piso, 40)
 			end
 		end
 
@@ -2934,9 +2955,19 @@ do
 					-- (es lo que vas a querer ahi: sacar o guardar un vehiculo).
 					-- v46: SOLO se abre si estas ADENTRO del taller. Antes el radio
 					-- llegaba a la calle y se abria pasando frente al porton.
-					-- Al salir NO se cierra: te quedarias sin poder moverte de la
-					-- lista mientras estas adentro.
-					if v and not shop.Visible then
+					-- v47: ademas SOLO UNA VEZ por entrada. Si lo cierras, no se
+					-- vuelve a abrir mientras sigas adentro (era el "me alejo y el
+					-- menu sigue apareciendo" del usuario). Al salir del taller se
+					-- vuelve a armar, asi la proxima vez que entres si se abre solo.
+					-- la marca solo se rearma cuando SALES DEL LOTE (no cuando
+					-- caminas dentro del taller): asi, si cierras el panel, no vuelve
+					-- a aparecer mientras andas por tu patio/cochera. Al volver de la
+					-- calle, si se abre una vez mas (llegaste a tu bodega otra vez).
+					if not enLote then
+						cocheraAuto = false
+					end
+					if v and not cocheraAuto and not shop.Visible then
+						cocheraAuto = true
 						sound("Gate")
 						shop.Visible = true
 						renderTab("autos")

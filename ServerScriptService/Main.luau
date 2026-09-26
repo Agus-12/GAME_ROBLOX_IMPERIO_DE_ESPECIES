@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v46 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v47 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -3090,12 +3090,20 @@ function spawnBike(player: Player)
 
 	-- Aparece afuera de la bodega y SIEMPRE derecha.
 	-- Solo tomamos la rotacion en Y, nunca la inclinacion del piso.
+	-- v47: la bici aparecia ADENTRO del lote (en el patio, entre las mesas de
+	-- plantas). Se medía desde el piso de la NAVE (su centro + media profundidad +
+	-- 18), y esa cuenta cae todavia dentro del patio: el patio va 29 studs mas
+	-- alla de la pared. Ahora se mide desde el PATIO (LotApron): 6 studs MAS ALLA
+	-- de su orilla, o sea ya en la calle, fuera del lote.
 	local basePos
 	local wh = warehouses[player]
-	if wh and wh.PrimaryPart then
+	local patio = wh and wh:FindFirstChild("LotApron", true)
+	if patio and patio:IsA("BasePart") then
+		basePos = (patio.CFrame * CFrame.new(0, 0, patio.Size.Z * 0.5 + 6)).Position
+	elseif wh and wh.PrimaryPart then
 		local whCF = wh.PrimaryPart.CFrame
 		local size = wh.PrimaryPart.Size
-		basePos = (whCF * CFrame.new(0, 0, size.Z * 0.5 + 18)).Position
+		basePos = (whCF * CFrame.new(0, 0, size.Z * 0.5 + 34)).Position
 	else
 		basePos = (hrp.CFrame * CFrame.new(7, 0, -7)).Position
 	end
@@ -3455,7 +3463,7 @@ function spawnBike(player: Player)
 		if not parent and conn then conn:Disconnect() end
 	end)
 
-	return true, "Tu bicicleta esta afuera de la bodega"
+	return true, "Tu bicicleta esta afuera de la bodega, junto a la banqueta"
 end
 
 ----------------------------------------------------------------------

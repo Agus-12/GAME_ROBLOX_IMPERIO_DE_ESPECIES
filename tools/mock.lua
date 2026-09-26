@@ -174,7 +174,21 @@ function Instance_.new(cls,parent)
     baja(s)
     return todo
   end
-  o.FindFirstChild=function(s,n) for _,c in ipairs(s._children) do if c.Name==n then return c end end end
+  -- v47: el segundo argumento de FindFirstChild (buscar en DESCENDIENTES) se
+  -- ignoraba. Eso escondia medio mundo: `model:FindFirstChild("GateLeft", true)`
+  -- devolvia nil porque la hoja del porton vive dentro de una carpeta, asi que el
+  -- codigo caia en su camino de respaldo y las pruebas medían OTRA COSA (la cinta
+  -- gigante se veia "bien" porque nunca se ejecutaba la rama del porton).
+  -- OJO con el nombre: en Roblox es `FindFirstChild(name, recursive)`.
+  o.FindFirstChild=function(s,n,recursivo)
+    for _,c in ipairs(s._children) do if c.Name==n then return c end end
+    if recursivo then
+      for _,c in ipairs(s._children) do
+        local ok, hallado = pcall(function() return c:FindFirstChild(n, true) end)
+        if ok and hallado then return hallado end
+      end
+    end
+  end
   o.FindFirstChildWhichIsA=function(s) return s._children[1] end
   o.FindFirstChildOfClass=function(s,c) for _,x in ipairs(s._children) do if x.ClassName==c then return x end end end
   -- IsA en Roblox contempla la HERENCIA (un Frame es un GuiObject). El mock
@@ -212,8 +226,47 @@ function Instance_.new(cls,parent)
   end
   o.SetAttribute=function(s,k,v) s._attrs[k]=v end
   o.GetAttribute=function(s,k) return s._attrs[k] end
-  o.PivotTo=function(s,cf) s._cf=cf end
-  o.GetPivot=function(s) return s._cf or mkCF() end
+  -- v47: PivotTo SOLO guardaba el CFrame en el modelo; las PIEZAS no se movian.
+  -- Eso escondia todo lo que depende de donde queda un modelo: una bodega vecina
+  -- "colocada" en su lote seguia midiendo en el origen, asi que la cinta gigante
+  -- (que se coloca mal justo por ignorar el lote) pasaba como si estuviera bien.
+  -- Ahora PivotTo MUEVE de verdad todas las piezas (respeta la rotacion en Y).
+  o.GetPivot=function(s)
+    if not s._cf then
+      local pp = s.PrimaryPart
+      s._cf = (pp and pp.CFrame) or mkCF()
+    end
+    return s._cf
+  end
+  o.PivotTo=function(s,cf)
+    local antes = s:GetPivot()
+    local d = cf.p - antes.p
+    local girar = (cf.rot and cf.rot.Y) or 0
+    s._cf = cf
+    local function mueve(inst)
+      local hijos = inst:GetChildren()
+      for _, c in ipairs(hijos) do
+        local esParte = false
+        for _, n in ipairs({"Part","MeshPart","WedgePart","TrussPart","Seat","VehicleSeat",
+                            "SpawnLocation","UnionOperation","PartOperation"}) do
+          if c.ClassName == n then esParte = true break end
+        end
+        if esParte then
+          local rel = c.Position - antes.p
+          local nx, nz = rel.X, rel.Z
+          if girar ~= 0 then
+            local ca, sa = math.cos(girar), math.sin(girar)
+            nx, nz = rel.X * ca - rel.Z * sa, rel.X * sa + rel.Z * ca
+          end
+          c.Position = Vector3.new(cf.p.X + nx, cf.p.Y + rel.Y, cf.p.Z + nz)
+          local r = c.CFrame.rot or {X = 0, Y = 0, Z = 0}
+          c.CFrame.rot = {X = r.X, Y = r.Y + girar, Z = r.Z}
+        end
+        mueve(c)
+      end
+    end
+    mueve(s)
+  end
   o.Clone=function(s) return Instance_.new(s.ClassName) end
   o.WaitForChild=function(s,n) return s:FindFirstChild(n) end
   o.GetPropertyChangedSignal=function() return newSignal() end

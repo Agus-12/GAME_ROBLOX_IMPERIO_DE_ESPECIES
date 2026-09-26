@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v46** · 25 sep 2026
+> Última actualización: **v47** · 26 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v46 |
+| **Versión actual** | v47 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,22 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v47 (captura de la 1:17/1:18 a.m.)
+
+| Lo que reporto el usuario | La causa | El arreglo |
+|---|---|---|
+| "la cinta sigue una otra gigante desde las bodegas inactivas hasta mi bodega" | en `Clausurar` la cinta medía **`math.abs(gl.Position.X)`**: con el lote vecino en x = −600 la mitad del portón salía **600** y la cinta medía **1232**; encima la cinta, la tablilla de CLAUSURADA y uno de los oficiales se colocaban en **x = 0** (¡el patio del jugador!) | todo se mide desde **las hojas del portón de ESA bodega**: la cinta queda en x −616..−584 (su lote es −600) y mide 32; tablilla y oficiales en su lote |
+| "la bici aparece adentro de la bodega y no afuera" | se medía desde el **piso de la nave** (centro + media profundidad + 18), que cae dentro del **patio** (que llega 29 studs más allá de la pared) | se mide desde el **patio** (`LotApron`) + 6: la bici nace **en la calle** |
+| "la bodega aún la letra se ve super pequeña" | el tablero del garaje estaba en **y = 14.5** y la pared del frente **llega a 14**: un tercio del tablero quedaba **metido en la pared/techo** y la letra salía **cortada** | el tablero **se para sobre el techo** (14.4..18.4) con 2 postes, mide 15 × 4 y la letra pasa a **~1.7 studs** |
+| "si no quiero spawnear nada y me alejo el menú sigue ahí apareciendo" | el panel se abría en cada **cruce** del borde del taller, y como no se cierra al salir, reaparecía siempre | se abre **una vez por llegada**; la marca se rearma solo al **salir del lote** (a la calle) |
+
+> OJO con el simulador (`tools/mock.lua`), la v47 le arreglo DOS mentiras más:
+> `FindFirstChild(nombre, true)` **ignoraba el "buscar en descendientes"** (devolvía
+> nil para piezas dentro de carpetas, así que el código caía en sus caminos de
+> respaldo y las pruebas medían OTRA COSA) y **`PivotTo` no movía las piezas** (una
+> bodega "colocada" en su lote seguía midiendo en el origen: la cinta gigante pasaba
+> como si estuviera bien).
 
 ### 🆕 Qué se cerró en la v46 (captura de la noche, 9:47/9:48 p.m.)
 
@@ -385,8 +401,8 @@ estaba dibujando la pantalla**. Se resolvio poniendo TESTIGOS:
 
 | Testigo | Quien lo pone | Que dice |
 |---|---|---|
-| **Placa verde** arriba al centro | el cliente | `RONDA v46 (arrancando...)` -> `RONDA v46  OK`; se encoge a un letrerito `v46` fijo a los 14 s |
-| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v46` |
+| **Placa verde** arriba al centro | el cliente | `RONDA v47 (arrancando...)` -> `RONDA v47  OK`; se encoge a un letrerito `v47` fijo a los 14 s |
+| **Letrero** flotando arriba del spawn | el servidor (CityGenerator) | `SERVIDOR v47` |
 | **INVENTARIO** en el Output | el servidor (Main) | ronda de **cada** archivo (`OK [v44]`, `VIEJO [v32]`...) |
 
 Lectura: **no sale placa** = esa ClientUI no corre (no es LocalScript / esta Disabled);

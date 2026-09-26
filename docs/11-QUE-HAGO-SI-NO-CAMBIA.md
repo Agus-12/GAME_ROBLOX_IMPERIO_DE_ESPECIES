@@ -11,14 +11,14 @@ Dale **Play** y mira **arriba al centro** de la pantalla.
 
 | Lo que sale | Que pasa | Que hacer |
 |---|---|---|
-| **`RONDA v46  OK`** | el archivo nuevo SI corre | el juego esta al dia: lo que falte es otro archivo, no la ClientUI |
-| **`RONDA v46` + "borre N tablero(s) viejo(s)"** | encontro y borro una copia vieja que se veia encima | perfecto: mira que ya no quede el tablero ancho |
-| **`RONDA v46  (arrancando...)`** y no cambia | la ClientUI corre pero **truena** a medio camino | paso 3 (mira el Output) |
+| **`RONDA v47  OK`** | el archivo nuevo SI corre | el juego esta al dia: lo que falte es otro archivo, no la ClientUI |
+| **`RONDA v47` + "borre N tablero(s) viejo(s)"** | encontro y borro una copia vieja que se veia encima | perfecto: mira que ya no quede el tablero ancho |
+| **`RONDA v47  (arrancando...)`** y no cambia | la ClientUI corre pero **truena** a medio camino | paso 3 (mira el Output) |
 | **no sale placa** | esa ClientUI **no corre** | pasos 2 y 4 |
 | sale **otra** ronda (v32, v36...) | estas corriendo un archivo **viejo** | paso 2 |
 
 Tambien mira el **letrero del spawn** (arriba de donde apareces): dice
-`SERVIDOR v46`. Si el letrero es viejo y la placa nueva, el problema esta del lado
+`SERVIDOR v47`. Si el letrero es viejo y la placa nueva, el problema esta del lado
 del servidor; si el letrero es nuevo y la placa no sale, el problema es la ClientUI.
 
 ## Paso 2. ¿La ClientUI es LocalScript y esta prendida?
