@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MAPA COMPLETO DEL MUNDO (v50) — para poder VERLO sin abrir Studio.
+"""MAPA COMPLETO DEL MUNDO (v51) — para poder VERLO sin abrir Studio.
 
 Pide el usuario: "mandame la vista del lote... pero si puedes reconstruir literal
 todo estaria mejor, lo del lote y los lotes vecinales para que puedas entenderlo
@@ -210,7 +210,7 @@ def vista_ciudad(ciudad, datos):
            'viewBox="0 0 %d %d" font-family="monospace">' % (W, H, W, H),
            '<rect width="100%%" height="100%%" fill="#0d0d14"/>',
            '<text x="24" y="36" fill="#f5c45c" font-size="23">'
-           'EL MUNDO COMPLETO (v50) — visto de arriba, 1 cuadro de la rejilla = 200 studs'
+           'EL MUNDO COMPLETO (v51) — visto de arriba, 1 cuadro de la rejilla = 200 studs'
            '</text>',
            '<text x="24" y="60" fill="#a9a9bd" font-size="14">'
            'las 14 mil piezas del juego: el suelo, la ciudad con sus 10 calles y sus 7 '
@@ -466,7 +466,7 @@ def vista_fachadas(lote):
            'viewBox="0 0 %d %d" font-family="monospace">' % (W, H, W, H),
            '<rect width="100%%" height="100%%" fill="#0d0d14"/>',
            '<text x="24" y="34" fill="#f5c45c" font-size="23">'
-           'LAS DOS FACHADAS DE TU LOTE (v50) — parado en el patio</text>',
+           'LAS DOS FACHADAS DE TU LOTE (v51) — parado en el patio</text>',
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
            'izquierda: LA NAVE (la bodega) con su porton grande; derecha: EL CAJON DEL '
            'COCHE con su porton de cortina. Medidas y textos tal cual el juego</text>']
