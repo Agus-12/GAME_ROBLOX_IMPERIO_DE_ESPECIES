@@ -60,13 +60,19 @@ else:
     for p in ("VaultLabel", "MonitorLabel"):
         if p not in placas:
             problemas.append("falta la plaquita %s (el cartel que quedaba tapado)" % p)
-    # la bici: el mapa tiene que dibujarla con el MISMO numero que usa el juego
-    # (Main.luau), no con uno escrito a mano en el mapa
+    # la bici (v54): el mapa la dibuja EN LA CALLE de la hilera, el mismo lugar
+    # al que Main la manda con CityGenerator.CalleDeHileraZ — y bien lejos de
+    # la orilla del patio (antes +12 y el usuario la veia adentro del terreno)
     try:
-        fuera = float(e["bici_z"]) - float(e["orilla"])
-        if abs(fuera - 12.0) > 0.6:
-            problemas.append("la bici del mapa no esta a 12 studs de la orilla (%.1f): "
-                             "el mapa y el juego no dicen lo mismo" % fuera)
+        bz, cz, ori = float(e["bici_z"]), float(e["calle_z"]), float(e["orilla"])
+        if abs(bz - cz) > 0.6:
+            problemas.append("la bici del mapa no esta en la calle de la hilera "
+                             "(bici z=%.1f, calle z=%.1f): el mapa y el juego no "
+                             "dicen lo mismo" % (bz, cz))
+        if bz - ori < 40:
+            problemas.append("la bici del mapa esta muy pegada a la orilla del patio "
+                             "(%.1f studs): se sigue viendo adentro del terreno"
+                             % (bz - ori))
     except Exception:
         problemas.append("no se pudo medir la bici en el mapa")
     if not os.path.exists(SALIDA) or os.path.getsize(SALIDA) < 200000:
@@ -87,7 +93,7 @@ else:
     else:
         print("  OK     el mapa trae las 4 vistas (la ciudad con sus calles y tiendas, los "
               "20 lotes, tu lote con sus rieles/placas y las dos fachadas), y la bici cae "
-              "12 studs fuera del terreno")
+              "EN LA CALLE de su hilera (v54), fuera de todos los terrenos")
 
 if fallas:
     print("\nFALLA: la vista del mundo no se pudo armar (%d problema(s))" % fallas)

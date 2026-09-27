@@ -23,11 +23,22 @@ Bugs que se prueban:
      bodega ("la van con las piezas una arriba de la otra")
   9. (v53) el camino de en medio vuelve a quedarse corto (no toca la ciudad):
      los lotes del lado oriente sin salida directa
+  10. (v54) se apaga el corrimiento de la van al nacer: con el jugador parado
+     en el patio del cajon (la banda de los 12 studs del boton) le nace encima
+     ("la tengo que respawnear dos veces para poder conducirla")
+  11. (v54) se quitan el empujon Y el rescate de la bici a la CALLE de su
+     hilera: vuelve al pasto de +12, que sigue dentro del rectangulo del
+     terreno ("la bici aparece adentro de la bodega"). OJO: hay que matar las
+     dos capas — con solo el empujon fuera, el rescate de dentroDeAlgo tambien
+     manda a la calle (defensa en profundidad, a proposito)
+  12. (v54) se pierde el tercer camino norte-sur (el callejon del oriente):
+     la esquina oriente de los lotes vuelve a quedar a ~500 studs del asfalto
+     ("las calles de la esquina quedan desconectadas")
 
 NOTA: los casos 1-5 se recuperaron cortados del chat anterior y se conservan
 (los textos de ancla de 1, 2, 4 y 5 son los originales). El caso 3 se ajusto a
 la v52 (la formula ahora suma +121; el bug lo regresa a +71, que era el error
-real de la v51) y el 6 es nuevo de la v52. Los 7, 8 y 9 son de la v53.
+real de la v51) y el 6 es nuevo de la v52. Los 7, 8 y 9 son de la v53. Los 10, 11 y 12 de la v54.
 """
 import os
 import shutil
@@ -39,7 +50,7 @@ ROOT = os.path.dirname(HERE)
 MAIN = os.path.join(ROOT, "ServerScriptService/Main.luau")
 CITY = os.path.join(ROOT, "ServerScriptService/CityGenerator.luau")
 
-print("=== AL REVES (v53): cada bug reportado tiene que tronar las etapas ===")
+print("=== AL REVES (v54): cada bug reportado tiene que tronar las etapas ===")
 
 CASOS = [
     ("1. la van sale con la altura fija de antes (queda 1 stud arriba del patio)",
@@ -95,6 +106,37 @@ CASOS = [
      'Name = "RoadLotesX2",\n\t\tSize = Vector3.new(ROAD_W, 1, zCiudad - zUltima),',
      'Name = "RoadLotesX2",\n\t\tSize = Vector3.new(ROAD_W, 1, zPrimera - zUltima),',
      None, "caminos51.py"),
+
+    ("10. (v54) sin el corrimiento de la van: le nace encima al jugador del cajon",
+     MAIN,
+     "baseCF = baseCF + Vector3.new(0, 0, 6)   -- hacia la calle (norte)",
+     "do end -- BUG DE PRUEBA: la van no se corre de las figuras",
+     "la van le nace encima", "reportes48.py"),
+
+    ("11. (v54) sin el empujon NI el rescate: la bici vuelve al pasto de la orilla",
+     MAIN,
+     "if zCalle then\n\t\t\tbasePos = Vector3.new(basePos.X, basePos.Y, zCalle)\n\t\tend\n"
+     "\t\t-- v54: capa de abajo: si aun quedo dentro de algo (por ejemplo si\n"
+     "\t\t-- CalleDeHileraZ no existiera), se manda DIRECTO a la calle — la\n"
+     "\t\t-- calle queda 39 studs mas alla de la orilla del rectangulo del\n"
+     "\t\t-- lote (lz + 121 contra lz + 82), o sea fuera de todos los\n"
+     "\t\t-- terrenos. El buscarLibre de rayos solito no sirve aqui: un pasto\n"
+     "\t\t-- DENTRO del rectangulo del lote no tiene techo y los rayos lo\n"
+     "\t\t-- ven \"libre\".\n"
+     "\t\tif dentroDeAlgo(basePos) then\n"
+     "\t\t\tbasePos = Vector3.new(basePos.X, basePos.Y, zCalle or basePos.Z)\n"
+     "\t\t\tif dentroDeAlgo(basePos) then\n"
+     "\t\t\t\tbasePos = buscarLibre(basePos, Vector3.new(0, 0, 1), basePos.Y) or basePos\n"
+     "\t\t\tend\n\t\tend",
+     "if zCalle then\n\t\t\tdo end -- BUG DE PRUEBA: sin el empujon a la calle\n\t\tend\n"
+     "\t\tdo end -- BUG DE PRUEBA: y sin el rescate de dentroDeAlgo",
+     "no nace en la calle de su hilera", "reportes48.py"),
+
+    ("12. (v54) se pierde el callejon del oriente: la esquina de la ciudad queda desconectada",
+     CITY,
+     'Name = "RoadLotesX3",',
+     'Name = "RoadLotesX3OFF",',
+     "caminos norte-sur", "caminos51.py"),
 ]
 
 
@@ -139,5 +181,5 @@ print()
 if fallas:
     print("FALLA: %d bug(s) que las etapas no cazan" % fallas)
 else:
-    print("OK: los 9 bugs de las rondas v51-v53 tronaban las etapas (los chequeos sirven)")
+    print("OK: los 12 bugs de las rondas v51-v54 tronaban las etapas (los chequeos sirven)")
 sys.exit(1 if fallas else 0)

@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v53 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v54 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -4956,6 +4956,15 @@ local function hileraZ(lot, r)
 	return lot.Origin.Z - (r - 1) * lot.SpacingZ + 121
 end
 
+-- v54: la z del CENTRO de la calle que pasa al frente del lote dado (su
+-- hilera). La usa Main para sacar cosas del terreno (la bici) y mandarlas
+-- a un asfalto de verdad, sin numeros magicos por alla.
+function CityGenerator.CalleDeHileraZ(slot: number): number
+	local lot = Config.WarehouseLots
+	local r = math.floor(((slot or 1) - 1) / lot.PerRow) + 1
+	return hileraZ(lot, r)
+end
+
 local function buildLotRoads(folder)
 	local lot = Config.WarehouseLots
 	local filas = math.max(1, math.floor(lot.MaxSlots / lot.PerRow))
@@ -5046,8 +5055,61 @@ local function buildLotRoads(folder)
 	})
 	mline.Parent = folder
 
-	-- faroles de los dos caminos norte-sur, intercalados a ambos lados
-	for _, cam in ipairs({ { principalX, zCiudad, zUltima }, { medioX, zCiudad, zUltima } }) do
+	-- ===== 2b) v54: EL TERCER CAMINO (el del oriente) =====
+	-- Reporte del usuario: "algunas calles de la ciudad aun no salen
+	-- conectadas, como las de la esquina de la ciudad". Su lote es el 5 (la
+	-- ultima columna): para llegar a la ciudad tenia que viajar ~500 studs
+	-- hasta el camino de en medio. Este tercer camino baja por el callejon
+	-- entre la 4a y la 5a columna, y la calle RoadZ0 se estira al oriente
+	-- para recibirlo (antes RoadZ0 terminaba en la esquina oriente de la
+	-- ciudad y ahi moria el asfalto).
+	local orienteX = lot.Origin.X + 3.5 * lot.SpacingX - 13.5  -- callejon 4a/5a columna
+	local o = part({
+		Name = "RoadLotesX3",
+		Size = Vector3.new(ROAD_W, 1, zCiudad - zUltima),
+		Position = Vector3.new(orienteX, 0.55, (zCiudad + zUltima) / 2),
+		Color = Color3.fromRGB(48, 48, 52),
+		Material = Enum.Material.Asphalt,
+	})
+	o.Parent = folder
+	local oline = part({
+		Name = "RoadLotesLine",
+		Size = Vector3.new(1.2, 0.2, zCiudad - zUltima),
+		Position = Vector3.new(orienteX, 1.12, (zCiudad + zUltima) / 2),
+		Color = Color3.fromRGB(220, 190, 70),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	oline.Parent = folder
+
+	-- el empalme con la ciudad: RoadZ0 se estira al oriente hasta cruzar el
+	-- camino nuevo (con 12 studs de sobra). Su raya amarilla tambien.
+	local rz0 = folder:FindFirstChild("RoadZ0", true)
+	if rz0 and rz0:IsA("BasePart") then
+		local rEnd = rz0.Position.X + rz0.Size.X * 0.5
+		local nuevoFin = orienteX + ROAD_W * 0.5 + 12
+		if nuevoFin > rEnd + 1 then
+			local ext = part({
+				Name = "RoadZ0Ext",
+				Size = Vector3.new(nuevoFin - rEnd, rz0.Size.Y, rz0.Size.Z),
+				Position = Vector3.new((rEnd + nuevoFin) * 0.5, rz0.Position.Y, rz0.Position.Z),
+				Color = Color3.fromRGB(48, 48, 52),
+				Material = Enum.Material.Asphalt,
+			})
+			ext.Parent = folder
+			local extLine = part({
+				Name = "RoadLotesLine",
+				Size = Vector3.new(nuevoFin - rEnd, 0.2, 1.2),
+				Position = Vector3.new((rEnd + nuevoFin) * 0.5, 1.12, rz0.Position.Z),
+				Color = Color3.fromRGB(220, 190, 70),
+				Material = Enum.Material.SmoothPlastic,
+			})
+			extLine.Parent = folder
+		end
+	end
+
+	-- faroles de los caminos norte-sur, intercalados a ambos lados
+	for _, cam in ipairs({ { principalX, zCiudad, zUltima }, { medioX, zCiudad, zUltima },
+	                       { orienteX, zCiudad, zUltima } }) do
 		local rx, zA, zB = cam[1], cam[2], cam[3]
 		local pz = zA - 60
 		local lado = 1

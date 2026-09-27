@@ -235,6 +235,38 @@ do
     and math.abs(b2.Position.Z - hrp.Position.Z) < 40)
   print("__SUMMONQ__ quedo=" .. tostring(quedo) .. " r=" .. tostring(type(rs) == "table" and rs.ok))
 end
+
+-- ===== v54: LA VAN NO LE NACE ENCIMA AL JUGADOR =====
+-- El boton del cajon se alcanza desde 12 studs: esa banda cubre justo el
+-- patio del cajon, que es DONDE NACE LA VAN. Reporte: "la van sigue mal y la
+-- tengo que respawnear dos veces para poder conducirla" — la primera le nacia
+-- encima (la figura metida entre las piezas). Aqui el jugador se para justo
+-- en el punto de nacimiento y la van se tiene que recorrer hasta quedar
+-- fuera de la figura.
+do
+  local wh2 = workspace:FindFirstChild("Warehouse_4242")
+  local ex = wh2 and wh2:FindFirstChild("GarageExit", true)
+  if ex then
+    hrp.Position = ex.Position          -- parado donde nace la van
+    local car2 = workspace:FindFirstChild("Car_4242")
+    if car2 then car2:Destroy() end
+    RF.OnServerInvoke(yo, "spawnVehicle", id, false)
+    avanzar(1.0)
+    local car3 = workspace:FindFirstChild("Car_4242")
+    local b3 = car3 and car3.PrimaryPart
+    if b3 then
+      local d = b3.Position - hrp.Position
+      local cerca = math.abs(d.X) < 7.5 and math.abs(d.Z) < 11.5 and math.abs(d.Y) < 15
+      print("__VANCLARA__ lejos=" .. tostring(not cerca)
+        .. string.format(" dz=%.1f dx=%.1f", d.Z, d.X))
+    else
+      print("__VANCLARA__ lejos=false nohay")
+    end
+  else
+    print("__VANCLARA__ lejos=false sinExit")
+  end
+end
+
 '''
 g = servidor(extra)
 t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False)
@@ -288,6 +320,18 @@ else:
         print("  OK     el auto AVANZA %.0f studs con el acelerador, gira con el volante, "
               "frena, las 4 ruedas giran y el carro viaja entero (sin fisica)" % avance)
 
+# --- v54: la van no le nace encima al jugador parado en el cajon ---
+mvan = re.search(r"__VANCLARA__ lejos=(\w+)", sal)
+if not mvan or mvan.group(1) != "true":
+    fallas += 1
+    print("  FALLA  (la van le nace encima)")
+    print("         - con el jugador parado en el punto de nacimiento, la van NO se"
+          " recorre: le nace entre las piezas y lo atora ('la tengo que respawnear"
+          " dos veces para poder conducirla')")
+else:
+    print("  OK     con el jugador parado justo en el punto de nacimiento, la van se")
+    print("         recorre hacia la calle y le nace LIBRE (v54)")
+
 # --- v53: portones del cajon con su HomeCF en su lugar (no se vuelan) ---
 mport = re.search(r"__PORTON__ portones=(\d+) volados=(\d+)", sal)
 if not mport or int(mport.group(1)) < 1 or int(mport.group(2)) != 0:
@@ -315,7 +359,9 @@ else:
 problemas = []
 MAIN = L("ServerScriptService/Main.luau")
 ini = MAIN.find("-- INICIO BICI AFUERA")
-fin = MAIN.find("basePos = Vector3.new(basePos.X")
+fin = MAIN.find("basePos = Vector3.new(basePos.X, basePos.Y + 3, basePos.Z)")
+    # v54: el marcador completo (con el "+ 3"): el bloque nuevo de la calle
+    # tambien empieza con "basePos = Vector3.new(basePos.X" y el corte caia a media funcion
 if ini == -1 or fin == -1:
     fallas += 1
     print("  FALLA  no encontre el pedazo de spawnBike en Main.luau")
@@ -363,6 +409,7 @@ local base = Vector3.new(L_.Origin.X, L_.Origin.Y, L_.Origin.Z)
         guion += '''
 local env = setmetatable({wh = wh, hrp = hrp, player = player, warehouses = warehouses,
   CFrame = CFrame, Vector3 = Vector3, workspace = workspace, pcall = pcall,
+  Config = _cfg, CityGenerator = City,
   Workspace = workspace, RaycastParams = RaycastParams, Enum = Enum}, {__index = _G})
 local f, err = load(TEXTO .. string.char(10) .. "return basePos", "bici", "t", env)
 if not f then print("__BICI__ trono al compilar: " .. tostring(err)) return end
@@ -389,9 +436,10 @@ for _, o in ipairs(m:GetDescendants()) do
 end
 local patio = m:FindFirstChild("LotApron", true)
 local orilla = patio and (patio.Position.Z + patio.Size.Z * 0.5) or 0
-print(string.format("__BICI__ x=%.1f z=%.1f techo=%s orillaPatio=%.1f choques=%d [%s]",
+local zCalleB = City.CalleDeHileraZ and City.CalleDeHileraZ(1) or -9999
+print(string.format("__BICI__ x=%.1f z=%.1f techo=%s orillaPatio=%.1f choques=%d zCalle=%.1f [%s]",
   basePos.X, basePos.Z, arriba and arriba.Instance.Name or "libre", orilla, #choques,
-  table.concat(choques, ",")))
+  zCalleB, table.concat(choques, ",")))
 '''
         sal2 = lua(guion)
         m2 = re.search(r"__BICI__ (.+)", sal2.stdout + sal2.stderr)
@@ -408,11 +456,16 @@ print(string.format("__BICI__ x=%.1f z=%.1f techo=%s orillaPatio=%.1f choques=%d
                              % (nombre, e["techo"]))
         if int(e.get("choques", "0")) > 0:
             problemas.append("[%s] la bici nace PEGADA a: %s" % (nombre, e.get("choques")))
-        if nombre == "conLote":
-            z, orilla = float(e["z"]), float(e["orillaPatio"])
-            if z - orilla < 2:
-                problemas.append("la bici cae dentro del lote (z=%.1f, el patio termina en "
-                                 "%.1f)" % (z, orilla))
+        # v54: la bici nace EN LA CALLE de su hilera (asfalto de verdad),
+        # fuera de todos los terrenos — con la verificacion dura de Main
+        if "zCalle" not in e or "z" not in e:
+            problemas.append("[%s] no se pudo medir la bici (%s)" % (nombre, m2.group(1)[:80]))
+            continue
+        zc = float(e["zCalle"])
+        zb = float(e["z"])
+        if abs(zb - zc) > 12:
+            problemas.append("[%s] la bici no nace en la calle de su hilera (z=%.1f, la "
+                             "calle va en z=%.1f)" % (nombre, zb, zc))
     if problemas:
         fallas += 1
         print("  FALLA  (la bici adentro)")

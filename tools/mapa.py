@@ -43,11 +43,13 @@ def L(ruta):
         .replace("goto cont", "_SKIP=true")
 
 
-def offset_bici():
-    """A cuantos studs de la orilla del patio nace la bici: se LEE del codigo real
-    (Main.luau), no se escribe a mano. Asi la vista no puede mentir respecto al juego."""
-    src = open(os.path.join(ROOT, "ServerScriptService/Main.luau"), encoding="utf-8").read()
-    m = re.search(r"patio\.Size\.Z \* 0\.5 \+ (\d+(?:\.\d+)?)\)\)\.Position", src)
+def offset_calle():
+    """A cuantos studs del ORIGEN de la hilera va el centro de la calle (v54: la
+    bici nace EN esa calle). Se LEE del hileraZ() real de CityGenerator.luau,
+    no se escribe a mano. Asi la vista no puede mentir respecto al juego."""
+    src = open(os.path.join(ROOT, "ServerScriptService/CityGenerator.luau"),
+               encoding="utf-8").read()
+    m = re.search(r"lot\.SpacingZ \+ (\d+(?:\.\d+)?)", src)
     return float(m.group(1)) if m else -1.0
 
 
@@ -381,7 +383,7 @@ def vista_lote_detalle(lote, datos):
     xs = [p["x"] + p["sx"] / 2 for p in piezas] + [p["x"] - p["sx"] / 2 for p in piezas]
     zs = [p["z"] + p["sz"] / 2 for p in piezas] + [p["z"] - p["sz"] / 2 for p in piezas]
     x0, x1 = min(xs) - 10, max(xs) + 10
-    z0, z1 = min(zs) - 10, max(zs) + 34     # +34: la calle y la bici caben arriba
+    z0, z1 = min(zs) - 10, max(zs) + 80     # +80: la calle de la hilera y la bici caben arriba
     M = 80
     e = min((W - 2 * M) / (x1 - x0), (H - 2 * M - 260) / (z1 - z0))
 
@@ -399,7 +401,7 @@ def vista_lote_detalle(lote, datos):
            % len(piezas),
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
            'tu lote de verdad (el 5): la nave con su porton queda en medio y el patio del '
-           'fondo; la bici nace en el pasto, 12 studs mas alla de la orilla del patio</text>']
+           'fondo; la bici nace EN LA CALLE de tu hilera (v54), fuera de todos los terrenos</text>']
     orden = sorted(piezas, key=lambda p: (p["y"], -(p["sx"] * p["sz"])))
     for p in orden:
         w = max(1.5, p["sx"] * e)
@@ -447,10 +449,11 @@ def vista_lote_detalle(lote, datos):
                    'stroke="#3a3a4c"/>'
                    % (X(x0), Z(z1), ancho * e, 26))
         out.append('<text x="%.1f" y="%.1f" fill="#7ad1ff" font-size="14">'
-                   'LA CALLE DE LA HILERA (v52: pasa a 31 studs del borde del terreno; la bici nace en el pasto, 12 studs mas alla)</text>'
+                   'LA CALLE DE LA HILERA (la bici de la entrega nace aqui, v54)</text>'
                    % (X(x0) + 8, Z(z1) + 18))
-    # la calle y el punto donde nace la bici
-    OFFSET_BICI = offset_bici()
+    # la calle y el punto donde nace la bici (v54: el centro de la calle de la
+    # hilera, el MISMO numero que usa Main via CityGenerator.CalleDeHileraZ)
+    OFFSET_CALLE = offset_calle()
     patio = next((p for p in lote if p["nombre"] == "LotApron"), None)
     if patio:
         orilla = patio["z"] + patio["sz"] / 2
@@ -460,11 +463,11 @@ def vista_lote_detalle(lote, datos):
         out.append('<text x="%.1f" y="%.1f" fill="#4caf6d" font-size="13">'
                    'orilla del patio: aqui se acaba tu terreno</text>'
                    % (X(x0) + 6, Z(orilla) + 16))
-        bx, bz = patio["x"], orilla + OFFSET_BICI
+        bx, bz = patio["x"], datos["oz"] + OFFSET_CALLE
         out.append('<circle cx="%.1f" cy="%.1f" r="7" fill="#7ad1ff"/>'
                    % (X(bx), Z(bz)))
         out.append('<text x="%.1f" y="%.1f" fill="#7ad1ff" font-size="14">'
-                   'BICI de la entrega (nace aqui, fuera de tu terreno)</text>'
+                   'BICI de la entrega (nace aqui, EN LA CALLE de tu hilera)</text>'
                    % (X(bx) + 12, Z(bz) + 5))
     out.append('</svg>')
     return "\n".join(out)
@@ -606,8 +609,9 @@ bici = next((q for q in lote if q["nombre"] == "LotApron"), None)
 patio_orilla = (bici["z"] + bici["sz"] / 2) if bici else 0
 rieles = [q for q in lote if q["nombre"] == "DoorRail"]
 placas = [q["nombre"] for q in lote if q["nombre"] in ("VaultLabel", "MonitorLabel")]
+bici_z_real = datos["oz"] + offset_calle()      # v54: la calle de la hilera
 print("__MAPA__ vistas=%d ciudad=%d lote=%d lotes=%d rieles=%d placas=%s bici_z=%.1f "
-      "orilla=%.1f ancho=%d alto=%d"
+      "orilla=%.1f calle_z=%.1f ancho=%d alto=%d"
       % (len(partes), len(ciudad), len(lote), datos.get("max", 0), len(rieles),
-         ",".join(sorted(placas)), (patio_orilla + offset_bici()), patio_orilla, ANCHO, alto))
+         ",".join(sorted(placas)), bici_z_real, patio_orilla, bici_z_real, ANCHO, alto))
 print("listo: %s" % SALIDA)

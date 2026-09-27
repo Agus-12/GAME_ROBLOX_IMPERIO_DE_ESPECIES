@@ -8,7 +8,7 @@ Lo que reporto y pidio el usuario:
     nace a nivel de ese patio.
   * "quiero que los conectes con calles a la ciudad ... haciendo el trazo por
     cada lote de manera correcta" -> 4 calles (una por hilera, justo en la linea
-    de enfrente de los 5 lotes), 2 caminos norte-sur (el principal baja de la
+    de enfrente de los 5 lotes), 3 caminos norte-sur (v54: el callejon del oriente
     calle de la ciudad; el de en medio cierra el circuito), 20 rampas de entrada
     (una por lote) y faroles.
 
@@ -63,7 +63,7 @@ end
 -- ===== 1) los caminos =====
 print(string.format("__CONTA__ calleshilera=%d caminosNS=%d rampas=%d faroles=%d",
   (c.RoadLotesZ1 or 0) + (c.RoadLotesZ2 or 0) + (c.RoadLotesZ3 or 0) + (c.RoadLotesZ4 or 0),
-  (c.RoadLotesX or 0) + (c.RoadLotesX2 or 0), c.RoadLoteRamp or 0, c.LightPole or 0))
+  (c.RoadLotesX or 0) + (c.RoadLotesX2 or 0) + (c.RoadLotesX3 or 0), c.RoadLoteRamp or 0, c.LightPole or 0))
 
 -- las 4 calles de hilera: a +117 del centro de SU hilera (v52: la v51 las
 -- ponia a +71 y los patios de las bodegas niveles 2-4 llegan hasta +101,
@@ -118,6 +118,26 @@ if mx and calleCiudad then
   pegado2 = (a0 <= b1 and a1 >= b0)
 end
 print("__UNIDO2__ " .. tostring(pegado2))
+-- v54: el TERCER camino norte-sur (el callejon del oriente, entre las
+-- columnas 4 y 5). Reporte: "las calles de la esquina de la ciudad quedan
+-- desconectadas" — el extremo oriente de los lotes (la columna 5) estaba a
+-- ~500 studs del camino de en medio. Este callejon baja directo y tiene que
+-- tocar la calle de la ciudad (RoadZ0 ahora estira hasta ahi con RoadZ0Ext).
+local ox = mundo:FindFirstChild("RoadLotesX3", true)
+if ox then
+  print(string.format("__ORIENTE__ x=%.0f z %.0f..%.0f", ox.Position.X,
+    ox.Position.Z - ox.Size.Z / 2, ox.Position.Z + ox.Size.Z / 2))
+end
+local pegado3 = false
+local ext = mundo:FindFirstChild("RoadZ0Ext", true)
+if ox and ext then
+  local a0, a1 = ox.Position.X - ox.Size.X / 2, ox.Position.X + ox.Size.X / 2
+  local b0, b1 = ext.Position.X - ext.Size.X / 2, ext.Position.X + ext.Size.X / 2
+  local az0, az1 = ox.Position.Z - ox.Size.Z / 2, ox.Position.Z + ox.Size.Z / 2
+  local bz0, bz1 = ext.Position.Z - ext.Size.Z / 2, ext.Position.Z + ext.Size.Z / 2
+  pegado3 = (a0 <= b1 + 1 and a1 >= b0 - 1) and (az0 <= bz1 + 1 and az1 >= bz0 - 1)
+end
+print("__UNIDO3__ " .. tostring(pegado3))
 
 -- ===== 2) ninguna calle se mete a la parte de ADENTRO de un lote =====
 -- (la calle SI pasa por el frente del lote: ahi esta su patio y sus bolardos.
@@ -150,7 +170,7 @@ print("__ESTORBOS__ " .. (#estorbos == 0 and "ninguno" or table.concat(estorbos,
 -- al ras de la calle").
 local tocan = {}
 for tier = 1, 4 do
-  for lote = 1, 4 do
+  for lote = 1, 5 do
     local col = (lote - 1) % L_.PerRow
     local bx = L_.Origin.X + col * L_.SpacingX
     local m2 = City.BuildWarehouse(tier)
@@ -251,8 +271,9 @@ else:
     e = kv(m1.group(1))
     if int(e["calleshilera"]) != 4:
         problemas.append("hay %s calles de hilera (deben ser 4)" % e["calleshilera"])
-    if int(e["caminosNS"]) != 2:
-        problemas.append("hay %s caminos norte-sur (deben ser 2)" % e["caminosNS"])
+    if int(e["caminosNS"]) != 3:
+        problemas.append("hay %s caminos norte-sur (deben ser 3, v54: el callejon del "
+                         "oriente entre las columnas 4 y 5)" % e["caminosNS"])
     if int(e["rampas"]) != 20:
         problemas.append("hay %s rampas de entrada (deben ser 20: una por lote)" % e["rampas"])
     if int(e["faroles"]) < 100:
@@ -267,6 +288,10 @@ m3b = re.search(r"__UNIDO2__ (.+)", salida)
 if not m3b or m3b.group(1).strip() != "true":
     problemas.append("el camino de en medio NO toca la calle de la ciudad (v53): "
                      "los lotes del lado oriente siguen sin salida directa")
+m3c = re.search(r"__UNIDO3__ (.+)", salida)
+if not m3c or m3c.group(1).strip() != "true":
+    problemas.append("el callejon del oriente (RoadLotesX3) NO toca la calle de la "
+                     "ciudad (v54): la esquina oriente sigue desconectada")
 m4 = re.search(r"__ESTORBOS__ (.+)", salida)
 if not m4 or m4.group(1) != "ninguno":
     problemas.append("calles metidas dentro de un lote: " + (m4.group(1) if m4 else "?"))
@@ -320,7 +345,7 @@ if problemas:
         print("         - " + x)
 else:
     print("  OK     los 20 lotes quedan conectados: 4 calles de hilera justo en su linea de "
-          "enfrente, 2 caminos norte-sur (uno baja de la calle de la ciudad y la toca), "
+          "enfrente, 3 caminos norte-sur (el principal y el del oriente bajan a la calle de la ciudad y la tocan), "
           "20 rampas de entrada y faroles; y la van sale apoyada en el patio del cajon, "
           "completa y fuera del taller")
 

@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v53 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v54 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -3155,7 +3155,8 @@ function spawnBike(player: Player)
 		rp.FilterType = Enum.RaycastFilterType.Exclude
 		rp.FilterDescendantsInstances = filtroYo
 		local abajo = Workspace:Raycast(p + Vector3.new(0, 6, 0), Vector3.new(0, -120, 0), rp)
-		local arriba = Workspace:Raycast(p + Vector3.new(0, 1, 0), Vector3.new(0, 40, 0), rp)
+		-- v54: 60 (antes 40): un techo alto ya no se pasa por libre
+		local arriba = Workspace:Raycast(p + Vector3.new(0, 1, 0), Vector3.new(0, 60, 0), rp)
 		if arriba then return nil end                         -- hay techo: es adentro
 		for _, lado in ipairs({Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0),
 			Vector3.new(0, 0, 1), Vector3.new(0, 0, -1)}) do
@@ -3233,6 +3234,74 @@ function spawnBike(player: Player)
 			basePos = yo   -- caso rarisimo: donde estes parado
 		end
 	end
+	-- ===== v54: LA VERIFICACION DURA =====
+	-- El camino de arriba se fia de rayos de 40 studs y de que exista el
+	-- patio; el usuario volvio a reportar "la bici aparece adentro de la
+	-- bodega" (y al entrar, el juego te planta EN EL CENTRO DE TU NAVE:
+	-- placeInWarehouse). Ya no se le cree a nadie: si el punto cayo DENTRO
+	-- de alguna bodega (nave, cajon, taller) o dentro del rectangulo de
+	-- cualquier lote, se sale a la CALLE DE HILERA de tu lote, que es un
+	-- asfalto de verdad fuera de todos los terrenos.
+	do
+		local function dentroDeAlgo(pt: Vector3): boolean
+			for _, d in ipairs(Workspace:GetChildren()) do
+				if d:IsA("Model") and (string.sub(d.Name, 1, 10) == "Warehouse_"
+					or string.sub(d.Name, 1, 13) == "BodegaVecina_") then
+					local x0, x1, y1, z0, z1 = 1e9, -1e9, -1e9, 1e9, -1e9
+					for _, q in ipairs(d:GetDescendants()) do
+						if q:IsA("BasePart") then
+							local qp = q.Position
+							if qp.X - q.Size.X * 0.5 < x0 then x0 = qp.X - q.Size.X * 0.5 end
+							if qp.X + q.Size.X * 0.5 > x1 then x1 = qp.X + q.Size.X * 0.5 end
+							if qp.Y + q.Size.Y * 0.5 > y1 then y1 = qp.Y + q.Size.Y * 0.5 end
+							if qp.Z - q.Size.Z * 0.5 < z0 then z0 = qp.Z - q.Size.Z * 0.5 end
+							if qp.Z + q.Size.Z * 0.5 > z1 then z1 = qp.Z + q.Size.Z * 0.5 end
+						end
+					end
+					if pt.X > x0 - 2 and pt.X < x1 + 2 and pt.Y < y1 + 2
+						and pt.Z > z0 - 2 and pt.Z < z1 + 2 then
+						return true
+					end
+				end
+			end
+			local L_ = Config.WarehouseLots
+			for sl = 1, L_.MaxSlots do
+				local col = (sl - 1) % L_.PerRow
+				local row = math.floor((sl - 1) / L_.PerRow)
+				local lx = L_.Origin.X + col * L_.SpacingX
+				local lz = L_.Origin.Z - row * L_.SpacingZ
+				if math.abs(pt.X - lx) < 137 and math.abs(pt.Z - lz) < 82 then
+					return true
+				end
+			end
+			return false
+		end
+		-- v54: la bici nace EN LA CALLE de tu hilera, siempre (antes caia en
+		-- el pasto a +12 de la orilla del patio, que con nivel 1 todavia era
+		-- DENTRO del terreno, y en el juego real se volvio a reportar
+		-- "adentro de la bodega"). La calle es asfalto de verdad y queda
+		-- fuera de todos los terrenos, parejo sin importar el nivel.
+		local miSlot = (wh and wh:GetAttribute("Slot")) or 1
+		local zCalle = CityGenerator and CityGenerator.CalleDeHileraZ
+			and CityGenerator.CalleDeHileraZ(miSlot)
+		if zCalle then
+			basePos = Vector3.new(basePos.X, basePos.Y, zCalle)
+		end
+		-- v54: capa de abajo: si aun quedo dentro de algo (por ejemplo si
+		-- CalleDeHileraZ no existiera), se manda DIRECTO a la calle — la
+		-- calle queda 39 studs mas alla de la orilla del rectangulo del
+		-- lote (lz + 121 contra lz + 82), o sea fuera de todos los
+		-- terrenos. El buscarLibre de rayos solito no sirve aqui: un pasto
+		-- DENTRO del rectangulo del lote no tiene techo y los rayos lo
+		-- ven "libre".
+		if dentroDeAlgo(basePos) then
+			basePos = Vector3.new(basePos.X, basePos.Y, zCalle or basePos.Z)
+			if dentroDeAlgo(basePos) then
+				basePos = buscarLibre(basePos, Vector3.new(0, 0, 1), basePos.Y) or basePos
+			end
+		end
+	end
+
 	basePos = Vector3.new(basePos.X, basePos.Y + 3, basePos.Z)
 
 	-- mira en la misma direccion horizontal que el jugador
@@ -4142,6 +4211,32 @@ local function spawnVehicle(player: Player, id: string, ySubir: boolean?)	local 
 	local sp = exit and exit.Position or (hrp.Position + Vector3.new(0, 0, -14))
 	local baseCF = CFrame.new(sp.X, sp.Y + 0.05, sp.Z)
 
+	-- v54: QUE NO LE NAZCA ENCIMA A NADIE. El boton del cajon se alcanza
+	-- desde 12 studs, y esa banda cubre justo el patio del cajon (BayApron):
+	-- o sea, el lugar donde nace la van. Reporte del usuario: "la van sigue
+	-- mal y la tengo que respawnear dos veces para poder conducirla" — la
+	-- primera le nacia ENCIMA (metida entre las piezas, con la figura atorada
+	-- o aventada) y la segunda ya estaba parado en otra parte. Se recorre el
+	-- nacimiento hacia la calle hasta que ninguna figura quede dentro del
+	-- volumen de la van (chasis + cabina + margen).
+	local VAN_L, VAN_W, VAN_H = 19, 11, 12
+	for _ = 1, 20 do
+		local choca = false
+		for _, pl in ipairs(Players:GetPlayers()) do
+			local ch = pl.Character
+			local h = ch and ch:FindFirstChild("HumanoidRootPart")
+			if h then
+				local d = h.Position - baseCF.Position
+				if math.abs(d.X) < VAN_W * 0.5 + 2 and math.abs(d.Z) < VAN_L * 0.5 + 2
+					and math.abs(d.Y) < VAN_H + 3 then
+					choca = true
+				end
+			end
+		end
+		if not choca then break end
+		baseCF = baseCF + Vector3.new(0, 0, 6)   -- hacia la calle (norte)
+	end
+
 	-- el modelo completo (carroceria por tipo, vidrios, faros, rines) lo arma
 	-- CityGenerator.BuildCar; aqui solo se posiciona y se ajusta el asiento.
 	local okc, model = pcall(function() return CityGenerator.BuildCar(info, baseCF, false) end)
@@ -4167,6 +4262,21 @@ local function spawnVehicle(player: Player, id: string, ySubir: boolean?)	local 
 		local asiento = model:FindFirstChild("Seat")
 		if hum and asiento and asiento:IsA("VehicleSeat") then
 			pcall(function() asiento:Sit(hum) end)
+			-- v54: el Sit puede no tomar a la primera (la figura en pleno paso
+			-- o saltando al picar el boton): era el "me subo pero no me deja
+			-- conducirla" que obligaba a respawnear la van. Se reintenta dos
+			-- veces mas; y si aun asi no toma, el letrero "Conducir" del
+			-- asiento sigue ahi para subirte caminando.
+			task.delay(0.25, function()
+				if asiento.Parent and not asiento.Occupant then
+					pcall(function() asiento:Sit(hum) end)
+				end
+			end)
+			task.delay(0.6, function()
+				if asiento.Parent and not asiento.Occupant then
+					pcall(function() asiento:Sit(hum) end)
+				end
+			end)
 		end
 	end
 

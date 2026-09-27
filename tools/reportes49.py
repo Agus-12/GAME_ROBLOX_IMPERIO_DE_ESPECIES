@@ -368,7 +368,9 @@ else:
 problemas = []
 MAIN = L("ServerScriptService/Main.luau")
 ini = MAIN.find("-- INICIO BICI AFUERA")
-fin = MAIN.find("basePos = Vector3.new(basePos.X")
+fin = MAIN.find("basePos = Vector3.new(basePos.X, basePos.Y + 3, basePos.Z)")
+    # v54: el marcador completo (con el "+ 3"): el bloque nuevo de la calle
+    # tambien empieza con "basePos = Vector3.new(basePos.X" y el corte caia a media funcion
 if ini == -1 or fin == -1:
     problemas.append("no encuentro el pedazo de spawnBike")
 else:
@@ -397,14 +399,16 @@ local TEXTO = [==[
 ]==]
 local env = setmetatable({wh = wh, hrp = hrp, player = player, warehouses = warehouses,
   CFrame = CFrame, Vector3 = Vector3, workspace = workspace, pcall = pcall,
+  Config = _cfg, CityGenerator = City,
   Workspace = workspace, RaycastParams = RaycastParams, Enum = Enum}, {__index = _G})
 local f, err = load(TEXTO .. string.char(10) .. "return basePos", "bici", "t", env)
 if not f then print("__BICI49__ no compila: " .. tostring(err)) return end
 local ok, basePos = pcall(f)
 if not ok then print("__BICI49__ trono: " .. tostring(basePos)) return end
 local rel = patio.CFrame:PointToObjectSpace(basePos)
-print(string.format("__BICI49__ z=%.1f fueraDelPatio=%.1f (patio mide %.1f de fondo) x=%.1f",
-  basePos.Z, rel.Z - patio.Size.Z * 0.5, patio.Size.Z, basePos.X))
+local zCalle = City.CalleDeHileraZ and City.CalleDeHileraZ(1) or -9999
+print(string.format("__BICI49__ z=%.1f fueraDelPatio=%.1f (patio mide %.1f de fondo) x=%.1f zCalle=%.1f",
+  basePos.Z, rel.Z - patio.Size.Z * 0.5, patio.Size.Z, basePos.X, zCalle))
 '''
     sal = lua(guion)
     m6 = re.search(r"__BICI49__ (.+)", sal.stdout + sal.stderr)
@@ -420,14 +424,24 @@ print(string.format("__BICI49__ z=%.1f fueraDelPatio=%.1f (patio mide %.1f de fo
             problemas.append("la bici nace a solo %.1f studs de la orilla del patio: se ve "
                              "DENTRO del terreno (el jugador reporto que aparecia adentro)"
                              % fuera)
+        # v54: la bici nace EN LA CALLE de la hilera (asfalto), no solo "lejos
+        # del patio": con la verificacion dura ya no puede caer en ningun lote
+        if "zCalle" not in e6 or "z" not in e6:
+            problemas.append("no se pudo medir la bici: " + m6.group(1)[:80])
+        else:
+            zc = float(e6["zCalle"])
+            zb = float(e6["z"])
+            if abs(zb - zc) > 12:
+                problemas.append("la bici no nace en la calle de su hilera (z=%.1f, la calle "
+                                 "va en z=%.1f): puede quedar en un terreno" % (zb, zc))
 if problemas:
     fallas += 1
     print("  FALLA  (la bici adentro)")
     for x in problemas:
         print("         - " + x)
 else:
-    print("  OK     la bici nace 12 studs mas alla de la orilla del patio, con el lote "
-          "completo puesto (ya no se ve dentro del terreno)")
+    print("  OK     la bici nace EN LA CALLE de su hilera (v54), lejos de la orilla del "
+          "patio y fuera de todos los terrenos")
 
 print()
 if fallas == 0:

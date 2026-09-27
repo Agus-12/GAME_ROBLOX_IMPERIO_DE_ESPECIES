@@ -97,6 +97,7 @@ TROZO_BICI = (
     ']==]\n'
     'local env = setmetatable({wh = wh, hrp = hrp, player = player, warehouses = warehouses,\n'
     '  CFrame = CFrame, Vector3 = Vector3, workspace = workspace, pcall = pcall,\n'
+    '  Config = _cfg, CityGenerator = City,\n'
     '  Workspace = workspace, RaycastParams = RaycastParams, Enum = Enum},\n'
     '  {__index = _G})\n'
     'local f, err = load(TEXTO .. string.char(10) .. "return basePos", "bici", "t", env)\n'
@@ -204,7 +205,9 @@ MAIN = L("ServerScriptService/Main.luau")
 ini = MAIN.find("-- INICIO BICI AFUERA")
 if ini == -1:
     ini = MAIN.find("local basePos")
-fin = MAIN.find("basePos = Vector3.new(basePos.X")
+fin = MAIN.find("basePos = Vector3.new(basePos.X, basePos.Y + 3, basePos.Z)")
+# v54: el marcador completo (con el "+ 3"): el bloque nuevo de la calle
+# tambien empieza con "basePos = Vector3.new(basePos.X" y el corte caia a media funcion
 if ini == -1 or fin == -1:
     fallas += 1
     print("  FALLA  no encontre el pedazo de spawnBike en Main.luau")
