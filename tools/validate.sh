@@ -59,6 +59,8 @@ echo "=== 24. LA LETRA MEDIDA, EL PORTON QUE SE VE Y EL PISO SIN PALITOS (v49) =
 python3 tools/reportes49.py
 echo "=== 25. LA VISTA DEL MUNDO (la ciudad, los 20 lotes, tu lote y las fachadas) ==="
 python3 tools/mundo50.py
+echo "=== 26. LOS CAMINOS DE LOS LOTES Y LA VAN QUE SALE BIEN (v51) ==="
+python3 tools/caminos51.py
 echo "=== 18. EL DOCK DE CELULAR (los botones responden al toque) ==="
 python3 tools/dock43.py
 echo "=== 14. LA PAGINA DE COPIAR: cada pestana muestra su archivo ==="

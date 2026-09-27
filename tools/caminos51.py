@@ -230,6 +230,20 @@ else:
         problemas.append("la van queda metida en el cajon (su parte de atras en z=%.1f, el porton en z=%.1f)"
                          % (trasera, puerta))
 
+# ===== 4) Main tiene que nacer la van a la altura del patio (no fija) =====
+# La etapa arma la van POR SU CUENTA con exit + 0.05; eso solo prueba la
+# geometria del patio, NO que Main lo haga asi (lo destapo el alreves51: con
+# la altura fija de antes la etapa pasaba igual). Se revisa el codigo real,
+# con el mismo truco que usa mapa.py con la bici: si alguien regresa a la
+# altura fija, aqui truena.
+src_main = open(os.path.join(ROOT, "ServerScriptService/Main.luau"), encoding="utf-8").read()
+VAN_BUENA = "local baseCF = CFrame.new(sp.X, sp.Y + 0.05, sp.Z)"
+VAN_MALA = "CFrame.new(sp.X, 2.05, sp.Z)"
+if src_main.count(VAN_BUENA) != 1:
+    problemas.append("Main no nace la van a la altura del GarageExit (falta: " + VAN_BUENA + ")")
+if VAN_MALA in src_main:
+    problemas.append("Main vuelve a usar la altura fija 2.05 para la van (la deja colgada)")
+
 if problemas:
     fallas += 1
     print("  FALLA  (caminos / van)")

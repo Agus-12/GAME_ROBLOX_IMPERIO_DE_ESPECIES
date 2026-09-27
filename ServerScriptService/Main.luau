@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v50 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v51 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -4045,11 +4045,14 @@ local function spawnVehicle(player: Player, id: string, ySubir: boolean?)	local 
 
 	-- Sale por la puerta del garaje, no de la nada junto a ti.
 	-- OJO: la 'cf' que recibe BuildCar va a NIVEL DEL PISO (ahi se apoyan las
-	-- ruedas), por eso y = 2 (el piso de la bodega esta en y=2).
+	-- ruedas). v51: la altura ya NO es un numero fijo (2.05 dejaba la van
+	-- COLGANDO un stud arriba del pasto: "la van al spawnearla afuera sale
+	-- mal"): se usa la Y del propio GarageExit, que desde la v51 cae a la
+	-- altura del patio del cajon (BayApron) que hay afuera del taller.
 	local wh0 = warehouses[player]
 	local exit = wh0 and wh0:FindFirstChild("GarageExit", true)
 	local sp = exit and exit.Position or (hrp.Position + Vector3.new(0, 0, -14))
-	local baseCF = CFrame.new(sp.X, 2.05, sp.Z)
+	local baseCF = CFrame.new(sp.X, sp.Y + 0.05, sp.Z)
 
 	-- el modelo completo (carroceria por tipo, vidrios, faros, rines) lo arma
 	-- CityGenerator.BuildCar; aqui solo se posiciona y se ajusta el asiento.

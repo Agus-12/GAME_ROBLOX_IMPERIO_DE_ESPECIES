@@ -42,6 +42,7 @@ para revisar que nada se pierda.
 * **Musica ambiente / sonido de motor** (los sonidos de acciones si existen).
 * **Interiores de las propiedades compradas**: hoy solo tienen fachada.
 
+| 33 | **"La van al spawnearla afuera sale mal"** y **"conecta los lotes con calles a la ciudad, haciendo el trazo por cada lote de manera correcta"** | patio del cajón (`BayApron` + `BayRamp`) y la van nace a la altura del patio (`sp.Y + 0.05`, ya no 2.05 fija); 4 calles de hilera (`RoadLotesZ1..4`), 2 caminos norte-sur (el principal toca la calle de la ciudad), 20 rampas de entrada y 50 faroles | **v51** |
 ## Lo que se descubrio de tu lado (por que "no cambiaba nada")
 
 1. **v37**: el cliente **se apagaba solo** si veia una interfaz del juego ya puesta en

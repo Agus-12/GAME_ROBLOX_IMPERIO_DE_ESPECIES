@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v50 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v51 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -2957,6 +2957,59 @@ function CityGenerator.BuildWarehouse(tierIndex: number): Model
 	})
 	exit.Parent = model
 
+	-- ===== v51: EL PATIO DEL CAJON (BayApron) =====
+	-- El usuario reporto "la van al spawnearla afuera sale mal": el cajon no
+	-- tenia PISO enfrente (solo el pasto del patio, 1.5 studs mas abajo) y el
+	-- coche nacia COLGANDO en el aire, hasta asentarse en el pasto. Ahora el
+	-- cajon tiene su patio de concreto a la MISMA altura que el piso del taller
+	-- (top y=2, pegado a la orilla del cajon), la van nace apoyada en el
+	-- (Main usa sp.Y + 0.05, ya no una altura fija) y una rampa baja al patio
+	-- del frente para sacar el coche sin brincos.
+	do
+		local frenteZ = GAR_Z + GAR_D / 2      -- la orilla del cajon (aqui acaba su piso)
+		local padAncho = GAR_W + 2             -- cubre el frente completo del taller
+		local padLargo = 26                    -- de la orilla del cajon hasta meterse al patio
+		local pad = part({
+			Name = "BayApron",
+			Size = Vector3.new(padAncho, 2, padLargo),
+			Position = Vector3.new(GAR_X, 1, frenteZ + padLargo / 2 - 0.5),
+			Color = Color3.fromRGB(120, 120, 126),
+			Material = Enum.Material.Concrete,
+		})
+		pad.Parent = model
+
+		-- la rampa: del tope del patio (y=2) baja 1.5 hasta el pasto (y=0.5),
+		-- con el mismo trazo que la rampa GateApron del porton grande
+		local run = 8
+		local drop = 1.5
+		local ang = math.atan(drop / run)
+		local largo = math.sqrt(drop * drop + run * run) + 0.4
+		local rz0 = frenteZ + padLargo - 0.5
+		local ramp = part({
+			Name = "BayRamp",
+			Size = Vector3.new(14, 0.4, largo),
+			Position = Vector3.new(GAR_X, 2 - drop / 2 - 0.2 * math.cos(ang), rz0 + run / 2),
+			Color = Color3.fromRGB(104, 102, 98),
+			Material = Enum.Material.Concrete,
+		})
+		ramp.CFrame = CFrame.new(ramp.Position) * CFrame.Angles(ang, 0, 0)
+		ramp.Parent = model
+
+		-- guardas de orilla amarillas: que se vea que es una rampa, no una tabla
+		for _, sx in ipairs({ -1, 1 }) do
+			local rail = part({
+				Name = "BayRail",
+				Size = Vector3.new(0.4, 0.5, largo),
+				Position = Vector3.new(GAR_X + sx * 7, 2 - drop / 2 + 0.15, rz0 + run / 2),
+				Color = Color3.fromRGB(196, 168, 70),
+				Material = Enum.Material.SmoothPlastic,
+				CanCollide = false,
+			})
+			rail.CFrame = CFrame.new(rail.Position) * CFrame.Angles(ang, 0, 0)
+			rail.Parent = model
+		end
+	end
+
 	-- v45: el tablero era de 12 x 2.4 y ahi tiene que caber "GARAJE DE <NOMBRE>".
 	-- v46: agrandarlo NO alcanzo (el usuario: "los letreros aun tienen la letra
 	-- demasiada pequeña"): el texto se escalaba con TextWrapped en un tablero de
@@ -4867,6 +4920,152 @@ function CityGenerator.BuildAgent(): Model
 	return model
 end
 
+----------------------------------------------------------------------
+-- v51: LOS CAMINOS DE LOS LOTES DE JUGADOR
+----------------------------------------------------------------------
+-- Pedido del usuario: "quiero que los conectes con calles a la ciudad ...
+-- haciendo el trazo por cada lote de manera correcta". El trazo:
+--   * 4 calles de hilera (RoadLotesZ1..Z4): una justo en la linea de
+--     enfrente de cada hilera de 5 lotes, a +71 del centro de SU hilera.
+--     Con 20 de ancho quedan a +61..+81: NI un stud dentro del patio del
+--     fondo de nadie (la regla de los lotes es: la calle puede pasar por
+--     el frente, donde esta el patio con bolardos, pero jamas cruzar la
+--     nave, el taller o el patio de atras).
+--   * 2 caminos norte-sur: el principal (RoadLotesX) baja derecho desde la
+--     calle mas al sur de la ciudad (RoadZ0) por el callejon entre la 2a y
+--     la 3a columna de lotes; el de en medio (RoadLotesX2) va entre la 3a y
+--     la 4a y cierra el circuito entre las 4 hileras.
+--   * 20 rampas de entrada (RoadLoteRamp): una por lote, frente al cajon
+--     del taller, para subir del pasto (que queda 1.5 studs abajo) a la
+--     calle de su hilera.
+--   * faroles a lo largo de todos los caminos nuevos.
+local ROAD_W = 20        -- ancho de los caminos de los lotes (la ciudad usa 34)
+local POLE_EVERY = 160   -- un farol cada tantos studs
+
+-- la z de la calle de la hilera r: 71 studs al norte del centro de ESA hilera
+local function hileraZ(lot, r)
+	return lot.Origin.Z - (r - 1) * lot.SpacingZ + 71
+end
+
+local function buildLotRoads(folder)
+	local lot = Config.WarehouseLots
+	local filas = math.max(1, math.floor(lot.MaxSlots / lot.PerRow))
+	local x0 = lot.Origin.X - 140
+	local x1 = lot.Origin.X + (lot.PerRow - 1) * lot.SpacingX + 140
+	local cxm = (x0 + x1) / 2
+
+	-- ===== 1) las 4 calles de hilera =====
+	for r = 1, filas do
+		local zc = hileraZ(lot, r)
+		local calle = part({
+			Name = "RoadLotesZ" .. r,
+			Size = Vector3.new(x1 - x0, 1, ROAD_W),
+			Position = Vector3.new(cxm, 0.55, zc),
+			Color = Color3.fromRGB(48, 48, 52),
+			Material = Enum.Material.Asphalt,
+		})
+		calle.Parent = folder
+
+		-- raya amarilla al centro, como las calles de la ciudad
+		local line = part({
+			Name = "RoadLotesLine",
+			Size = Vector3.new(x1 - x0, 0.2, 1.2),
+			Position = Vector3.new(cxm, 1.12, zc),
+			Color = Color3.fromRGB(220, 190, 70),
+			Material = Enum.Material.SmoothPlastic,
+		})
+		line.Parent = folder
+
+		-- faroles al lado norte de la calle, plantados en el pasto (top y=0.2)
+		local px = x0 + 40
+		while px < x1 - 20 do
+			makeStreetLight(folder, Vector3.new(px, 0.2, zc + ROAD_W / 2 + 2))
+			px = px + POLE_EVERY
+		end
+	end
+
+	-- ===== 2) los caminos norte-sur =====
+	local zCiudad = CityGenerator.CellToWorld(0, 0).Z - CELL * 0.5  -- la calle RoadZ0
+	local zPrimera = hileraZ(lot, 1)
+	local zUltima = hileraZ(lot, filas)
+	local principalX = lot.Origin.X + 1.5 * lot.SpacingX  -- callejon entre la 2a y 3a columna
+	local medioX = lot.Origin.X + 2.5 * lot.SpacingX      -- callejon entre la 3a y 4a columna
+
+	local p = part({
+		Name = "RoadLotesX",
+		Size = Vector3.new(ROAD_W, 1, zCiudad - zUltima),
+		Position = Vector3.new(principalX, 0.55, (zCiudad + zUltima) / 2),
+		Color = Color3.fromRGB(48, 48, 52),
+		Material = Enum.Material.Asphalt,
+	})
+	p.Parent = folder
+	local pline = part({
+		Name = "RoadLotesLine",
+		Size = Vector3.new(1.2, 0.2, zCiudad - zUltima),
+		Position = Vector3.new(principalX, 1.12, (zCiudad + zUltima) / 2),
+		Color = Color3.fromRGB(220, 190, 70),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	pline.Parent = folder
+
+	local m = part({
+		Name = "RoadLotesX2",
+		Size = Vector3.new(ROAD_W, 1, zPrimera - zUltima),
+		Position = Vector3.new(medioX, 0.55, (zPrimera + zUltima) / 2),
+		Color = Color3.fromRGB(48, 48, 52),
+		Material = Enum.Material.Asphalt,
+	})
+	m.Parent = folder
+	local mline = part({
+		Name = "RoadLotesLine",
+		Size = Vector3.new(1.2, 0.2, zPrimera - zUltima),
+		Position = Vector3.new(medioX, 1.12, (zPrimera + zUltima) / 2),
+		Color = Color3.fromRGB(220, 190, 70),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	mline.Parent = folder
+
+	-- faroles de los dos caminos norte-sur, intercalados a ambos lados
+	for _, cam in ipairs({ { principalX, zCiudad, zUltima }, { medioX, zPrimera, zUltima } }) do
+		local rx, zA, zB = cam[1], cam[2], cam[3]
+		local pz = zA - 60
+		local lado = 1
+		while pz > zB + 40 do
+			makeStreetLight(folder, Vector3.new(rx + lado * (ROAD_W / 2 + 2), 0.2, pz))
+			lado = -lado
+			pz = pz - POLE_EVERY
+		end
+	end
+
+	-- ===== 3) las 20 rampas de entrada: una por lote =====
+	-- Del pasto del frente (y=-0.49) suben a la calle de su hilera (y=1.05),
+	-- frente al cajon del taller de ese lote (por ahi sale la van). El largo
+	-- del prisma es EXACTO (sin el +0.4 de solape de GateApron) para que su
+	-- orilla sur caiga clavada en la linea de los +54 y no meta un dedo
+	-- dentro del lote.
+	do
+		for r = 1, filas do
+			local zc = hileraZ(lot, r)
+			for c = 0, lot.PerRow - 1 do
+				local lx = lot.Origin.X + c * lot.SpacingX
+				local zAlta = zc - ROAD_W / 2      -- la orilla sur de la calle
+				local run = 7
+				local drop = 1.54                  -- de la calle (1.05) al pasto (-0.49)
+				local ang = math.atan(drop / run)
+				local ramp = part({
+					Name = "RoadLoteRamp",
+					Size = Vector3.new(14, 0.4, run),
+					Position = Vector3.new(lx - 48, 1.05 - drop / 2 - 0.2 * math.cos(ang), zAlta - run / 2),
+					Color = Color3.fromRGB(104, 102, 98),
+					Material = Enum.Material.Concrete,
+				})
+				ramp.CFrame = CFrame.new(ramp.Position) * CFrame.Angles(-ang, 0, 0)
+				ramp.Parent = folder
+			end
+		end
+	end
+end
+
 function CityGenerator.Build(): Folder
 	local old = Workspace:FindFirstChild("City")
 	if old then old:Destroy() end
@@ -4892,6 +5091,9 @@ function CityGenerator.Build(): Folder
 
 	buildBuyers(city)
 	buildPoliceStation(city)
+
+	-- v51: los caminos que conectan los 20 lotes con la ciudad
+	buildLotRoads(city)
 
 	local templates = Instance.new("Folder")
 	templates.Name = "Templates"

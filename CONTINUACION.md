@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v50** · 26 sep 2026
+> Última actualización: **v51** · 27 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v50 |
+| **Versión actual** | v51 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,34 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v51 (las calles de los lotes y la van)
+
+Dos pedidos del usuario: *"la van al spawnearla afuera sale mal"* y *"quiero
+que los conectes con calles a la ciudad ... haciendo el trazo por cada lote de
+manera correcta"*.
+
+| Lo que se hizo | Detalle |
+|---|---|
+| El patio del cajón | **`BayApron`** (top y=1.00, la altura del piso del taller) + **`BayRamp`** con guardas: la van ya no nace colgando sobre el pasto (que queda 1.5 abajo) |
+| La van | `Main` ya no usa la altura fija 2.05: `CFrame.new(sp.X, sp.Y + 0.05, sp.Z)` con la Y del propio `GarageExit`. Medido: ruedas 1.10 contra tope 1.00, la van completa sobre el patio y la trasera afuera del portón |
+| Las calles de hilera | `RoadLotesZ1..Z4` a **+71** del centro de cada hilera (`hileraZ`), 20 de ancho, cubriendo las 5 columnas. La bici (que nace "en la calle" desde la v47) cae en el centro de la de la 1a hilera |
+| Los caminos norte-sur | `RoadLotesX` (x=-90, baja de `RoadZ0` y LA TOCA) y `RoadLotesX2` (x=250, cierra el circuito), ambos por los callejones entre columnas de lotes |
+| Las rampas | `RoadLoteRamp` ×20 (una por lote, frente al cajón): del pasto (-0.49) a la calle (1.05). El prisma mide EXACTO en z (sin el +0.4 de solape) para que su orilla caa clavada en la línea de los +54 y no meta un dedo en el lote |
+| Faroles | 50 nuevos con `makeStreetLight` (146 en total), plantados en el pasto (top 0.2) |
+
+**Regla de los caminos:** la calle SÍ puede pasar por el FRENTE del lote (el
+patio con bolardos, z ≥ centro+54), pero JAMÁS cruzar la nave, el taller o el
+patio del fondo. La etapa 26 lo mide en los 20 lotes (estorbos = ninguno).
+
+> OJO: esta ronda se reconstruyó desde cero. El chat anterior había hecho la
+> etapa 26 (`tools/caminos51.py`) pero venía ROTA (un `do` donde iba un
+> `then`: nunca compiló — probable causa de su "ciclo sin fin") y el código
+> de los caminos nunca se subió. Los únicos anclas que se conservaron tal
+> cual son las del `alreves51.py` recuperado (la van `sp.Y + 0.05`, el
+> `Size = Vector3.new(padAncho, 2, padLargo)`, el `return ... + 71` y el
+> bucle `for c = 0, lot.PerRow - 1`), para que la prueba al revés original
+> siguiera sirviendo.
 
 ### 🆕 Qué se cerró en la v50 (ronda de SOLO BUGS: los 3 que reportaste)
 

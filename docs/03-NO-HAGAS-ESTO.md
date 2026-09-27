@@ -724,3 +724,17 @@ crudo, así que **un comentario que explicaba el bug viejo** de la v41
 que grita en falso es un chequeo que nadie le cree cuando grita de verdad.
 **Regla:** se ignoran comentarios (respetando cadenas de texto) y, al arreglar un chequeo,
 se prueba **metiendo el bug de verdad** para ver que todavía lo caza.
+
+## 27. 🚐 La etapa que armaba SU PROPIA van no probaba nada de Main (v51)
+
+`tools/caminos51.py` media la van construyéndola él mismo con
+`exit.Position.Y + 0.05` — o sea: probaba la **geometría del patio**, pero no
+que `Main` realmente naciera la van así. El `alreves51` lo destapó: con la
+altura fija de antes (2.05) puesta de vuelta en `Main`, **la etapa pasaba
+igual**. Un chequeo que no puede fallar aunque el bug exista es decoración.
+
+**Regla:** cuando una etapa mida algo reconstruyéndolo (porque correr el
+camino real es imposible), tiene que **leer también el código fuente** que
+debería hacerlo así — el mismo truco que `mapa.py` usa con el punto de la
+bici. Y el `alreves` es el que decide si el chequeo sirve: si el bug metido a
+propósito no la tumba, el chequeo está incompleto.
