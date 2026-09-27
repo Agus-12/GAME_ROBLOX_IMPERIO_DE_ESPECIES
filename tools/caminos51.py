@@ -108,6 +108,16 @@ if bx and calleCiudad then
   pegado = (a0 <= b1 and a1 >= b0)
 end
 print("__UNIDO__ " .. tostring(pegado))
+-- v53: el camino de EN MEDIO tambien tiene que tocar la calle de la ciudad
+-- (antes terminaba en la calle de la primera hilera y los lotes del lado
+-- oriente tenian que dar toda la vuelta por el principal)
+local pegado2 = false
+if mx and calleCiudad then
+  local a0, a1 = mx.Position.Z - mx.Size.Z / 2, mx.Position.Z + mx.Size.Z / 2
+  local b0, b1 = calleCiudad.Position.Z - calleCiudad.Size.Z / 2, calleCiudad.Position.Z + calleCiudad.Size.Z / 2
+  pegado2 = (a0 <= b1 and a1 >= b0)
+end
+print("__UNIDO2__ " .. tostring(pegado2))
 
 -- ===== 2) ninguna calle se mete a la parte de ADENTRO de un lote =====
 -- (la calle SI pasa por el frente del lote: ahi esta su patio y sus bolardos.
@@ -253,6 +263,10 @@ if not m2 or m2.group(1) != "ninguna":
 m3 = re.search(r"__UNIDO__ (.+)", salida)
 if not m3 or m3.group(1).strip() != "true":
     problemas.append("el camino principal NO toca la calle de la ciudad")
+m3b = re.search(r"__UNIDO2__ (.+)", salida)
+if not m3b or m3b.group(1).strip() != "true":
+    problemas.append("el camino de en medio NO toca la calle de la ciudad (v53): "
+                     "los lotes del lado oriente siguen sin salida directa")
 m4 = re.search(r"__ESTORBOS__ (.+)", salida)
 if not m4 or m4.group(1) != "ninguno":
     problemas.append("calles metidas dentro de un lote: " + (m4.group(1) if m4 else "?"))

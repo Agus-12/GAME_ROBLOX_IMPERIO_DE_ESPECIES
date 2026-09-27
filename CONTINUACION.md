@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v52** · 27 sep 2026
+> Última actualización: **v53** · 27 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v52 |
+| **Versión actual** | v53 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,27 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v53 (el portón que se volaba y la van que peleaba)
+
+Reporte del usuario con v52 pegada: *"la van... aparece como que las piezas una
+arriba de la otra pero con bloques de aire"*, *"el portón aún no aparece, es el
+chico el del coche"*, *"mi lote sigue siendo el 5 y en el mapa me lo sigues
+marcando en el 1"*, *"falta que conectes las calles de la ciudad a las de los
+garages"*.
+
+| Lo que se hizo | Detalle |
+|---|---|
+| **El portón del cajón ya no se vuela** | El `HomeCF` de sus piezas se guardaba en coordenadas del TEMPLATE (antes del `PivotTo` del lote): al cerrarse, el portón se tejía 880 studs hasta el ORIGEN DEL MUNDO (bug reportado desde la v44; ningún arreglo visual lo "hacía aparecer" porque la pieza estaba en otro lado). `Main.resellarHome` re-sella los HomeCF/HomeY tras CADA PivotTo (asignación, mejora, vecinas) y cada portón guarda su `PisoY` real para enrollarse a la altura correcta |
+| **La van ya no sale revuelta** | El botón "Auto" (`summonCar`) mueve el carro con `PivotTo`, pero `hacerConducible` lo REGRESABA a su posición "de memoria" en el frame siguiente (pelea a 60 fps = piezas revueltas). Ahora el bucle ADOPTA movimientos externos (y se asienta al piso si lo dejaron enterrado/al aire), no escribe nada cuando el carro está quieto, y `summonCar` mide el piso con un rayo (ya no un 3.4 fijito) |
+| **El camino de en medio llega a la ciudad** | `RoadLotesX2` extendido de z −539 a z −485 (`RoadZ0`): los lotes orientales (como el 5 del usuario) ya tienen salida directa. Chequeo nuevo `__UNIDO2__` |
+| **El mapa marca TU lote** | El 5 sale dorado ("5 (TU LOTE)"), el 1 azul ("1 (nuevo)"), y el detalle/fachadas dibujan el lote 5 de verdad (ventana del cajón medida desde su propio DoorSlab, sin constantes del lote 1) |
+| Chequeos de FLUJO REAL | Etapa 23: los HomeCF quedan en su lote + el botón Auto deja el carro donde lo invocas (simulado con Main completo: PivotTo incluido). alreves **9/9** (3 nuevos). Herramientas: `diagvan/diagsummon/diagporton` |
+
+**Lección (docs/03 debería decirlo ya, pero repítelo):** la etapa 24 probaba el
+portón en un lote construido SIN `PivotTo` — con coordenadas locales el HomeCF
+coincidía y el chequeo salía verde aunque el juego real estuviera roto. Prueba
+el CAMINO COMPLETO (asignación → PivotTo → uso), no la pieza suelta.
 
 ### 🆕 Qué se cerró en la v52 (la calle FUERA de las bodegas)
 

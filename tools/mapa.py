@@ -72,8 +72,15 @@ if ok and ciudad then
   end
 end
 local L_ = _cfg.WarehouseLots
--- TU lote (el 1) con todo lo de adentro, en coordenadas del mundo
-local base = Vector3.new(L_.Origin.X, L_.Origin.Y, L_.Origin.Z)
+-- TU lote con todo lo de adentro, en coordenadas del mundo. El 5: el que el
+-- juego te RECUERDA (el usuario reporto "la mia vendria siendo la 5" y el
+-- letrero del garaje se lo confirma). El 1 es el que le toca a quien empieza
+-- de cero; la disposition de las piezas es la misma en cualquier lote.
+local SLOT = 5
+local col = (SLOT - 1) % L_.PerRow
+local fila = math.floor((SLOT - 1) / L_.PerRow)
+local base = Vector3.new(L_.Origin.X + col * L_.SpacingX, L_.Origin.Y,
+  L_.Origin.Z - fila * L_.SpacingZ)
 local m = City.BuildWarehouse(1)
 m:PivotTo(CFrame.new(base))
 for _, d in ipairs(m:GetDescendants()) do
@@ -286,24 +293,27 @@ def vista_ciudad(ciudad, datos):
         c = i % datos["porFila"]
         lx = datos["ox"] + c * datos["ex"]
         lz = datos["oz"] - fila * datos["ez"]
-        esMio = (i == 0)
+        esMio = (i == 4)          # v53: el lote 5 es el del usuario
+        esNuevo = (i == 0)
         out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" '
                    'stroke="%s" stroke-width="%.1f"/>'
                    % (X(lx - 135), Z(lz + 80), 271 * e, 160 * e,
-                      "#4a3d18" if esMio else "#23232e",
-                      "#ffd479" if esMio else "#55557a", 2.4 if esMio else 1.4))
+                      "#4a3d18" if esMio else ("#16222e" if esNuevo else "#23232e"),
+                      "#ffd479" if esMio else ("#7ad1ff" if esNuevo else "#55557a"),
+                      2.4 if (esMio or esNuevo) else 1.4))
         if 271 * e > 26:
             out.append('<text x="%.1f" y="%.1f" fill="%s" font-size="%d" '
                        'text-anchor="middle">%s</text>'
-                       % (X(lx), Z(lz) + 5, "#ffd479" if esMio else "#7a7a9c",
-                          15 if esMio else 12, "1 (TUYO)" if esMio else str(i + 1)))
+                       % (X(lx), Z(lz) + 5, "#ffd479" if esMio else ("#7ad1ff" if esNuevo else "#7a7a9c"),
+                          15 if (esMio or esNuevo) else 12,
+                          "5 (TU LOTE)" if esMio else ("1 (nuevo)" if esNuevo else str(i + 1))))
     # flecha del lote 1
     l1x, l1z = X(datos["ox"]), Z(datos["oz"])
     out.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#ffd479" '
                'stroke-width="2"/>' % (l1x, lz0, l1x, l1z))
     out.append('<text x="%.1f" y="%.1f" fill="#ffd479" font-size="14">'
-               'el 1 es el que te dan al EMPEZAR (x=%.0f z=%.0f); con partida guardada, el '
-               'juego te devuelve TU lote de antes — detalle en el cuadro de abajo</text>'
+               'el 5 (dorado) es TU LOTE (x=%.0f z=%.0f): el que el juego te recuerda. El 1 es el '
+               'que le dan a quien empieza de cero — el detalle de abajo muestra el tuyo</text>'
                % (lx0 + 8, lz1 + 22, datos["ox"], datos["oz"]))
     out.append('</svg>')
     return "\n".join(out)
@@ -331,9 +341,9 @@ def vista_lotes(datos):
            '<text x="24" y="34" fill="#f5c45c" font-size="22">'
            'LOS 20 LOTES (5 x 4) — la huella de cada lote es de 271 x 160 studs, separados 340 en x y 260 en z</text>',
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
-           'el 1 es el que te dan al empezar; el juego te RECUERDA tu lote si ya tienes '
-           'partida (por eso tu bodega puede ser otra). Los demas se llenan con bodegas '
-           'vecinas y se clausuran cuando su dueno se va</text>']
+           'el 5 (dorado) es TU lote: el que el juego te recuerda (el letrero de tu garaje '
+           'dice LOTE 5). El 1 es el que le toca a quien empieza de cero. Los demas se '
+           'llenan con bodegas vecinas y se clausuran cuando su dueno se va</text>']
     for i in range(datos["max"]):
         fila = i // datos["porFila"]
         c = i % datos["porFila"]
@@ -343,20 +353,22 @@ def vista_lotes(datos):
         y = Z(lz + 80)
         w = 271 * e
         h = 160 * e
-        esMio = (i == 0)
+        esMio = (i == 4)          # v53: el lote 5 es el del usuario
+        esNuevo = (i == 0)        # y el 1, el que le dan a quien empieza
         out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" '
                    'stroke="%s" stroke-width="2"/>'
-                   % (x, y, w, h, "#3a3018" if esMio else "#1b1b26",
-                      "#ffd479" if esMio else "#45455e"))
+                   % (x, y, w, h, "#3a3018" if esMio else ("#16222e" if esNuevo else "#1b1b26"),
+                      "#ffd479" if esMio else ("#7ad1ff" if esNuevo else "#45455e")))
         out.append('<text x="%.1f" y="%.1f" fill="%s" font-size="%d">%s</text>'
-                   % (x + w / 2 - 10, y + h / 2 + 5,
-                      "#ffd479" if esMio else "#6c6c8a", 20 if esMio else 15,
-                      ("1 (nuevo)" if esMio else str(i + 1))))
+                   % (x + w / 2 - 34, y + h / 2 + 5,
+                      "#ffd479" if esMio else ("#7ad1ff" if esNuevo else "#6c6c8a"),
+                      20 if (esMio or esNuevo) else 15,
+                      ("5 (TU LOTE)" if esMio else ("1 (nuevo)" if esNuevo else str(i + 1)))))
         out.append('<text x="%.1f" y="%.1f" fill="#3d3d55" font-size="11">'
                    'x=%.0f z=%.0f</text>' % (x + 6, y + h - 8, lx, lz))
     # la etiqueta de la ciudad
     out.append('<text x="%.1f" y="%.1f" fill="#7ad1ff" font-size="16">'
-               '↑ hacia LA CIUDAD (calles, tiendas, aduana) — a ~%.0f studs del lote 1</text>'
+               '↑ hacia LA CIUDAD (calles, tiendas, aduana) — a ~%.0f studs de tu hilera</text>'
                % (X(datos["ox"] - 160), Z(datos["oz"] + 120), abs(-660 - 30)))
     out.append('</svg>')
     return "\n".join(out)
@@ -383,11 +395,11 @@ def vista_lote_detalle(lote, datos):
            'viewBox="0 0 %d %d" font-family="monospace">' % (W, H, W, H),
            '<rect width="100%%" height="100%%" fill="#0d0d14"/>',
            '<text x="24" y="34" fill="#f5c45c" font-size="23">'
-           'EL LOTE 1 (el que te dan al empezar) DE ARRIBA — las %d piezas reales</text>'
+           'TU LOTE (el 5) DE ARRIBA — las %d piezas reales</text>'
            % len(piezas),
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
-           'la nave con su porton queda en medio y el patio del fondo; la bici nace en el '
-           'pasto, 12 studs mas alla de la orilla del patio</text>']
+           'tu lote de verdad (el 5): la nave con su porton queda en medio y el patio del '
+           'fondo; la bici nace en el pasto, 12 studs mas alla de la orilla del patio</text>']
     orden = sorted(piezas, key=lambda p: (p["y"], -(p["sx"] * p["sz"])))
     for p in orden:
         w = max(1.5, p["sx"] * e)
@@ -535,8 +547,13 @@ def vista_fachadas(lote):
            "porton grande de cortina, letrero IMPERIO DE ESPECIAS y costillas",
            nave, 4.3, 22.0, 27, "#8ce8a8")
     # ---- 2) EL CAJON: su porton esta en el plano z = -652.4, a la izquierda
-    cajon = [p for p in lote if abs(p["z"] + 652.4) <= 3.2 and p["x"] <= -627]
-    alzado(800, -672, -625, "2) EL CAJON DEL COCHE, de frente",
+    # (v53: el lote ya no es el 1: la ventana en x se mide desde el propio
+    # porton del cajon, no con numeros fijos del lote 1)
+    ds = next((q for q in lote if q["nombre"] == "DoorSlab"), None)
+    cxa = (ds["x"] - 24) if ds else -672
+    cxb = (ds["x"] + 23) if ds else -625
+    cajon = [p for p in lote if abs(p["z"] + 652.4) <= 3.2 and p["x"] <= cxb]
+    alzado(800, cxa, cxb, "2) EL CAJON DEL COCHE, de frente",
            "porton de cortina (franja roja/blanca, ventana y rieles) y su placa",
            cajon, 9.6, 32.0, 19, "#ffd479")
 

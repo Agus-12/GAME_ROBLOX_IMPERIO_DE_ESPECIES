@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v52 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v53 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -5023,25 +5023,31 @@ local function buildLotRoads(folder)
 	})
 	pline.Parent = folder
 
+	-- v53: el camino de en medio TAMBIEN llega hasta la calle de la ciudad.
+	-- Antes terminaba en la calle de la primera hilera (zPrimera): para los
+	-- lotes del lado oriente (como el del usuario, el 5) llegar a la ciudad
+	-- obligaba a dar toda la vuelta hasta el camino principal. Ahora los DOS
+	-- caminos norte-sur tocan RoadZ0 (el medio cae a 6 studs de su orilla
+	-- oriente, medido: RoadZ0 va de x -392 a 242).
 	local m = part({
 		Name = "RoadLotesX2",
-		Size = Vector3.new(ROAD_W, 1, zPrimera - zUltima),
-		Position = Vector3.new(medioX, 0.55, (zPrimera + zUltima) / 2),
+		Size = Vector3.new(ROAD_W, 1, zCiudad - zUltima),
+		Position = Vector3.new(medioX, 0.55, (zCiudad + zUltima) / 2),
 		Color = Color3.fromRGB(48, 48, 52),
 		Material = Enum.Material.Asphalt,
 	})
 	m.Parent = folder
 	local mline = part({
 		Name = "RoadLotesLine",
-		Size = Vector3.new(1.2, 0.2, zPrimera - zUltima),
-		Position = Vector3.new(medioX, 1.12, (zPrimera + zUltima) / 2),
+		Size = Vector3.new(1.2, 0.2, zCiudad - zUltima),
+		Position = Vector3.new(medioX, 1.12, (zCiudad + zUltima) / 2),
 		Color = Color3.fromRGB(220, 190, 70),
 		Material = Enum.Material.SmoothPlastic,
 	})
 	mline.Parent = folder
 
 	-- faroles de los dos caminos norte-sur, intercalados a ambos lados
-	for _, cam in ipairs({ { principalX, zCiudad, zUltima }, { medioX, zPrimera, zUltima } }) do
+	for _, cam in ipairs({ { principalX, zCiudad, zUltima }, { medioX, zCiudad, zUltima } }) do
 		local rx, zA, zB = cam[1], cam[2], cam[3]
 		local pz = zA - 60
 		local lado = 1

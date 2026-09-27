@@ -192,6 +192,49 @@ print(string.format("__CARRO__ piezas=%d lejos=%d bisagras=%d giradas=%d anclada
 local abajo = workspace:Raycast(Vector3.new(body.Position.X, body.Position.Y, body.Position.Z),
   Vector3.new(0, -1, 0) * 40, RaycastParams.new())
 print(string.format("__ALTURA__ %.2f piso=%.2f", body.Position.Y, abajo and abajo.Position.Y or -999))
+
+-- ===== v53: EL PORTON DEL CAJON NO SE VUELA =====
+-- El HomeCF de cada pieza del porton se guardaba en coordenadas del TEMPLATE
+-- (antes del PivotTo que coloca la bodega en su lote): al cerrarse, el porton
+-- se tejia hacia ese HomeCF local y SALIA VOLANDO ~900 studs, al origen del
+-- mundo. Por eso "el porton no aparecia" desde la v44. Main ahora re-sella
+-- los HomeCF con la pose de verdad; si alguien lo rompe, aqui truena.
+do
+  local wh = workspace:FindFirstChild("Warehouse_4242")
+  local portones, volados = 0, 0
+  if wh then
+    for _, dm in ipairs(wh:GetDescendants()) do
+      if dm:IsA("Model") and dm.Name == "GarageDoor" then
+        portones = portones + 1
+        for _, pz in ipairs(dm:GetChildren()) do
+          if pz:IsA("BasePart") then
+            local h = pz:GetAttribute("HomeCF")
+            if h and (h.Position - pz.Position).Magnitude > 1 then
+              volados = volados + 1
+            end
+          end
+        end
+      end
+    end
+  end
+  print(string.format("__PORTON__ portones=%d volados=%d", portones, volados))
+end
+
+-- ===== v53: EL BOTON "AUTO" NO REGRESA EL CARRO A LA BODEGA =====
+-- El bucle de manejo tenia la posicion "de memoria" y deshacia el PivotTo del
+-- summon en el frame siguiente: pelea de ida y vuelta a 60 fps que el jugador
+-- veia como "la van con las piezas revueltas". Ahora el bucle ADOPTA la
+-- postura externa. Se invoca el carro y se mide que SE QUEDE donde aparece.
+do
+  hrp.Position = Vector3.new(0, 8, 0)     -- el jugador se va a la ciudad
+  avanzar(1.0)
+  local rs = RF.OnServerInvoke(yo, "summonCar")
+  avanzar(1.5)
+  local b2 = auto.PrimaryPart
+  local quedo = (b2 and math.abs(b2.Position.X - hrp.Position.X) < 40
+    and math.abs(b2.Position.Z - hrp.Position.Z) < 40)
+  print("__SUMMONQ__ quedo=" .. tostring(quedo) .. " r=" .. tostring(type(rs) == "table" and rs.ok))
+end
 '''
 g = servidor(extra)
 t = tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False)
@@ -244,6 +287,29 @@ else:
     else:
         print("  OK     el auto AVANZA %.0f studs con el acelerador, gira con el volante, "
               "frena, las 4 ruedas giran y el carro viaja entero (sin fisica)" % avance)
+
+# --- v53: portones del cajon con su HomeCF en su lugar (no se vuelan) ---
+mport = re.search(r"__PORTON__ portones=(\d+) volados=(\d+)", sal)
+if not mport or int(mport.group(1)) < 1 or int(mport.group(2)) != 0:
+    fallas += 1
+    print("  FALLA  (el porton del cajon se volaba al cerrarse)")
+    print("         - %s: el HomeCF de las piezas apunta a las coordenadas del template,"
+          " no a su lote: al cerrarse, el porton se va volando al origen del mundo"
+          % (mport.group(0) if mport else "no se pudo medir"))
+else:
+    print("  OK     los %s portones del cajon tienen su HomeCF clavado en su lugar "
+          "(v53: ya no se vuelan al cerrarse)" % mport.group(1))
+
+# --- v53: el boton "Auto" deja el carro donde lo invocaste ---
+msum = re.search(r"__SUMMONQ__ quedo=(\w+) r=(\w+)", sal)
+if not msum or msum.group(1) != "true":
+    fallas += 1
+    print("  FALLA  (el boton Auto del telefono)")
+    print("         - el carro no se quedo donde lo invocaron: el bucle de manejo"
+          " lo regresaba a la bodega (la pelea del PivotTo = la van revuelta)")
+else:
+    print("  OK     el boton Auto deja el carro contigo y ahi se queda (ya no lo"
+          " regresa a la bodega en el frame siguiente)")
 
 # ================================================= 2) LA BICI AFUERA (las dos rutas)
 problemas = []

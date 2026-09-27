@@ -73,7 +73,7 @@ else:
         problemas.append("el SVG del mapa salio vacio o incompleto")
     else:
         svg = open(SALIDA, encoding="utf-8").read()
-        for debe in ("EL MUNDO COMPLETO", "LOS 20 LOTES", "EL LOTE 1",
+        for debe in ("EL MUNDO COMPLETO", "LOS 20 LOTES", "TU LOTE (el 5)",
                      "LAS DOS FACHADAS"):
             if debe not in svg:
                 problemas.append("al mapa le falta la vista '%s'" % debe)

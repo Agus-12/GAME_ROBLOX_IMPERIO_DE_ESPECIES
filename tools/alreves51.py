@@ -15,11 +15,19 @@ Bugs que se prueban:
   5. los caminos norte-sur dejan de existir
   6. el camino principal pegado a la linea de lotes (la v51): toca las paredes de
      las bodegas nivel 4, que no estan centradas en su lote
+  7. (v53) se quita el re-sellado de HomeCF: el porton del cajon vuelve a
+     "cerrarse" hacia las coordenadas del template y se vuela al origen del
+     mundo (el "porton que nunca aparece", reportado desde la v44)
+  8. (v53) se apaga la adopcion de movimientos externos del bucle de manejo:
+     el boton "Auto" vuelve a pelear con el PivotTo y el carro regresa a la
+     bodega ("la van con las piezas una arriba de la otra")
+  9. (v53) el camino de en medio vuelve a quedarse corto (no toca la ciudad):
+     los lotes del lado oriente sin salida directa
 
 NOTA: los casos 1-5 se recuperaron cortados del chat anterior y se conservan
 (los textos de ancla de 1, 2, 4 y 5 son los originales). El caso 3 se ajusto a
 la v52 (la formula ahora suma +121; el bug lo regresa a +71, que era el error
-real de la v51) y el 6 es nuevo de la v52.
+real de la v51) y el 6 es nuevo de la v52. Los 7, 8 y 9 son de la v53.
 """
 import os
 import shutil
@@ -31,55 +39,73 @@ ROOT = os.path.dirname(HERE)
 MAIN = os.path.join(ROOT, "ServerScriptService/Main.luau")
 CITY = os.path.join(ROOT, "ServerScriptService/CityGenerator.luau")
 
-print("=== AL REVES (v52): cada bug reportado tiene que tronar la etapa 26 ===")
+print("=== AL REVES (v53): cada bug reportado tiene que tronar las etapas ===")
 
 CASOS = [
     ("1. la van sale con la altura fija de antes (queda 1 stud arriba del patio)",
      MAIN,
      "local baseCF = CFrame.new(sp.X, sp.Y + 0.05, sp.Z)",
      "local baseCF = CFrame.new(sp.X, 2.05, sp.Z)",
-     None),
+     None, "caminos51.py"),
 
     ("2. el cajon se queda sin su patio (la van vuelve a salir sobre el pasto)",
      CITY,
      "Size = Vector3.new(padAncho, 2, padLargo),",
      "Size = Vector3.new(0.2, 2, padLargo),",
-     None),
+     None, "caminos51.py"),
 
     ("3. la calle de hilera donde la ponia la v51 (+71: debajo de los patios)",
      CITY,
      "return lot.Origin.Z - (r - 1) * lot.SpacingZ + 121",
      "return lot.Origin.Z - (r - 1) * lot.SpacingZ + 71",
-     None),
+     None, "caminos51.py"),
 
     ("4. se pierde la rampa del ultimo lote de cada hilera",
      CITY,
      "for c = 0, lot.PerRow - 1 do\n\t\t\t\tlocal lx = lot.Origin.X + c * lot.SpacingX",
      "for c = 0, lot.PerRow - 2 do\n\t\t\t\tlocal lx = lot.Origin.X + c * lot.SpacingX",
-     None),
+     None, "caminos51.py"),
 
     ("5. los caminos norte-sur dejan de existir",
      CITY,
      "buildLotRoads(city)",
      "do end -- BUG DE PRUEBA: sin los caminos de los lotes",
-     None),
+     None, "caminos51.py"),
 
     ("6. el camino principal pegado a la linea de lotes (toca las bodegas nivel 4)",
      CITY,
      "local principalX = lot.Origin.X + 1.5 * lot.SpacingX - 13.5",
      "local principalX = lot.Origin.X + 1.5 * lot.SpacingX - 0",
-     None),
+     None, "caminos51.py"),
+
+    ("7. sin re-sellar HomeCF: el porton del cajon se vuela al cerrarse",
+     MAIN,
+     "clone:PivotTo(CFrame.new(warehouseSlotPos(slot)))\n\tresellarHome(clone)",
+     "clone:PivotTo(CFrame.new(warehouseSlotPos(slot)))",
+     None, "reportes48.py"),
+
+    ("8. el bucle de manejo no adopta movimientos externos (boton Auto roto)",
+     MAIN,
+     "if (cfb.Position - ultCF.Position).Magnitude > 0.35 then",
+     "if false and (cfb.Position - ultCF.Position).Magnitude > 0.35 then",
+     None, "reportes48.py"),
+
+    ("9. el camino de en medio no llega a la ciudad (lotes oriente sin salida)",
+     CITY,
+     'Name = "RoadLotesX2",\n\t\tSize = Vector3.new(ROAD_W, 1, zCiudad - zUltima),',
+     'Name = "RoadLotesX2",\n\t\tSize = Vector3.new(ROAD_W, 1, zPrimera - zUltima),',
+     None, "caminos51.py"),
 ]
 
 
-def corre_etapa():
-    r = subprocess.run([sys.executable, os.path.join(HERE, "caminos51.py")],
+def corre_etapa(cual):
+    r = subprocess.run([sys.executable, os.path.join(HERE, cual)],
                        capture_output=True, text=True, cwd=ROOT, timeout=900)
     return r.returncode, r.stdout + r.stderr
 
 
 fallas = 0
-for nombre, archivo, bueno, malo, esperado in CASOS:
+for nombre, archivo, bueno, malo, esperado, etapa in CASOS:
     respaldo = "/tmp/alreves51-" + os.path.basename(archivo)
     shutil.copy2(archivo, respaldo)
     try:
@@ -91,7 +117,7 @@ for nombre, archivo, bueno, malo, esperado in CASOS:
             continue
         open(archivo, "w", encoding="utf-8").write(s.replace(bueno, malo))
 
-        code, salida = corre_etapa()
+        code, salida = corre_etapa(etapa)
         linea = ""
         for l in salida.splitlines():
             if "FALLA" in l or l.strip().startswith("- "):
@@ -111,7 +137,7 @@ for nombre, archivo, bueno, malo, esperado in CASOS:
 
 print()
 if fallas:
-    print("FALLA: %d bug(s) que la etapa no caza" % fallas)
+    print("FALLA: %d bug(s) que las etapas no cazan" % fallas)
 else:
-    print("OK: los 6 bugs de las rondas v51/v52 tronaban la etapa 26 (los chequeos sirven)")
+    print("OK: los 9 bugs de las rondas v51-v53 tronaban las etapas (los chequeos sirven)")
 sys.exit(1 if fallas else 0)

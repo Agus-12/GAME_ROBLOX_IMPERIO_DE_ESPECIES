@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v52 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v53 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -576,6 +576,37 @@ local nextCallAt: {[Player]: number} = {}
 
 local warnedCityGen = false
 
+-- ===== v53: RE-SELLAR LOS HomeCF/HomeY DESPUES DE MOVER UNA BODEGA =====
+-- CityGenerator guarda en cada pieza movible su pose de origen (HomeCF/HomeSize,
+-- para el porton del cajon) y su altura (HomeY). Esas poses se guardan al
+-- construir el TEMPLATE, ANTES de que la bodega se mueva a su lote con PivotTo:
+-- quedaban en coordenadas locales. Consecuencia (el bug mas viejo del juego,
+-- reportado desde la v44): al "cerrarse", el porton del cajon se tejia hacia su
+-- HomeCF local y SALIA VOLANDO ~900 studs hasta el origen del mundo; en la
+-- cochera quedaba el hueco vacio ("el porton no aparece"). El sensor de
+-- apertura tambien midia la distancia contra esa pose local. Aqui se re-sellan
+-- las poses YA en coordenadas del mundo, cada vez que una bodega se coloca.
+local function resellarHome(model: Model)
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			if d:GetAttribute("HomeCF") then
+				d:SetAttribute("HomeCF", d.CFrame)
+			end
+			if d:GetAttribute("HomeY") ~= nil then
+				d:SetAttribute("HomeY", d.Position.Y)
+			end
+		end
+	end
+	-- y el piso de cada porton (para enrollarlo a la altura correcta aunque
+	-- la bodega quede a otra altura): la base del propio porton
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("Model") and d.Name == "GarageDoor" and d.PrimaryPart then
+			local pp = d.PrimaryPart
+			d:SetAttribute("PisoY", pp.Position.Y - pp.Size.Y * 0.5)
+		end
+	end
+end
+
 local function assignWarehouse(player: Player): Model
 	-- NUNCA dos bodegas del mismo jugador. Si quedo una vieja (un Main
 	-- duplicado, o el mapa ya guardado dentro del lugar), se borra ANTES de
@@ -614,6 +645,7 @@ local function assignWarehouse(player: Player): Model
 	clone:SetAttribute("OwnerId", player.UserId)
 	clone:SetAttribute("Slot", slot)
 	clone:PivotTo(CFrame.new(warehouseSlotPos(slot)))
+	resellarHome(clone)
 	clone.Parent = Workspace
 
 	-- ¿el CityGenerator es de esta ronda? La rampa del porton (GateApron) llego
@@ -813,6 +845,7 @@ local function ponerVecina(slot: number)
 	m:SetAttribute("Slot", slot)
 	m:SetAttribute("Clausurada", true)
 	m:PivotTo(CFrame.new(warehouseSlotPos(slot)))
+	resellarHome(m)
 	pcall(CityGenerator.VarianteVecina, m, slot)
 	-- nadie toca nada de adentro: sin botones (y los portones se quedan
 	-- cerrados porque el sistema de portones NO se engancha a las vecinas)
@@ -3062,6 +3095,7 @@ local function upgradeWarehouse(player: Player)
 	local newWh = assignWarehouse(player)
 	if cf and newWh then
 		newWh:PivotTo(cf)
+		resellarHome(newWh)   -- v53: el re-colocado rompia los HomeCF otra vez
 	end
 	-- la bodega es nueva: hay que volver a parar a los empleados en sus mesas
 	if syncWorkers then pcall(syncWorkers, player) end
@@ -3722,9 +3756,21 @@ local function summonCar(player: Player)
 	if plano.Magnitude < 0.01 then plano = Vector3.new(0, 0, 1) end
 	plano = plano.Unit
 	local destino = hrp.Position + plano * 18
+	-- v53: la altura ya no es un 3.4 fijito (en terreno alto el carro quedaba
+	-- bajo el piso): se mide el piso con un rayo, como el bucle de manejo.
+	local pisoDestino = 3.4
+	do
+		local rp2 = RaycastParams.new()
+		rp2.FilterType = Enum.RaycastFilterType.Exclude
+		rp2.FilterDescendantsInstances = { car }
+		local abajo = Workspace:Raycast(
+			Vector3.new(destino.X, destino.Y + 80, destino.Z),
+			Vector3.new(0, -300, 0), rp2)
+		if abajo then pisoDestino = abajo.Position.Y end
+	end
 	pcall(function()
-		car:PivotTo(CFrame.lookAt(Vector3.new(destino.X, 3.4, destino.Z),
-			Vector3.new(destino.X, 3.4, destino.Z) + plano))
+		car:PivotTo(CFrame.lookAt(Vector3.new(destino.X, pisoDestino, destino.Z),
+			Vector3.new(destino.X, pisoDestino, destino.Z) + plano))
 	end)
 	if syncGarage then pcall(syncGarage, player) end
 	return true, "Tu auto ya esta aqui adelante"
@@ -3932,6 +3978,13 @@ local function hacerConducible(model: Model, info: any, baseCF: CFrame)
 	local speed = 0
 	local spin = 0
 	local vertVel = 0
+	-- v53: lo ultimo que ESTE bucle escribio en el chasis. Sirve para dos
+	-- cosas: (1) detectar si ALGUIEN MAS movio el carro (el boton "Auto" del
+	-- telefono lo teletransporta con PivotTo) y ADOPTAR la nueva postura en
+	-- vez de regresar el carro a donde estaba — esa pelea de ida y vuelta a
+	-- 60 fps era la "van bugueada" con las piezas revueltas; y (2) no escribir
+	-- nada cuando el carro esta quieto (menos chismorreo de replication).
+	local ultCF = body.CFrame
 
 	local function rayParams(char)
 		local rp = RaycastParams.new()
@@ -3953,6 +4006,28 @@ local function hacerConducible(model: Model, info: any, baseCF: CFrame)
 		local ocupante = seat.Occupant
 		local char = ocupante and ocupante.Parent
 		local rp = rayParams(char)
+
+		-- v53: ¿alguien mas movio el carro? (PivotTo del boton "Auto", un
+		-- teletransporte, lo que venga). Se ADOPTA la postura nueva: la
+		-- alternativa era regresar el carro a la posicion "de memoria" en el
+		-- frame siguiente, y esa pelea se veia como piezas revueltas.
+		local cfb = body.CFrame
+		if (cfb.Position - ultCF.Position).Magnitude > 0.35 then
+			pos = cfb.Position
+			heading = math.atan2(cfb.ZVector.X, cfb.ZVector.Z)
+			vertVel = 0
+			-- y si lo dejaron a media altura o medio enterrado (un
+			-- teletransporte clava el pivote en el piso), se asienta de un
+			-- golpe: esto no es escalon de banqueta, no aplica el tope
+			local rT = Workspace:Raycast(pos + Vector3.new(0, 6, 0),
+				Vector3.new(0, -120, 0), rp)
+			if rT then
+				local gY = rT.Position.Y + RIDE
+				if math.abs(gY - pos.Y) > VEH_MAX_STEP then
+					pos = Vector3.new(pos.X, gY, pos.Z)
+				end
+			end
+		end
 
 		local throttle, steer = 0, 0
 		if ocupante then
@@ -4010,20 +4085,30 @@ local function hacerConducible(model: Model, info: any, baseCF: CFrame)
 			newPos = newPos + Vector3.new(0, vertVel * dt, 0)
 		end
 		pos = newPos
-		body.CFrame = CFrame.new(pos) * CFrame.Angles(0, heading, 0)
+		-- v53: si el carro esta quieto y nadie lo movio, no se escribe NADA
+		-- (antes se re-escribian las 56 piezas en cada frame, aunque el carro
+		-- estuviera parado). Si algo cambio — o acabamos de adoptar una
+		-- postura externa — se escribe y se actualiza ultCF.
+		if math.abs(speed) > 0.01 or vertVel ~= 0
+			or (pos - ultCF.Position).Magnitude > 0.005 then
+			body.CFrame = CFrame.new(pos) * CFrame.Angles(0, heading, 0)
 
-		-- 4) el resto del carro sigue al chasis
-		local cf = body.CFrame
-		for _, r in ipairs(rigidas) do
-			r.part.CFrame = cf * r.off
-		end
-		-- 5) y las ruedas giran (todas las piezas de la rueda con ella)
-		spin = spin + speed * dt / math.max(0.5, (ruedas[1] and ruedas[1].radio) or 1)
-		for _, r in ipairs(ruedas) do
-			local base = cf * r.off
-			for _, d in ipairs(r.grupo) do
-				d.part.CFrame = base * (r.off:Inverse() * d.off) * CFrame.Angles(spin, 0, 0)
+			-- 4) el resto del carro sigue al chasis
+			local cf = body.CFrame
+			for _, r in ipairs(rigidas) do
+				r.part.CFrame = cf * r.off
 			end
+			-- 5) y las ruedas giran (todas las piezas de la rueda con ella)
+			spin = spin + speed * dt / math.max(0.5, (ruedas[1] and ruedas[1].radio) or 1)
+			for _, r in ipairs(ruedas) do
+				local base = cf * r.off
+				for _, d in ipairs(r.grupo) do
+					d.part.CFrame = base * (r.off:Inverse() * d.off) * CFrame.Angles(spin, 0, 0)
+				end
+			end
+			ultCF = body.CFrame
+		elseif (body.CFrame.Position - ultCF.Position).Magnitude > 0.005 then
+			ultCF = body.CFrame   -- postura externa adoptada: se toma por buena
 		end
 	end)
 
@@ -4111,6 +4196,9 @@ local doorTween = TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection
 
 local function ponerPorton(doorModel: Instance, abrir: boolean)
 	local doorH = doorModel:GetAttribute("DoorHeight") or 10
+	-- v53: la altura del piso de ESTE cajon (antes era un 2 fijito en
+	-- coordenadas del template: el rollo enrollado quedaba 1 stud arriba)
+	local pisoY = tonumber(doorModel:GetAttribute("PisoY")) or 2
 	-- el rollo enrollado mide 1.6 de alto y queda pegado bajo el dintel
 	local rollH = 1.6
 	for _, piece in ipairs(doorModel:GetChildren()) do
@@ -4120,8 +4208,8 @@ local function ponerPorton(doorModel: Instance, abrir: boolean)
 			if typeof(homeSize) ~= "Vector3" then homeSize = piece.Size end
 			if abrir then
 				-- que tan arriba esta la pieza dentro del hueco (0 abajo, 1 arriba)
-				local f = math.clamp((home.Position.Y - 2) / doorH, 0, 1)
-				local nuevaY = (2 + doorH) - rollH + f * rollH
+				local f = math.clamp((home.Position.Y - pisoY) / doorH, 0, 1)
+				local nuevaY = (pisoY + doorH) - rollH + f * rollH
 				local nuevaAltura = math.max(0.2, homeSize.Y * (rollH / doorH))
 				local destino = CFrame.new(home.Position.X, nuevaY, home.Position.Z)
 					* (home - home.Position)
