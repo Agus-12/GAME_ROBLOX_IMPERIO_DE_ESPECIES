@@ -43,6 +43,7 @@ para revisar que nada se pierda.
 * **Interiores de las propiedades compradas**: hoy solo tienen fachada.
 
 | 33 | **"La van al spawnearla afuera sale mal"** y **"conecta los lotes con calles a la ciudad, haciendo el trazo por cada lote de manera correcta"** | patio del cajón (`BayApron` + `BayRamp`) y la van nace a la altura del patio (`sp.Y + 0.05`, ya no 2.05 fija); 4 calles de hilera (`RoadLotesZ1..4`), 2 caminos norte-sur (el principal toca la calle de la ciudad), 20 rampas de entrada y 50 faroles | **v51** |
+| 34 | **"mi bodega no es la que marca el mapa (la mía vendría siendo la 5)"**, **"la (bodega vecina) de en medio está como al ras de la calle"**, el portón "sigue sin aparecer" y la van "sigue bugueada" | la calle de la v51 iba DEBAJO de los patios (que crecen con el nivel: +59/+70/+83/+101) -> calles de hilera a **+121** y rampas a z +104..+111; caminos norte-sur al **hueco real** entre columnas (x=-104 y 236: la bodega nivel 4 mide x −160..+133 de su centro); letreros **GARAJE DE <nombre> - LOTE n** (el juego recuerda tu lote del lugar guardado). El portón y la van siguen abiertos esperando los datos del usuario | **v52** |
 ## Lo que se descubrio de tu lado (por que "no cambiaba nada")
 
 1. **v37**: el cliente **se apagaba solo** si veia una interfaz del juego ya puesta en

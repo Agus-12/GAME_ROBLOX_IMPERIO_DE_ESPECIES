@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v51 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v52 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -631,7 +631,10 @@ local function assignWarehouse(player: Player): Model
 	-- la bodega: se veia igual de grande a cualquier distancia y se encimaba con
 	-- los de los vecinos. Ahora es texto pintado en el tablero negro que ya
 	-- existe arriba de los portones del garaje.
-	pcall(CityGenerator.RotularGaraje, clone, "GARAJE DE " .. string.upper(player.Name))
+	-- v52: el letrero ahora tambien dice el LOTE (el usuario reporto que su
+	-- bodega no era la que marcaba el mapa: el juego recuerda el lote de cada
+	-- quien, y hacia falta poder leer cual es el tuyo desde el juego).
+	pcall(CityGenerator.RotularGaraje, clone, "GARAJE DE " .. string.upper(player.Name) .. " - LOTE " .. slot)
 
 	warehouses[player] = clone
 	if initPlants then pcall(initPlants, clone) end
@@ -818,8 +821,8 @@ local function ponerVecina(slot: number)
 	end
 	local puestos = CityGenerator.Clausurar(m)
 	-- v44: el lote sin dueno lo dice en el tablero del garaje (lo pidio el usuario:
-	-- "o 'sin propietario' los que no tienen")
-	pcall(CityGenerator.RotularGaraje, m, "SIN PROPIETARIO")
+	-- "o 'sin propietario' los que no tienen"). v52: con el numero de lote.
+	pcall(CityGenerator.RotularGaraje, m, "SIN PROPIETARIO - LOTE " .. slot)
 	m.Parent = Workspace
 	vecinas[slot] = m
 

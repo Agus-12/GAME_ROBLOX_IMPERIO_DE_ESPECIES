@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AL REVES (v51): cada bug de esta ronda tiene que TRONAR la etapa 26.
+"""AL REVES (v51/v52): cada bug de esta ronda tiene que TRONAR la etapa 26.
 
 La regla del proyecto es no confiar en un chequeo que nunca se vio fallar.
 Aqui se mete el bug DE VERDAD en el archivo real (Main.luau o CityGenerator.luau),
@@ -9,14 +9,17 @@ Bugs que se prueban:
   1. la van sale con la altura fija de antes (2.05): queda 1 stud arriba del piso
      del patio (era "la van al spawnearla afuera sale mal")
   2. el cajon se queda sin su patio (BayApron): la van vuelve a salir sobre el pasto
-  3. una calle de hilera mal puesta (5 studs al sur): se mete en el patio del lote
+  3. la calle de hilera donde la ponia la v51 (+71): queda DEBAJO de los patios de
+     las bodegas nivel 2-4 ("la bodega de en medio esta como al ras de la calle")
   4. se pierde una rampa de entrada (el bucle se corta antes)
   5. los caminos norte-sur dejan de existir
+  6. el camino principal pegado a la linea de lotes (la v51): toca las paredes de
+     las bodegas nivel 4, que no estan centradas en su lote
 
-NOTA: este archivo se recupero cortado del chat anterior (los casos 1-4) y se
-completo siguiendo el patron de alreves48.py / alreves49.py. Los textos de los
-casos 1-4 son LOS MISMOS que escribio el chat anterior, para que sigan siendo
-la prueba al reves de esa ronda.
+NOTA: los casos 1-5 se recuperaron cortados del chat anterior y se conservan
+(los textos de ancla de 1, 2, 4 y 5 son los originales). El caso 3 se ajusto a
+la v52 (la formula ahora suma +121; el bug lo regresa a +71, que era el error
+real de la v51) y el 6 es nuevo de la v52.
 """
 import os
 import shutil
@@ -28,7 +31,7 @@ ROOT = os.path.dirname(HERE)
 MAIN = os.path.join(ROOT, "ServerScriptService/Main.luau")
 CITY = os.path.join(ROOT, "ServerScriptService/CityGenerator.luau")
 
-print("=== AL REVES (v51): cada bug reportado tiene que tronar la etapa 26 ===")
+print("=== AL REVES (v52): cada bug reportado tiene que tronar la etapa 26 ===")
 
 CASOS = [
     ("1. la van sale con la altura fija de antes (queda 1 stud arriba del patio)",
@@ -43,10 +46,10 @@ CASOS = [
      "Size = Vector3.new(0.2, 2, padLargo),",
      None),
 
-    ("3. una calle de hilera mal puesta (cae dentro del patio del lote)",
+    ("3. la calle de hilera donde la ponia la v51 (+71: debajo de los patios)",
      CITY,
+     "return lot.Origin.Z - (r - 1) * lot.SpacingZ + 121",
      "return lot.Origin.Z - (r - 1) * lot.SpacingZ + 71",
-     "return lot.Origin.Z - (r - 1) * lot.SpacingZ + 40",
      None),
 
     ("4. se pierde la rampa del ultimo lote de cada hilera",
@@ -59,6 +62,12 @@ CASOS = [
      CITY,
      "buildLotRoads(city)",
      "do end -- BUG DE PRUEBA: sin los caminos de los lotes",
+     None),
+
+    ("6. el camino principal pegado a la linea de lotes (toca las bodegas nivel 4)",
+     CITY,
+     "local principalX = lot.Origin.X + 1.5 * lot.SpacingX - 13.5",
+     "local principalX = lot.Origin.X + 1.5 * lot.SpacingX - 0",
      None),
 ]
 
@@ -85,7 +94,7 @@ for nombre, archivo, bueno, malo, esperado in CASOS:
         code, salida = corre_etapa()
         linea = ""
         for l in salida.splitlines():
-            if "FALLA" in l or "- " in l[:12]:
+            if "FALLA" in l or l.strip().startswith("- "):
                 linea = l.strip()
                 if linea.startswith("- "):
                     break
@@ -104,5 +113,5 @@ print()
 if fallas:
     print("FALLA: %d bug(s) que la etapa no caza" % fallas)
 else:
-    print("OK: los 5 bugs de la ronda v51 tronaban la etapa 26 (los chequeos sirven)")
+    print("OK: los 6 bugs de las rondas v51/v52 tronaban la etapa 26 (los chequeos sirven)")
 sys.exit(1 if fallas else 0)

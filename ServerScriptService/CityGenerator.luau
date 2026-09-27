@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v51 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v52 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ServerScriptService.CityGenerator
 -- Genera la ciudad completa por codigo: calles, cuadras, edificios,
@@ -4921,30 +4921,39 @@ function CityGenerator.BuildAgent(): Model
 end
 
 ----------------------------------------------------------------------
--- v51: LOS CAMINOS DE LOS LOTES DE JUGADOR
+-- v52: LOS CAMINOS DE LOS LOTES DE JUGADOR
 ----------------------------------------------------------------------
 -- Pedido del usuario: "quiero que los conectes con calles a la ciudad ...
 -- haciendo el trazo por cada lote de manera correcta". El trazo:
---   * 4 calles de hilera (RoadLotesZ1..Z4): una justo en la linea de
---     enfrente de cada hilera de 5 lotes, a +71 del centro de SU hilera.
---     Con 20 de ancho quedan a +61..+81: NI un stud dentro del patio del
---     fondo de nadie (la regla de los lotes es: la calle puede pasar por
---     el frente, donde esta el patio con bolardos, pero jamas cruzar la
---     nave, el taller o el patio de atras).
+--   * 4 calles de hilera (RoadLotesZ1..Z4): una al frente de cada hilera
+--     de 5 lotes, a +121 del centro de SU hilera (v52: la v51 las ponia a
+--     +71 y quedaban DEBAJO de los patios de las bodegas nivel 2-4, que
+--     crecen hasta +101; el usuario lo reporto: "la bodega de en medio
+--     esta como al ras de la calle"). Con 20 de ancho van de +111 a +131:
+--     diez studs mas alla del patio mas grande, pase lo que pase con el
+--     nivel de cada bodega.
 --   * 2 caminos norte-sur: el principal (RoadLotesX) baja derecho desde la
 --     calle mas al sur de la ciudad (RoadZ0) por el callejon entre la 2a y
 --     la 3a columna de lotes; el de en medio (RoadLotesX2) va entre la 3a y
---     la 4a y cierra el circuito entre las 4 hileras.
---   * 20 rampas de entrada (RoadLoteRamp): una por lote, frente al cajon
---     del taller, para subir del pasto (que queda 1.5 studs abajo) a la
---     calle de su hilera.
+--     la 4a y cierra el circuito entre las 4 hileras. Van centrados en el
+--     hueco REAL entre bodegas nivel 4 (13.5 studs al poniente de la linea
+--     de lotes), no pegados a sus paredes.
+--   * 20 rampas de entrada (RoadLoteRamp): una por lote, en la franja de
+--     pasto entre el patio y la calle, para bajar de la calle al terreno.
 --   * faroles a lo largo de todos los caminos nuevos.
 local ROAD_W = 20        -- ancho de los caminos de los lotes (la ciudad usa 34)
 local POLE_EVERY = 160   -- un farol cada tantos studs
 
--- la z de la calle de la hilera r: 71 studs al norte del centro de ESA hilera
+-- la z de la calle de la hilera r. v52: va a +121 del centro de la hilera.
+-- La v51 la ponia a +71 y el usuario reporto "la bodega (vecina) de en medio
+-- esta como al ras de la calle": el patio del frente CREE con el nivel de la
+-- bodega (medido: nivel 1 llega a +59, nivel 2 a +70, nivel 3 a +83 y nivel 4
+-- a +101) y las calles de la v51 (+61..+81) quedaban DEBAJO de los patios de
+-- los niveles 2-4. Ahora el borde sur de la calle va en +107: 6 studs mas
+-- alla del patio mas grande (con margen), y queda libre la franja de pasto
+-- donde puede estar el patio de cualquier nivel.
 local function hileraZ(lot, r)
-	return lot.Origin.Z - (r - 1) * lot.SpacingZ + 71
+	return lot.Origin.Z - (r - 1) * lot.SpacingZ + 121
 end
 
 local function buildLotRoads(folder)
@@ -4985,11 +4994,17 @@ local function buildLotRoads(folder)
 	end
 
 	-- ===== 2) los caminos norte-sur =====
+	-- v52: van centrados en el CALLEJON REAL entre las bodegas, no en la linea
+	-- de los lotes. Medido: una bodega nivel 4 mide 293 de ancho y NO esta
+	-- centrada en su lote (se va 160 al poniente y 133 al oriente), asi que el
+	-- hueco libre entre dos columnas de nivel 4 queda 13.5 studs al poniente
+	-- de la linea. Con la v51 (-90 y 250) el camino pegaba justo con la orilla
+	-- de las bodegas grandes.
 	local zCiudad = CityGenerator.CellToWorld(0, 0).Z - CELL * 0.5  -- la calle RoadZ0
 	local zPrimera = hileraZ(lot, 1)
 	local zUltima = hileraZ(lot, filas)
-	local principalX = lot.Origin.X + 1.5 * lot.SpacingX  -- callejon entre la 2a y 3a columna
-	local medioX = lot.Origin.X + 2.5 * lot.SpacingX      -- callejon entre la 3a y 4a columna
+	local principalX = lot.Origin.X + 1.5 * lot.SpacingX - 13.5  -- callejon entre la 2a y 3a columna
+	local medioX = lot.Origin.X + 2.5 * lot.SpacingX - 13.5      -- callejon entre la 3a y 4a columna
 
 	local p = part({
 		Name = "RoadLotesX",
@@ -5038,11 +5053,11 @@ local function buildLotRoads(folder)
 	end
 
 	-- ===== 3) las 20 rampas de entrada: una por lote =====
-	-- Del pasto del frente (y=-0.49) suben a la calle de su hilera (y=1.05),
-	-- frente al cajon del taller de ese lote (por ahi sale la van). El largo
-	-- del prisma es EXACTO (sin el +0.4 de solape de GateApron) para que su
-	-- orilla sur caiga clavada en la linea de los +54 y no meta un dedo
-	-- dentro del lote.
+	-- v52: bajan de la orilla sur de la calle (y=1.05) al PASTO (y=0.2), en
+	-- la franja que queda libre al norte del patio mas grande (nivel 4 llega
+	-- a +101; la rampa ocupa +104..+111). Asi sirven igual sin importar el
+	-- nivel de la bodega de ese lote (la v51 las pegaba dentro de los patios
+	-- de los niveles 2-4). Frente al cajon del taller, por donde sale la van.
 	do
 		for r = 1, filas do
 			local zc = hileraZ(lot, r)
@@ -5050,7 +5065,7 @@ local function buildLotRoads(folder)
 				local lx = lot.Origin.X + c * lot.SpacingX
 				local zAlta = zc - ROAD_W / 2      -- la orilla sur de la calle
 				local run = 7
-				local drop = 1.54                  -- de la calle (1.05) al pasto (-0.49)
+				local drop = 0.85                  -- de la calle (1.05) al pasto (0.2)
 				local ang = math.atan(drop / run)
 				local ramp = part({
 					Name = "RoadLoteRamp",

@@ -2,7 +2,7 @@
 
 > **Para el siguiente asistente / desarrollador que tome este proyecto.**
 > Este archivo es el cerebro. Si solo vas a leer un documento, que sea este.
-> Última actualización: **v51** · 27 sep 2026
+> Última actualización: **v52** · 27 sep 2026
 
 ---
 
@@ -13,7 +13,7 @@
 | **Qué es** | Juego de Roblox: mundo abierto estilo GTA + tycoon empresarial |
 | **Cómo se entrega** | Scripts sueltos para copiar y pegar en Studio. **NO es un proyecto Rojo** |
 | **Idioma con el usuario** | Español, tono casual mexicano |
-| **Versión actual** | v51 |
+| **Versión actual** | v52 |
 | **Estado** | Jugable. Todo lo entregado funciona salvo lo listado en "Bugs abiertos" |
 
 ### ✅ Qué se cerró en la v28 (léelo antes de tocar geometría)
@@ -183,6 +183,24 @@ de `Main` ya lo habia borrado, y lo que quedaba era basura de carpetas. Tres pro
 | El cliente agarraba "la carpeta mas grande" | agarra **la que trae la etiqueta `Build`** de esta ronda (si no hay, la de nombre exacto, y de ultimo la mas grande) |
 | El cartel decia "eso significa que hay 2 Scripts Main pegados" aunque no fuera cierto | dice lo que encontro, con **el nombre de cada carpeta y si tiene etiqueta o no** |
 | No habia forma de saber si una `Remotes` aparecia despues de arrancar | `Main` **revisa a los 5 s y a los 15 s**; si encuentra otra, lo imprime fuerte (eso solo pasa si hay un segundo `Main` corriendo) y siempre imprime `carpetas Remotes en ReplicatedStorage: 1 (debe ser 1)` |
+
+### 🆕 Qué se cerró en la v52 (la calle FUERA de las bodegas)
+
+Reporte del usuario tras probar la v51: *"mi bodega no es la que marca el mapa
+(la mía vendría siendo la 5)"*, *"la (vecina) de en medio está como al ras de
+la calle"*, el portón "sigue sin aparecer" y la van "sigue bugueada".
+
+| Lo que se hizo | Detalle |
+|---|---|
+| Calles de hilera a **+121** | El patio del frente CRECE con el nivel (+59 / +70 / +83 / +101 desde el centro del lote): la calle de la v51 (+61..+81) quedaba DEBAJO de los patios 2-4 y las rampas (+54..+61) DENTRO de esas bodegas. Ahora van a +121 (franja z +111..+131): 10 studs de pasto hasta el patio más grande |
+| Rampa v2 | z +104..+111 (7 de largo, baja 0.85), frente al cajón del taller (x lx-48): afuera de cualquier bodega hasta nivel 4 |
+| Caminos NS al **hueco real** | La bodega nivel 4 mide x −160..+133 de su centro (NO está centrada): el hueco entre columnas queda 13.5 studs al poniente de la línea. Principal x=-104 (z −1319..−485, toca `RoadZ0`) y medio x=236 (z −1319..−539) |
+| Letreros con LOTE | **`GARAJE DE <nombre> - LOTE n`** y **`SIN PROPIETARIO - LOTE n`**: el juego RECUERDA tu lote (atributo `Slot` en `Warehouse_<UserId>` del lugar guardado) — por eso su bodega "era la 5": es la suya de verdad |
+| Chequeo `__TOCAN__` nuevo | La etapa 26 construye bodegas nivel 1-4 en los lotes 1-4 y exige que ni calles ni rampas las toquen (margen 2 studs). Cazó mi propia rampa al primer intento (por eso la calle terminó en +121). alreves **6/6** |
+
+**Sigue abierto:** el portón (¿el chico del cajón o el grande de la nave?) y la
+van (¿qué ronda dice la placa verde? — si dice v51 o menos, el arreglo de la
+van todavía no estaba pegado en Studio). Preguntado al usuario al entregar la v52.
 
 ### 🆕 Qué se cerró en la v51 (las calles de los lotes y la van)
 

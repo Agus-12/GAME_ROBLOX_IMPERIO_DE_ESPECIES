@@ -12,6 +12,15 @@ Lo que reporto y pidio el usuario:
     calle de la ciudad; el de en medio cierra el circuito), 20 rampas de entrada
     (una por lote) y faroles.
 
+v52: el usuario reporto "la bodega (vecina) de en medio esta como al ras de
+la calle" — el patio del frente CREE con el nivel de la bodega (nivel 4 llega
+a +101 del centro) y las calles de la v51 (+61..+81) quedaban DEBAJO de los
+patios niveles 2-4. Ahora las calles van a +121 (sur en +111: 10 studs mas
+alla del patio mas grande), los caminos norte-sur van centrados en el hueco
+real entre bodegas nivel 4 (13.5 al poniente de la linea de lotes) y las
+rampas bajan al pasto. NUEVO chequeo: ninguna calle/rampa toca una bodega de
+ningun nivel (se construyen los 4 niveles en los lotes 1..4 y se miden).
+
 Aqui se mide TODO con el mundo real armado por el simulador: ni un numero a mano.
 """
 import os
@@ -56,14 +65,17 @@ print(string.format("__CONTA__ calleshilera=%d caminosNS=%d rampas=%d faroles=%d
   (c.RoadLotesZ1 or 0) + (c.RoadLotesZ2 or 0) + (c.RoadLotesZ3 or 0) + (c.RoadLotesZ4 or 0),
   (c.RoadLotesX or 0) + (c.RoadLotesX2 or 0), c.RoadLoteRamp or 0, c.LightPole or 0))
 
--- las 4 calles de hilera: 71 studs al norte del centro de SU hilera y cubren los 5 lotes
+-- las 4 calles de hilera: a +117 del centro de SU hilera (v52: la v51 las
+-- ponia a +71 y los patios de las bodegas niveles 2-4 llegan hasta +101,
+-- o sea que la calle quedaba DEBAJO del patio: "la bodega de en medio esta
+-- como al ras de la calle"). Cubren los 5 lotes.
 local malas = {}
 for r = 1, 4 do
   local d = mundo:FindFirstChild("RoadLotesZ" .. r, true)
   if not d then
     table.insert(malas, "falta la calle de la hilera " .. r)
   else
-    local esperado = L_.Origin.Z - (r - 1) * L_.SpacingZ + 71
+    local esperado = L_.Origin.Z - (r - 1) * L_.SpacingZ + 121
     if math.abs(d.Position.Z - esperado) > 0.6 then
       table.insert(malas, string.format("la calle de la hilera %d esta en z=%.1f y deberia ir en %.1f",
         r, d.Position.Z, esperado))
@@ -119,6 +131,46 @@ for slot = 1, L_.MaxSlots do
   end
 end
 print("__ESTORBOS__ " .. (#estorbos == 0 and "ninguno" or table.concat(estorbos, " ; ")))
+
+-- ===== 2b) NINGUNA calle toca la bodega de NINGUN nivel =====
+-- (v52: este chequeo faltaba y por eso la v51 salio con la calle debajo de
+-- los patios: el patio del frente CREE con el nivel. Se construye cada
+-- nivel en los lotes 1..4 y se revisa que ningun camino la toque, con 2
+-- studs de margen. Nace del reporte real: "la bodega de en medio esta como
+-- al ras de la calle").
+local tocan = {}
+for tier = 1, 4 do
+  for lote = 1, 4 do
+    local col = (lote - 1) % L_.PerRow
+    local bx = L_.Origin.X + col * L_.SpacingX
+    local m2 = City.BuildWarehouse(tier)
+    m2:PivotTo(CFrame.new(bx, L_.Origin.Y, L_.Origin.Z))
+    m2.Parent = workspace
+    local x0, x1, z0, z1 = 1e9, -1e9, 1e9, -1e9
+    for _, d in ipairs(m2:GetDescendants()) do
+      if d:IsA("BasePart") then
+        x0 = math.min(x0, d.Position.X - d.Size.X / 2)
+        x1 = math.max(x1, d.Position.X + d.Size.X / 2)
+        z0 = math.min(z0, d.Position.Z - d.Size.Z / 2)
+        z1 = math.max(z1, d.Position.Z + d.Size.Z / 2)
+      end
+    end
+    for _, d in ipairs(mundo:GetDescendants()) do
+      if d:IsA("BasePart") and (d.Name:sub(1, 9) == "RoadLotes" or d.Name == "RoadLoteRamp") then
+        local rx0 = d.Position.X - d.Size.X / 2
+        local rx1 = d.Position.X + d.Size.X / 2
+        local rz0 = d.Position.Z - d.Size.Z / 2
+        local rz1 = d.Position.Z + d.Size.Z / 2
+        if rx0 < x1 + 2 and rx1 > x0 - 2 and rz0 < z1 + 2 and rz1 > z0 - 2 then
+          table.insert(tocan, string.format("%s toca la bodega nivel %d en el lote %d (frente z=%.0f contra calle z=%.0f)",
+            d.Name, tier, lote, z1 - L_.Origin.Z, rz0 - L_.Origin.Z))
+        end
+      end
+    end
+    m2:Destroy()
+  end
+end
+print("__TOCAN__ " .. (#tocan == 0 and "ninguna" or table.concat(tocan, " ; ")))
 
 -- ===== 3) el patio del cajon y la van =====
 local base = Vector3.new(L_.Origin.X, L_.Origin.Y, L_.Origin.Z)
@@ -204,6 +256,9 @@ if not m3 or m3.group(1).strip() != "true":
 m4 = re.search(r"__ESTORBOS__ (.+)", salida)
 if not m4 or m4.group(1) != "ninguno":
     problemas.append("calles metidas dentro de un lote: " + (m4.group(1) if m4 else "?"))
+m5 = re.search(r"__TOCAN__ (.+)", salida)
+if not m5 or m5.group(1).strip() != "ninguna":
+    problemas.append("calles tocando bodegas (v52): " + (m5.group(1) if m5 else "?"))
 v1 = re.search(r"__VAN__ z ([-\d.]+)\.\.([-\d.]+) \(patio ([-\d.]+)\.\.([-\d.]+)\) x ([-\d.]+)\.\.([-\d.]+) \(patio ([-\d.]+)\.\.([-\d.]+)\) ruedas_y=([-\d.]+) \(patio tope=([-\d.]+)\)", salida)
 if not v1:
     problemas.append("no se pudo medir la van al salir")

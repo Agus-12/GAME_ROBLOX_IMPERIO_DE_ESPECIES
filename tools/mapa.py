@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MAPA COMPLETO DEL MUNDO (v51) — para poder VERLO sin abrir Studio.
+"""MAPA COMPLETO DEL MUNDO (v52) — para poder VERLO sin abrir Studio.
 
 Pide el usuario: "mandame la vista del lote... pero si puedes reconstruir literal
 todo estaria mejor, lo del lote y los lotes vecinales para que puedas entenderlo
@@ -11,8 +11,9 @@ vecinos con su estado: sin dueno / clausurado) y dibuja CUATRO vistas:
 
   1. LA CIUDAD COMPLETA, de arriba: el suelo, el agua, las calles de la ciudad y
      donde caen la reja, las tiendas y el spawn (rejilla de 500 studs).
-  2. LOS 20 LOTES: la rejilla 5 x 4 con el numero de lote, cual es TU lote (1) y
-     a que distancia queda la ciudad.
+  2. LOS 20 LOTES: la rejilla 5 x 4 con el numero de cada lote y a que distancia
+     queda la ciudad (el resaltado es el 1: el que te dan al empezar; con partida
+     guardada el juego te devuelve TU lote de antes, que puede ser otro numero).
   3. TU LOTE en detalle, de arriba: la nave, el taller/cochera con su porton, la
      oficina, el patio, los bolardos, la reja y DONDE NACE LA BICI.
   4. TU LOTE de frente: la fachada de la nave y la del garaje con su placa, con
@@ -210,7 +211,7 @@ def vista_ciudad(ciudad, datos):
            'viewBox="0 0 %d %d" font-family="monospace">' % (W, H, W, H),
            '<rect width="100%%" height="100%%" fill="#0d0d14"/>',
            '<text x="24" y="36" fill="#f5c45c" font-size="23">'
-           'EL MUNDO COMPLETO (v51) — visto de arriba, 1 cuadro de la rejilla = 200 studs'
+           'EL MUNDO COMPLETO (v52) — visto de arriba, 1 cuadro de la rejilla = 200 studs'
            '</text>',
            '<text x="24" y="60" fill="#a9a9bd" font-size="14">'
            'las 14 mil piezas del juego: el suelo, la ciudad con sus 10 calles y sus 7 '
@@ -277,7 +278,7 @@ def vista_ciudad(ciudad, datos):
     out.append('<rect x="%.1f" y="%.1f" width="360" height="26" fill="#0d0d14"/>'
                % (lx0, lz0 - 30))
     out.append('<text x="%.1f" y="%.1f" fill="#ffd479" font-size="16" '
-               'font-weight="bold">LOS 20 LOTES DE JUGADOR (tu lote es el 1)</text>'
+               'font-weight="bold">LOS 20 LOTES DE JUGADOR (el juego recuerda cual es el tuyo)</text>'
                % (lx0 + 5, lz0 - 11))
     # los 20 lotes, uno por uno, con su numero
     for i in range(datos["max"]):
@@ -301,8 +302,8 @@ def vista_ciudad(ciudad, datos):
     out.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#ffd479" '
                'stroke-width="2"/>' % (l1x, lz0, l1x, l1z))
     out.append('<text x="%.1f" y="%.1f" fill="#ffd479" font-size="14">'
-               'el 1 es TU LOTE (x=%.0f z=%.0f): la bodega, el taller y la bici '
-               '— el detalle va en el cuadro de abajo</text>'
+               'el 1 es el que te dan al EMPEZAR (x=%.0f z=%.0f); con partida guardada, el '
+               'juego te devuelve TU lote de antes — detalle en el cuadro de abajo</text>'
                % (lx0 + 8, lz1 + 22, datos["ox"], datos["oz"]))
     out.append('</svg>')
     return "\n".join(out)
@@ -330,8 +331,9 @@ def vista_lotes(datos):
            '<text x="24" y="34" fill="#f5c45c" font-size="22">'
            'LOS 20 LOTES (5 x 4) — la huella de cada lote es de 271 x 160 studs, separados 340 en x y 260 en z</text>',
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
-           'el 1 es TU lote; los demas se llenan con bodegas vecinas (y se clausuran '
-           'cuando su dueno se va)</text>']
+           'el 1 es el que te dan al empezar; el juego te RECUERDA tu lote si ya tienes '
+           'partida (por eso tu bodega puede ser otra). Los demas se llenan con bodegas '
+           'vecinas y se clausuran cuando su dueno se va</text>']
     for i in range(datos["max"]):
         fila = i // datos["porFila"]
         c = i % datos["porFila"]
@@ -349,7 +351,7 @@ def vista_lotes(datos):
         out.append('<text x="%.1f" y="%.1f" fill="%s" font-size="%d">%s</text>'
                    % (x + w / 2 - 10, y + h / 2 + 5,
                       "#ffd479" if esMio else "#6c6c8a", 20 if esMio else 15,
-                      ("TU LOTE" if esMio else str(i + 1))))
+                      ("1 (nuevo)" if esMio else str(i + 1))))
         out.append('<text x="%.1f" y="%.1f" fill="#3d3d55" font-size="11">'
                    'x=%.0f z=%.0f</text>' % (x + 6, y + h - 8, lx, lz))
     # la etiqueta de la ciudad
@@ -381,11 +383,11 @@ def vista_lote_detalle(lote, datos):
            'viewBox="0 0 %d %d" font-family="monospace">' % (W, H, W, H),
            '<rect width="100%%" height="100%%" fill="#0d0d14"/>',
            '<text x="24" y="34" fill="#f5c45c" font-size="23">'
-           'TU LOTE (el 1) DE ARRIBA — las %d piezas reales, con la calle arriba</text>'
+           'EL LOTE 1 (el que te dan al empezar) DE ARRIBA — las %d piezas reales</text>'
            % len(piezas),
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
-           'arriba esta la calle (la bici nace alli); la nave con su porton queda en medio '
-           'y el patio del fondo</text>']
+           'la nave con su porton queda en medio y el patio del fondo; la bici nace en el '
+           'pasto, 12 studs mas alla de la orilla del patio</text>']
     orden = sorted(piezas, key=lambda p: (p["y"], -(p["sx"] * p["sz"])))
     for p in orden:
         w = max(1.5, p["sx"] * e)
@@ -433,7 +435,7 @@ def vista_lote_detalle(lote, datos):
                    'stroke="#3a3a4c"/>'
                    % (X(x0), Z(z1), ancho * e, 26))
         out.append('<text x="%.1f" y="%.1f" fill="#7ad1ff" font-size="14">'
-                   'LA CALLE (la bici nace aqui, 12 studs mas alla de tu terreno)</text>'
+                   'LA CALLE DE LA HILERA (v52: pasa a 31 studs del borde del terreno; la bici nace en el pasto, 12 studs mas alla)</text>'
                    % (X(x0) + 8, Z(z1) + 18))
     # la calle y el punto donde nace la bici
     OFFSET_BICI = offset_bici()
@@ -466,7 +468,7 @@ def vista_fachadas(lote):
            'viewBox="0 0 %d %d" font-family="monospace">' % (W, H, W, H),
            '<rect width="100%%" height="100%%" fill="#0d0d14"/>',
            '<text x="24" y="34" fill="#f5c45c" font-size="23">'
-           'LAS DOS FACHADAS DE TU LOTE (v51) — parado en el patio</text>',
+           'LAS DOS FACHADAS DE TU LOTE (v52) — parado en el patio</text>',
            '<text x="24" y="58" fill="#a9a9bd" font-size="14">'
            'izquierda: LA NAVE (la bodega) con su porton grande; derecha: EL CAJON DEL '
            'COCHE con su porton de cortina. Medidas y textos tal cual el juego</text>']
