@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v54 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v55 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- LocalScript -> StarterPlayer.StarterPlayerScripts.ClientUI
 -- HUD, telefono con alertas, tiendas y controles.
@@ -19,7 +19,7 @@ local MIS_GUIS: {[any]: boolean} = {}
 -- Declarado ARRIBA de todo a proposito: lo usan funciones de mas abajo y, si se
 -- declara despues, en Lua se lee un global nil (comparacion siempre falsa, sin
 -- tronar). Ya paso una vez y lo cazaron tools/globals.py y tools/copias.py.
-local MI_VERSION = "v54"
+local MI_VERSION = "v55"
 local RONDA_NUM = tonumber(string.match(MI_VERSION, "%d+") or "0") or 0
 -- en que ronda aparecio cada remote (para poder decir QUE archivo pegar)
 local DESDE = {
@@ -2720,6 +2720,29 @@ do
 				snd.PlaybackSpeed = base * (0.96 + math.random() * 0.08)
 				snd:Play()
 			end
+		end)
+	end
+end
+
+----------------------------------------------------------------------
+-- v55: MUSICA AMBIENTE
+----------------------------------------------------------------------
+-- La ciudad de fondo (tardes, trafico lejano, una sirena a lo lejos): un
+-- loop bajito que suena TODO el tiempo y le da vida al mapa. Va en el
+-- SoundService, no en el gui: el gui se destruye al respawnear y la musica
+-- se cortaria cada vez que mueres. Aqui sobrevive.
+do
+	local M = Config.Sounds and Config.Sounds.Music
+	if M and Config.Sounds.Enabled then
+		pcall(function()
+			local m = Instance.new("Sound")
+			m.Name = "MusicaFondo"
+			m.SoundId = M.Id
+			m.Volume = M.Volume or 0.18
+			m.PlaybackSpeed = M.Pitch or 1
+			m.Looped = true
+			m.Parent = game:GetService("SoundService")
+			m:Play()
 		end)
 	end
 end

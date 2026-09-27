@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v54 =====   <-- Ctrl+F con este texto para saber si este archivo
+-- ===== RONDA: v55 =====   <-- Ctrl+F con este texto para saber si este archivo
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- ModuleScript -> ReplicatedStorage.GameConfig
 -- Todos los numeros del juego viven aqui. Cambia esto para balancear.
@@ -13,7 +13,7 @@ local GameConfig = {}
 -- ClientUI nuevo con un Main.luau de hace 8 rondas, y lo unico que veia era
 -- "faltan remotes" sin ninguna pista de que pegar.
 -- Al subir de ronda: cambia esto, MI_VERSION en ClientUI.luau y CAMBIOS-vN.md.
-GameConfig.Build = "v54"
+GameConfig.Build = "v55"
 
 -- ========== ECONOMIA ==========
 GameConfig.StartingCash = 500
@@ -581,6 +581,18 @@ GameConfig.Sounds = {
 
 	-- porton de la bodega / del taller: metal subiendo
 	Gate    = { Id = "rbxassetid://9125672726", Volume = 0.60, Pitch = 0.55 },
+
+	-- ===== v55: LOOPS (no son efectos de un golpe: suenan mientras dura la
+	-- cosa). Verificados contra la API como los demas (ProSoundEffects,
+	-- publicos y permanentes). El tono de estos lo mueve el juego segun la
+	-- velocidad: el Pitch de aqui es la BASE.
+	-- motor de la van/carros mientras los manejas (idle constante; a 0.72
+	-- suena a motor de camioneta y no a nave)
+	Engine  = { Id = "rbxassetid://9119386571", Volume = 0.40, Pitch = 0.72 },
+	-- rodada de la bici (gravilla constante; el volumen sube con la velocidad)
+	Rolling = { Id = "rbxassetid://9126157444", Volume = 0.35, Pitch = 1.10 },
+	-- musica ambiente: la ciudad de fondo (tardes, sirena lejana), bajita
+	Music   = { Id = "rbxassetid://9112758500", Volume = 0.18, Pitch = 1.00 },
 }
 
 return GameConfig

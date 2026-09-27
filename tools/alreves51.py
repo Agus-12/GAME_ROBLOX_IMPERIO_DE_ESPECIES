@@ -34,11 +34,14 @@ Bugs que se prueban:
   12. (v54) se pierde el tercer camino norte-sur (el callejon del oriente):
      la esquina oriente de los lotes vuelve a quedar a ~500 studs del asfalto
      ("las calles de la esquina quedan desconectadas")
+  13. (v55) se apaga el Play del motor: la van se arma bien pero al manejarla
+     no se oye nada ("le falta sonido al juego")
+  14. (v55) la musica ambiente nunca arranca: entras y el mapa esta mudo
 
 NOTA: los casos 1-5 se recuperaron cortados del chat anterior y se conservan
 (los textos de ancla de 1, 2, 4 y 5 son los originales). El caso 3 se ajusto a
 la v52 (la formula ahora suma +121; el bug lo regresa a +71, que era el error
-real de la v51) y el 6 es nuevo de la v52. Los 7, 8 y 9 son de la v53. Los 10, 11 y 12 de la v54.
+real de la v51) y el 6 es nuevo de la v52. Los 7, 8 y 9 son de la v53. Los 10, 11 y 12 de la v54. Los 13 y 14 de la v55.
 """
 import os
 import shutil
@@ -49,8 +52,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 MAIN = os.path.join(ROOT, "ServerScriptService/Main.luau")
 CITY = os.path.join(ROOT, "ServerScriptService/CityGenerator.luau")
+CLIENTE = os.path.join(ROOT, "StarterPlayerScripts/ClientUI.luau")
 
-print("=== AL REVES (v54): cada bug reportado tiene que tronar las etapas ===")
+print("=== AL REVES (v55): cada bug reportado tiene que tronar las etapas ===")
 
 CASOS = [
     ("1. la van sale con la altura fija de antes (queda 1 stud arriba del patio)",
@@ -137,6 +141,18 @@ CASOS = [
      'Name = "RoadLotesX3",',
      'Name = "RoadLotesX3OFF",',
      "caminos norte-sur", "caminos51.py"),
+
+    ("13. (v55) nadie le da Play al motor: la van existe pero sigue muda al manejar",
+     MAIN,
+     "if motor then\n\t\t\tif ocupante then\n\t\t\t\tif not motor.IsPlaying then pcall(function() motor:Play() end) end",
+     "if false and motor then\n\t\t\tif ocupante then\n\t\t\t\tif not motor.IsPlaying then pcall(function() motor:Play() end) end",
+     "motor NO suena", "sonido55.py"),
+
+    ("14. (v55) la musica ambiente nunca arranca: el mapa entra mudo",
+     CLIENTE,
+     "m.Looped = true\n\t\t\tm.Parent = game:GetService(\"SoundService\")\n\t\t\tm:Play()",
+     "m.Looped = true\n\t\t\tm.Parent = game:GetService(\"SoundService\")\n\t\t\tdo end -- BUG DE PRUEBA: la musica nunca arranca",
+     "no esta sonando", "sonido55.py"),
 ]
 
 
@@ -181,5 +197,5 @@ print()
 if fallas:
     print("FALLA: %d bug(s) que las etapas no cazan" % fallas)
 else:
-    print("OK: los 12 bugs de las rondas v51-v54 tronaban las etapas (los chequeos sirven)")
+    print("OK: los 14 bugs de las rondas v51-v55 tronaban las etapas (los chequeos sirven)")
 sys.exit(1 if fallas else 0)

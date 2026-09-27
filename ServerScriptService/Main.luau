@@ -1,5 +1,5 @@
 --!strict
--- ===== RONDA: v54 =====   <-- Ctrl+F con este texto para saber si este script
+-- ===== RONDA: v55 =====   <-- Ctrl+F con este texto para saber si este script
 --                             es el de la ronda nueva (docs/09-SI-SALE-DOBLE.md)
 -- Script (normal) -> ServerScriptService.Main
 -- Nucleo del servidor: mapa, bodegas, produccion, venta, heat, aduanas,
@@ -3543,6 +3543,33 @@ function spawnBike(player: Player)
 	local vertVel = 0
 	local lean = 0
 
+	-- ===== v55: SONIDO DE RODADA (la bici no tiene motor) =====
+	-- Gravilla constante posicionada en el chasis: el volumen sube con la
+	-- velocidad (parada no suena; a todo lo que da la bici, se oye rodar).
+	local rodada: Sound? = nil
+	local rodadaBase = 1.0
+	local rodadaVol = 0.35
+	do
+		local sdef = Config.Sounds and Config.Sounds.Rolling
+		if sdef and Config.Sounds.Enabled then
+			local okS, sd = pcall(function()
+				local s = Instance.new("Sound")
+				s.Name = "RodadaLoop"
+				s.SoundId = sdef.Id
+				s.Volume = 0
+				s.Looped = true
+				s.RollOffMaxDistance = 110
+				s.Parent = chassis
+				return s
+			end)
+			if okS and sd then
+				rodada = sd
+				rodadaBase = sdef.Pitch or 1
+				rodadaVol = sdef.Volume or 0.35
+			end
+		end
+	end
+
 	local function rayParams(char)
 		local rp = RaycastParams.new()
 		rp.FilterType = Enum.RaycastFilterType.Exclude
@@ -3585,6 +3612,19 @@ function spawnBike(player: Player)
 		end
 
 		local look = Vector3.new(-math.sin(heading), 0, -math.cos(heading))
+
+		-- v55: la rodada. Sin conductor o parada, silencio; rodando, se oye
+		-- (el volumen sigue a la velocidad, como las ruedas de verdad).
+		if rodada then
+			local f = math.clamp(math.abs(speed) / math.max(1, maxSpeed), 0, 1)
+			if occupant and f > 0.01 then
+				if not rodada.IsPlaying then pcall(function() rodada:Play() end) end
+				rodada.PlaybackSpeed = rodadaBase * (0.85 + 0.3 * f)
+				rodada.Volume = rodadaVol * f
+			elseif rodada.IsPlaying then
+				pcall(function() rodada:Stop() end)
+			end
+		end
 
 		-- 1) ¿pared enfrente?
 		if math.abs(speed) > 0.5 then
@@ -4055,6 +4095,35 @@ local function hacerConducible(model: Model, info: any, baseCF: CFrame)
 	-- nada cuando el carro esta quieto (menos chismorreo de replication).
 	local ultCF = body.CFrame
 
+	-- ===== v55: EL SONIDO DEL MOTOR (loop en el chasis) =====
+	-- Un motor constante, posicionado en el carro (RollOffMaxDistance: se oye
+	-- cada vez mas lejos mientras te acercas, como en la calle de verdad).
+	-- Suena SOLO mientras hay conductor; el tono sube con la velocidad (la
+	-- "musica" de manejar). Al bajarse, se apaga.
+	local motor: Sound? = nil
+	local motorBase = 1.0
+	local motorVol = 0.4
+	do
+		local sdef = Config.Sounds and Config.Sounds.Engine
+		if sdef and Config.Sounds.Enabled then
+			local okS, sd = pcall(function()
+				local s = Instance.new("Sound")
+				s.Name = "MotorLoop"
+				s.SoundId = sdef.Id
+				s.Volume = 0
+				s.Looped = true
+				s.RollOffMaxDistance = 160
+				s.Parent = body
+				return s
+			end)
+			if okS and sd then
+				motor = sd
+				motorBase = sdef.Pitch or 1
+				motorVol = sdef.Volume or 0.4
+			end
+		end
+	end
+
 	local function rayParams(char)
 		local rp = RaycastParams.new()
 		rp.FilterType = Enum.RaycastFilterType.Exclude
@@ -4114,6 +4183,19 @@ local function hacerConducible(model: Model, info: any, baseCF: CFrame)
 		local rate = (math.abs(target) > math.abs(speed)) and 26 or 48
 		speed = speed + math.clamp(target - speed, -rate * dt, rate * dt)
 		if math.abs(speed) < 0.4 then speed = 0 end
+
+		-- v55: el motor. Tono y volumen suben con la velocidad: parado suena
+		-- a idle, a fondo suena a toda marcha. Sin conductor, silencio.
+		if motor then
+			if ocupante then
+				if not motor.IsPlaying then pcall(function() motor:Play() end) end
+				local f = math.clamp(math.abs(speed) / math.max(1, maxSpeed), 0, 1)
+				motor.PlaybackSpeed = motorBase * (0.72 + 0.55 * f)
+				motor.Volume = motorVol * (0.55 + 0.45 * f)
+			elseif motor.IsPlaying then
+				pcall(function() motor:Stop() end)
+			end
+		end
 
 		-- girar (solo si va andando, como un carro de verdad)
 		if math.abs(speed) > 1 then

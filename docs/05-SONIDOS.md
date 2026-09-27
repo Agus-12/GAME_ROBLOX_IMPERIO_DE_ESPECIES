@@ -16,6 +16,18 @@ Verificados uno por uno contra la API de Roblox: los 6 son `AssetTypeId = 3` (au
 | `Error` | `12221967` | button.wav (a tono 0.55) | Roblox |
 | `Arrest` | `9114764731` | Handcuff Movement 25 | ProSoundEffects |
 
+## Los LOOPS (v55)
+
+Verificados igual contra la API (ProSoundEffects, públicos y permanentes). Estos
+no son golpes: suenan mientras dura la cosa y el juego les mueve el tono y el
+volumen según la velocidad. El `Pitch` de la config es la BASE.
+
+| Clave | ID | Nombre real | Dónde suena |
+|---|---|---|---|
+| `Engine` | `9119386571` | Spacecraft Engine Idle Constant Mild Roar 2 | la van/carros, en el chasis: idle al subirse, el tono sube hasta 1.27× a toda marcha, se apaga al bajarse (RollOff 160) |
+| `Rolling` | `9126157444` | Vehicle Gravel Tires Crunch Constant Over Rocks | la bici: el volumen sigue a la velocidad (parada = silencio, RollOff 110) |
+| `Music` | `9112758500` | City Ambience 3 (By US Capitol, Afternoon) | música ambiente del cliente: loop bajito en `SoundService` (sobrevive al respawn), volumen 0.18 |
+
 **ProSoundEffects** es una biblioteca profesional que Roblox subió gratis para todos los
 desarrolladores (creador id `7462895450`). Son públicos y permanentes — la apuesta más
 segura frente a los IDs de listas comunitarias, que suelen estar privados o borrados.
@@ -66,6 +78,4 @@ Para que el usuario busque los suyos: pestaña **Creador** → **Audio** → cli
 
 ## Pendiente
 
-- Música de fondo
-- Sonido de motor para los vehículos
-- Sonido de la bici al rodar
+- (nada de sonido pendiente: motor, rodada y ambiente ya están)

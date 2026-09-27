@@ -8,10 +8,25 @@ local LISTA_MUNDO = nil
 local function newSignal()
   local s = {_fns = {}}
   function s:Connect(fn)
-    local i = #self._fns + 1
-    self._fns[i] = fn
-    return { Disconnect = function() self._fns[i] = nil end,
-             disconnect = function() self._fns[i] = nil end }
+    local t = self._fns
+    t[#t + 1] = fn
+    -- v55: Disconnect debe QUITAR la funcion de la lista (table.remove), no
+    -- dejar un HUECO en nil. Con huecos, el ipairs del Fire se cortaba en el
+    -- primer nil: cuando un bucle se desconectaba sola (la bici vieja al
+    -- hacerse Destroy), TODOS los handlers conectados despues de ella dejaban
+    -- de dispararse — en Roblox real desconectar una conexion no apaga a las
+    -- demas. Eso hacia que la bici "recien invocada" nunca sonara ni moviera
+    -- en el simulador, sin ningun error visible.
+    return { Disconnect = function()
+        for i = #t, 1, -1 do
+          if t[i] == fn then table.remove(t, i) break end
+        end
+      end,
+      disconnect = function()
+        for i = #t, 1, -1 do
+          if t[i] == fn then table.remove(t, i) break end
+        end
+      end }
   end
   function s:ConnectParallel(fn) return self:Connect(fn) end
   function s:Once(fn) return self:Connect(fn) end
@@ -22,7 +37,11 @@ local function newSignal()
   -- que el auto no se movia).
   SIGNALES[#SIGNALES+1] = s
   function s:Fire(...)
-    for _, fn in ipairs(self._fns) do
+    -- copia de la lista: si un handler se desconecta a media rafaga (o se
+    -- conecta uno nuevo), la iteracion no se corrompe ni se salta a nadie
+    local fns = {}
+    for i = 1, #self._fns do fns[#fns + 1] = self._fns[i] end
+    for _, fn in ipairs(fns) do
       local ok, err = pcall(fn, ...)
       if not ok then print("!! error en un Heartbeat/señal: " .. tostring(err)) end
     end
@@ -264,6 +283,15 @@ function Instance_.new(cls,parent)
       o.Position = Vector3.new(0, 0, 0)
     end
   end
+  -- v55: VehicleSeat como en Roblox: Throttle/Steer nacen en 0 (el bucle de la
+  -- bici los lee directo y con nil tronaba CADA FRAME: la bici no se movia en
+  -- el simulador y nadie lo veia porque el error moria dentro de la señal).
+  if cls == "VehicleSeat" then
+    o.Throttle = 0
+    o.Steer = 0
+    o.ThrottleFloat = 0
+    o.SteerFloat = 0
+  end
   -- v48: Humanoid como en Roblox (Health/MaxHealth/WalkSpeed...). Sin esto,
   -- "hum.Health > 0" del bucle de territorios tronaba en el simulador ("attempt
   -- to compare number with nil") y ademas el codigo que mira la vida del
@@ -420,6 +448,17 @@ function Instance_.new(cls,parent)
   o.GetPropertyChangedSignal=function() return newSignal() end
   o.LoadAnimation=function() return {Play=function() end,Looped=false,Priority=0} end
   o.MoveTo=function() end ; o.Play=function() end ; o.Stop=function() end
+  -- v55: los Sound de verdad SABEN si estan sonando (IsPlaying). El mock los
+  -- dejaba en no-ops y las pruebas de sonido no podian comprobar nada ("suena
+  -- el motor mientras manejas" era inverificable). Se imita a Roblox: nace
+  -- apagado y Play/Stop/Pause mueven la bandera.
+  if cls == "Sound" then
+    o.IsPlaying = false
+    o.Looped = false
+    o.Play = function(s) s.IsPlaying = true end
+    o.Stop = function(s) s.IsPlaying = false end
+    o.Pause = function(s) s.IsPlaying = false end
+  end
   -- asientos: en Roblox  seat:Sit(humanoid)  sienta al personaje. Sin esto, las
   -- pruebas no podian comprobar que "Sacar y conducir" te deja manejando.
   o.Sit=function(s, hum) if hum then s.Occupant = hum end return true end

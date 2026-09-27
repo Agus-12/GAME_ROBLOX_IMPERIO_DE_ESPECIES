@@ -61,6 +61,8 @@ echo "=== 25. LA VISTA DEL MUNDO (la ciudad, los 20 lotes, tu lote y las fachada
 python3 tools/mundo50.py
 echo "=== 26. LOS CAMINOS DE LOS LOTES Y LA VAN QUE SALE BIEN (v51) ==="
 python3 tools/caminos51.py
+echo "=== 27. SONIDO DE VERDAD: motor, rodada y musica ambiente (v55) ==="
+python3 tools/sonido55.py
 echo "=== 18. EL DOCK DE CELULAR (los botones responden al toque) ==="
 python3 tools/dock43.py
 echo "=== 14. LA PAGINA DE COPIAR: cada pestana muestra su archivo ==="
